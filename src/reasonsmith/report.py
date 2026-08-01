@@ -869,6 +869,9 @@ class ConformanceReport:
     .dossier-foot a {{ color: var(--accent-deep); text-decoration: none; }}
     .dossier-foot a:hover {{ text-decoration: underline; }}
     .brand-title {{
+      display: flex;
+      align-items: center;
+      gap: var(--space-2xs);
       font-family: var(--font-mono);
       font-size: var(--step--1);
       font-weight: 600;
@@ -877,6 +880,9 @@ class ConformanceReport:
       color: oklch(80% 0.06 25);
       margin-bottom: var(--space-2xs);
     }}
+    .brand-title svg {{ width: 1.15rem; height: 1.15rem; }}
+    .brand-title .mark-live {{ fill: var(--ok); }}
+    .brand-title .mark-strike {{ fill: var(--accent); }}
     .main-title {{
       font-family: var(--font-serif);
       font-size: var(--display);
@@ -1293,7 +1299,24 @@ class ConformanceReport:
     <header class="report-header">
       <div class="header-top">
         <div>
-          <div class="brand-title">reasonsmith audit engine</div>
+          <div class="brand-title">
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <g stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5">
+                <line x1="10" y1="47" x2="32" y2="17"/><line x1="21" y1="47" x2="32" y2="17"/>
+                <line x1="32" y1="47" x2="32" y2="17"/><line x1="43" y1="47" x2="32" y2="17"/>
+                <line x1="54" y1="47" x2="32" y2="17"/>
+              </g>
+              <circle cx="32" cy="15" r="6.5" fill="currentColor"/>
+              <circle cx="10" cy="47" r="5" class="mark-live"/>
+              <circle cx="21" cy="47" r="5" fill="currentColor"/>
+              <circle cx="32" cy="47" r="5" fill="currentColor"/>
+              <circle cx="43" cy="47" r="5" fill="currentColor"/>
+              <circle cx="54" cy="47" r="5" fill="currentColor"/>
+              <rect x="15" y="44.8" width="45" height="4.4" rx="1.2" class="mark-strike"
+                transform="rotate(-3 37.5 47)"/>
+            </svg>
+            reasonsmith audit engine
+          </div>
           <h1 class="main-title">Conformance Report</h1>
         </div>
         <span class="header-corner">
