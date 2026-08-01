@@ -1,0 +1,30 @@
+# CITATION.cff — Citation File Format 1.2.0.
+# The preferred citation is the JAIR reference record supplied by the paper first author.
+cff-version: 1.2.0
+message: "If you use reasonsmith, please cite it and the paper it continues."
+type: software
+title: "reasonsmith — evidence records and reason-deletion certificates for decision systems"
+authors:
+  - family-names: "Stan"
+    given-names: "Ionel Eduard"
+version: "0.2.0"
+license: "MIT"
+repository-code: "https://github.com/eduardstan/reasonsmith"
+url: "https://reasonsmith.dev"
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Stan"
+      given-names: "Ionel Eduard"
+    - family-names: "Sciavicco"
+      given-names: "Guido"
+    - family-names: "Napoletano"
+      given-names: "Paolo"
+  title: "Symbols and Neurons: A Review of Symbolic XAI in Deep Learning"
+  journal: "Journal of Artificial Intelligence Research"
+  volume: 86
+  number: 36
+  year: 2026
+  month: 7
+  pages: 60
+  doi: "10.1613/jair.1.22096"
