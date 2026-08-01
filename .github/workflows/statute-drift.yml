@@ -1,0 +1,75 @@
+name: statute-drift
+
+on:
+  workflow_dispatch:
+  schedule:
+    # First day of every month, 03:00 UTC: re-fetch the official statutory sources and check the
+    # packs' verbatim quotes against them as the law reads today.
+    - cron: "0 3 1 * *"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: statute-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Same one command a stranger runs from a fresh clone (README, "Quick Start").
+      - run: pip install -e ".[dev]"
+      # Exits 1 when any quote differs, any source is unreachable, or a registered passage can no
+      # longer be extracted, and always writes drift-report.json before doing so, so the issue step
+      # below can read the findings.
+      - name: Re-fetch official sources and compare pack quotes
+        run: python -m reasonsmith.drift --report drift-report.json
+      - name: Open or update the drift issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - drift-report.json <<'PY'
+          import json
+          import os
+          import subprocess
+          import sys
+
+          path = sys.argv[1]
+          if not os.path.isfile(path):
+              sys.exit("no drift-report.json; the drift job failed for another reason")
+          data = json.load(open(path, encoding="utf-8"))
+          if not data.get("findings"):
+              sys.exit("report has no findings; nothing to file")
+          title = "Statute drift: pack quotes no longer match the official legal sources"
+          body = (
+              "The monthly statute drift check re-fetched the official sources and found "
+              "requirements whose `verbatim_text` no longer matches. A `differ` finding means the "
+              "quote does not occur in the extracted passage after whitespace collapsing; "
+              "`could-not-verify` means the source was unreachable or its registered passage "
+              "could not be extracted. The packs are never edited automatically.\n\n"
+              "<details>\n<summary>Full report</summary>\n\n```\n"
+              + data["report"]
+              + "\n```\n</details>"
+          )
+          open_issues = json.loads(subprocess.run(
+              ["gh", "issue", "list", "--state", "open", "--search",
+               f'"{title}" in:title', "--limit", "100", "--json", "number,title"],
+              capture_output=True, text=True, check=True,
+          ).stdout)
+          open_number = next(
+              (str(issue["number"]) for issue in open_issues if issue["title"] == title),
+              "",
+          )
+          if open_number:
+              subprocess.run(["gh", "issue", "comment", open_number, "--body", body], check=True)
+          else:
+              subprocess.run(["gh", "issue", "create", "--title", title, "--body", body], check=True)
+          PY
