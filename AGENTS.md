@@ -66,11 +66,10 @@ tweak included — means regenerating the transcripts and updating both files' h
 Table 7 run declared into the high-risk class, beside the demonstration's key finding, which no
 report the CLI writes may carry — and `test_docs_index_html_matches_the_renderer` holds the
 committed page byte-for-byte to that script. Touching the renderer means regenerating the page with
-`python docs/build_example.py`, the command the page names as its own provenance;
-`.github/workflows/pages.yml` publishes that committed file rather than rendering its own.
-`docs/index.html` is different: the hand-authored landing page (WebGL proof-graph flight, vendored
-libraries under `docs/vendor/`, styles and scripts under `docs/site/`) — never regenerated, edit it
-directly.
+`python docs/build_example.py`, the command the page names as its own provenance. The website
+(landing, vendored libraries, fonts, assets) lives in the separate private `reasonsmith-site`
+repo and deploys to Vercel — see issue #35; this repo only generates the dossier that gets
+published there as `report.html`.
 
 `docs/nesyarena-conformance-report.md` is the third generated document, and the only run against a
 real system rather than a demonstration fixture: `docs/build_nesyarena_report.py` drives the five
