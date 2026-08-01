@@ -63,6 +63,12 @@ committed page byte-for-byte to that script. Touching the renderer means regener
 `python docs/build_example.py`, the command the page names as its own provenance;
 `.github/workflows/pages.yml` publishes that committed file rather than rendering its own.
 
+## The front door
+
+Before editing the CLI, read the maintenance contracts in `src/reasonsmith/cli.py`'s module
+docstring. README, "The CLI", owns user-facing usage, and `docs/authoring-packs.md` owns the
+pack-authoring rules.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.
