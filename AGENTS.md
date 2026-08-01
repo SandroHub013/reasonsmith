@@ -35,7 +35,8 @@ Release Note", records how that was verified; the repo publishes no tag).
 - No emitted record, certificate or measurement may present itself as complete when it is not, and
   every one carries its own limits. See the module docstrings in `evidence.py` and `certificate.py`
   for why each check exists before changing one.
-- No check asserts branding, wording or presentation.
+- No check asserts branding or presentation. Limits tests pin semantic boundary clauses, not full
+  prose.
 
 In v0.2 the first rule becomes structural. A verdict carries the strength of the evidence behind it
 (`verdict.py`), and `RequirementResult.__post_init__` refuses to construct a result that claims more
@@ -67,6 +68,12 @@ report the CLI writes may carry — and `test_docs_index_html_matches_the_render
 committed page byte-for-byte to that script. Touching the renderer means regenerating the page with
 `python docs/build_example.py`, the command the page names as its own provenance;
 `.github/workflows/pages.yml` publishes that committed file rather than rendering its own.
+
+`docs/semantics.md` states what each verdict means and what it does not, and every claim in it names
+the test that fails if the claim becomes false. `tests/test_docs_semantics.py` checks that mapping,
+so **renaming or deleting a test breaks the build if that test is named there** — update the
+document in the same commit. It is also where a claim the code cannot support belongs: report the
+gap in the document rather than describing a tool that does not exist.
 
 ## The front door
 

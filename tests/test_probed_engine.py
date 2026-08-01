@@ -131,6 +131,50 @@ def test_no_counterexample_in_budget_is_probed_and_every_rendering_carries_the_b
     assert "50 input(s) replayed, seed 7" in html
 
 
+def test_an_input_the_system_cannot_decide_is_counted_not_read_as_a_pass():
+    """`probed` quantifies over the replayed inputs that produced a decision, and counts the rest.
+
+    An input the system raises on yields no decision the property can be read over. Counting it
+    as a pass would let a system that refuses most of the search space look thoroughly probed, so
+    the budget carries how many inputs produced nothing.
+    """
+
+    class RefusingSUT(HonestSUT):
+        """Raises on any applicant under 25 rather than deciding."""
+
+        def decide(self, case):
+            if case.get("age", 0) < 25:
+                raise ValueError("age below the system's minimum")
+            return super().decide(case)
+
+    res = ProbedEngine.evaluate(_req(), RefusingSUT(), trials=60, seed=5)
+
+    assert res.verdict == Verdict.SATISFIED
+    assert res.strength == Strength.PROBED
+    budget = res.details[PROBE_BUDGET_KEY]
+    # Some inputs produced no decision, and the count of them is on the result rather than lost.
+    assert 0 < budget["inputs_errored"] < budget["trials"]
+
+
+def test_an_input_whose_property_cannot_be_evaluated_is_counted_not_read_as_a_pass():
+    """A decision can exist while the property is undefined; that input is still errored."""
+
+    class EchoSUT(OpaqueSUT):
+        def __init__(self):
+            super().__init__(trace=({"denominator": 0}, {"denominator": 1}))
+
+        def decide(self, case):
+            return dict(case)
+
+    req = _req(spec="1 / denominator == 1 / denominator", requires=("denominator",))
+    res = ProbedEngine.evaluate(req, EchoSUT(), trials=20, seed=5)
+
+    assert res.verdict == Verdict.SATISFIED
+    assert res.strength == Strength.PROBED
+    budget = res.details[PROBE_BUDGET_KEY]
+    assert 0 < budget["inputs_errored"] < budget["trials"]
+
+
 def test_a_counterexample_that_does_not_reproduce_is_not_evaluated():
     """A candidate that fails once and passes on replay is a defect in the search, not a breach."""
     res = ProbedEngine.evaluate(_req(spec="approved == True", requires=("approved",)), FlakySUT())
@@ -178,6 +222,43 @@ def test_the_same_seed_searches_the_same_space():
     assert len(first) == 40
     # The recorded decisions are replayed first, unperturbed.
     assert first[: len(records)] == records
+
+
+def test_probe_plan_deduplicates_seed_records_and_obeys_trial_cap():
+    records = [{"x": 1}, {"x": 1}, {"x": 2}, {"x": 3}]
+    req = _req(spec="x == x", requires=("x",))
+
+    assert plan_inputs(req, records, trials=2, seed=0) == [{"x": 1}, {"x": 2}]
+
+
+def test_probe_candidate_pools_and_budget_counts_are_exact():
+    records = [
+        {"flag": True, "number": 2, "text": "x", "fixed": {"nested": 1}},
+        {"flag": False, "number": 4, "text": "y", "fixed": {"nested": 2}},
+    ]
+    req = _req(spec="number - 10 == number - 10", requires=("number",))
+    pools = probed._pools(req, records)
+
+    assert set(pools) == {"flag", "number", "text"}
+    assert set(pools["flag"]) == {True, False}
+    assert set(pools["number"]) == {-4, -2, 0, 1, 2, 3, 4, 5, 8, 9, 10, 11}
+    assert set(pools["text"]) == {"", "x", "y"}
+
+    class EchoSUT(OpaqueSUT):
+        def __init__(self):
+            super().__init__(trace=records)
+
+        def decide(self, case):
+            return dict(case)
+
+    result = ProbedEngine.evaluate(req, EchoSUT(), trials=20, seed=3)
+
+    assert result.verdict == Verdict.SATISFIED
+    assert result.details[PROBE_BUDGET_KEY]["input_space"] == {
+        "flag": 2,
+        "number": 12,
+        "text": 3,
+    }
 
 
 def test_the_engine_replays_exactly_the_planned_inputs():

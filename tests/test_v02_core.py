@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 
 from reasonsmith.report import (
+    LIMITS as REPORT_LIMITS,
+)
+from reasonsmith.report import (
     ConformanceReport,
     RequirementResult,
     analyze_unattainable,
@@ -936,6 +939,12 @@ def test_limits_cover_both_ways_a_requirement_becomes_not_applicable():
     assert "never infers that class" in limits
 
 
+def test_report_limits_exclude_legal_determination_and_scope_inference():
+    assert "findings discharge legal duties" in REPORT_LIMITS
+    assert "determination this tool does not make and cannot make" in REPORT_LIMITS
+    assert "This tool never infers that class" in REPORT_LIMITS
+
+
 @pytest.mark.parametrize("typo", ["hihg-risk", "high risk", "high_risk", "highrisk", "High Risk"])
 def test_a_scope_outside_the_vocabulary_is_refused(typo):
     """A misspelled class must not read as a system that is simply out of scope.
@@ -1045,3 +1054,30 @@ def test_the_two_scope_gates_never_disagree(pack_name, declared_scope):
             bool(req.scope) and normalize_scope(req.scope) != normalize_scope(declared_scope)
         ), req.id
 
+
+def test_declared_scope_attribute_is_the_applicability_fallback():
+    """`declared_scope` decides applicability when `system_scope` is absent."""
+    sut = FullCapabilitySUT()
+    del sut.system_scope
+    sut.declared_scope = "high-risk"
+    pack = load_pack("eu_ai_act")
+
+    report = check_conformance(sut, pack)
+    direct = evaluate_requirement(pack.requirements[0], sut)
+
+    assert report.system_scope == "high-risk"
+    assert all(result.verdict != Verdict.NOT_APPLICABLE for result in report.results)
+    assert direct.verdict != Verdict.NOT_APPLICABLE
+
+
+def test_system_scope_precedes_a_conflicting_declared_scope():
+    sut = FullCapabilitySUT(system_scope="limited-risk")
+    sut.declared_scope = "high-risk"
+    pack = load_pack("eu_ai_act")
+
+    report = check_conformance(sut, pack)
+    direct = evaluate_requirement(pack.requirements[0], sut)
+
+    assert report.system_scope == "limited-risk"
+    assert all(result.verdict == Verdict.NOT_APPLICABLE for result in report.results)
+    assert direct.verdict == Verdict.NOT_APPLICABLE

@@ -21,7 +21,7 @@ from reasonsmith.adapters import CallableAdapter, JSONLAdapter
 from reasonsmith.cli import main as cli_main
 from reasonsmith.engines.observed import ObservedEngine
 from reasonsmith.engines.record import RecordEngine
-from reasonsmith.report import check_conformance
+from reasonsmith.report import check_conformance, evaluate_requirement
 from reasonsmith.spec import Requirement, list_packs, load_pack
 from reasonsmith.sut import CAPABILITY_TAXONOMY, BaseSUT
 from reasonsmith.verdict import Strength, Verdict
@@ -257,6 +257,42 @@ class TestCallableAdapter:
             sut.decide({"case": 1})
 
 
+def test_record_and_temporal_formalisms_route_through_report():
+    sut = BaseSUT({"signal_a", "signal_b"})
+    records = [
+        {"signal_a": True, "signal_b": True},
+        {"signal_a": False, "signal_b": False},
+    ]
+
+    def requirement(formalism: str, spec: str) -> Requirement:
+        return Requirement(
+            id=f"route_{formalism}",
+            source_document="Doc",
+            article_clause="Art 1",
+            verbatim_text="Quote",
+            stakeholder="deployer",
+            formalism=formalism,
+            spec=spec,
+            requires=("signal_a", "signal_b"),
+            binding=True,
+            scope="",
+        )
+
+    record = evaluate_requirement(
+        requirement("record", "not valid temporal syntax !@#$"), sut, records
+    )
+    temporal = evaluate_requirement(
+        requirement("temporal", "always((signal_a >= 0.5) -> (signal_b >= 0.5))"),
+        sut,
+        records,
+    )
+
+    assert record.verdict == Verdict.SATISFIED
+    assert record.details == {"records_observed": 2}
+    assert temporal.verdict == Verdict.SATISFIED
+    assert "evaluation_scores" in temporal.details
+
+
 class TestRecordEngine:
     """Tests for RecordEngine completeness verification."""
 
@@ -301,6 +337,46 @@ class TestRecordEngine:
         assert result.verdict == Verdict.VIOLATED
         assert result.strength == Strength.OBSERVED
         assert "artifact_logs_reason_explanation" in result.details["signals_absent_from_trace"]
+
+    def test_the_record_engine_reads_requires_not_spec(self, jsonl_fixture_file: Path):
+        """A `record` duty is discharged by its `requires` list; its `spec` is never evaluated.
+
+        The shipped record requirements carry free prose in `spec` ("Record check"), which no
+        parser would accept. A reader has to know that string is documentation rather than the
+        property being checked, or they will read a record verdict as a claim about it.
+        """
+        sut = JSONLAdapter(jsonl_fixture_file)
+        records = list(sut.decisions())
+
+        def result_for(spec: str):
+            return RecordEngine.evaluate(
+                Requirement(
+                    id="req_rec_spec",
+                    source_document="Doc",
+                    article_clause="Art 1",
+                    verbatim_text="Quote",
+                    stakeholder="deployer",
+                    formalism="record",
+                    spec=spec,
+                    requires=("provenance_model_version", "artifact_logs_event_log"),
+                    binding=True,
+                    scope="",
+                ),
+                sut,
+                records,
+            )
+
+        prose = result_for("Record check")
+        # A property that is false on every record, and one that no parser would accept at all.
+        false_property = result_for("provenance_model_version == 'never this version'")
+        unparseable = result_for("not a property !@#$")
+
+        assert prose.verdict == Verdict.SATISFIED
+        assert prose.strength == Strength.OBSERVED
+        for other in (false_property, unparseable):
+            assert other.verdict == prose.verdict
+            assert other.strength == prose.strength
+            assert other.evidence_summary == prose.evidence_summary
 
 
 class TestObservedEngine:
