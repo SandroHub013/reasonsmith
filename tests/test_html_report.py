@@ -24,7 +24,7 @@ from reasonsmith.verdict import Strength, Verdict
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_LOG = ROOT / "docs" / "sample_decisions.jsonl"
-DOCS_INDEX = ROOT / "docs" / "index.html"
+DOCS_INDEX = ROOT / "docs" / "report.html"
 
 
 def _load_build_example():
@@ -244,13 +244,19 @@ def test_cli_html_export():
     """Test generating HTML report via CLI --html flag with explicit UTF-8 encoding."""
     with tempfile.TemporaryDirectory() as tmpdir:
         out_file = Path(tmpdir) / "report.html"
-        ret = cli_main([
-            "check",
-            "--system", str(SAMPLE_LOG),
-            "--pack", "ecoa",
-            "--system-name", "CLITestSystem",
-            "--html", str(out_file),
-        ])
+        ret = cli_main(
+            [
+                "check",
+                "--system",
+                str(SAMPLE_LOG),
+                "--pack",
+                "ecoa",
+                "--system-name",
+                "CLITestSystem",
+                "--html",
+                str(out_file),
+            ]
+        )
         assert ret == 0
         assert out_file.exists()
 
@@ -265,13 +271,18 @@ def test_cli_json_is_not_dropped_when_html_goes_to_a_file(capsys):
     """`--json --html FILE` writes the page and still prints the JSON it was asked for."""
     with tempfile.TemporaryDirectory() as tmpdir:
         out_file = Path(tmpdir) / "report.html"
-        ret = cli_main([
-            "check",
-            "--system", str(SAMPLE_LOG),
-            "--pack", "ecoa",
-            "--json",
-            "--html", str(out_file),
-        ])
+        ret = cli_main(
+            [
+                "check",
+                "--system",
+                str(SAMPLE_LOG),
+                "--pack",
+                "ecoa",
+                "--json",
+                "--html",
+                str(out_file),
+            ]
+        )
         assert ret == 0
         assert out_file.exists()
         assert json.loads(capsys.readouterr().out)["pack_id"] == "ecoa"
@@ -279,9 +290,18 @@ def test_cli_json_is_not_dropped_when_html_goes_to_a_file(capsys):
 
 def test_cli_refuses_json_and_html_on_the_same_stream(capsys):
     """Both to stdout would silently lose one, so it is a usage error, not a quiet drop."""
-    ret = cli_main([
-        "check", "--system", str(SAMPLE_LOG), "--pack", "ecoa", "--json", "--html", "-",
-    ])
+    ret = cli_main(
+        [
+            "check",
+            "--system",
+            str(SAMPLE_LOG),
+            "--pack",
+            "ecoa",
+            "--json",
+            "--html",
+            "-",
+        ]
+    )
     assert ret == 1
     assert "Error:" in capsys.readouterr().err
 
@@ -289,12 +309,17 @@ def test_cli_refuses_json_and_html_on_the_same_stream(capsys):
 def test_cli_unwritable_html_path_is_an_input_error(capsys):
     """A bad --html path exits 1 with a message, never an unhandled OSError traceback."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        ret = cli_main([
-            "check",
-            "--system", str(SAMPLE_LOG),
-            "--pack", "ecoa",
-            "--html", str(Path(tmpdir) / "no-such-dir" / "report.html"),
-        ])
+        ret = cli_main(
+            [
+                "check",
+                "--system",
+                str(SAMPLE_LOG),
+                "--pack",
+                "ecoa",
+                "--html",
+                str(Path(tmpdir) / "no-such-dir" / "report.html"),
+            ]
+        )
         assert ret == 1
         assert "Error writing HTML report" in capsys.readouterr().err
 
@@ -369,14 +394,21 @@ def test_the_page_names_a_provenance_command_that_reproduces_it():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         out_file = Path(tmpdir) / "index.html"
-        ret = cli_main([
-            "check",
-            "--system", str(SAMPLE_LOG),
-            "--pack", "table7",
-            "--system-name", "CreditScoringPipeline",
-            "--system-scope", "high-risk",
-            "--html", str(out_file),
-        ])
+        ret = cli_main(
+            [
+                "check",
+                "--system",
+                str(SAMPLE_LOG),
+                "--pack",
+                "table7",
+                "--system-name",
+                "CreditScoringPipeline",
+                "--system-scope",
+                "high-risk",
+                "--html",
+                str(out_file),
+            ]
+        )
         assert ret in (0, 2)
         assert out_file.read_text(encoding="utf-8") != page
 
