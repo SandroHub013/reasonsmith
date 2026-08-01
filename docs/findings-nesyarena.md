@@ -28,11 +28,14 @@ enumeration at the depth each generator itself records. Nothing was chosen after
 **The decision.** Each provenance aggregates the proofs of one instance and the value is
 thresholded at `0.5` into approve/deny. The threshold was fixed before the run and not moved.
 
-**The record.** Eight signals, each computed from that system's own inference on that instance:
-the decision record, an event-log entry, the per-decision reason, the model version, the
-constraint set (the program's ground rules), the local-vs-global scope statement, the
-explanation-scope statement, and the approximation-vs-guarantee statement carrying the measured
-deviation from the semantics the system claims.
+**The record.** Ten signals, each computed from that system's own inference on that instance:
+the decision record, the decision's margin from the approve threshold, an event-log entry, the
+per-decision reason, the model version, the constraint set (the program's ground rules), the
+local-vs-global scope statement, the explanation-scope statement, the approximation-vs-guarantee
+statement carrying the measured deviation from the semantics the system claims, and that deviation
+as a number. The decision margin and numeric deviation are the two signals added for the duty below;
+its property compares them, and its capability declaration also requires the existing approximation
+statement. The first run carried eight signals and no duty read the deviation at all.
 
 Nine further pack signals were **not** declared, because the system genuinely cannot emit them —
 `provenance_active_exceptions` (definite Horn programs have no defeater mechanism),
@@ -48,16 +51,21 @@ a measurement harness, not an AI system placed on the market in an Annex III use
 
 ## The headline
 
-55 results — 5 systems × 11 requirements across the three packs:
+60 results — 5 systems × 12 requirements across the three packs:
 
 | outcome | count |
 | --- | ---: |
-| satisfied, at strength `observed` | 17 |
-| violated, at strength `observed` | 3 |
+| satisfied, at strength `observed` | 20 |
+| violated, at strength `observed` | 5 |
 | inconclusive, `unattainable` | 15 |
 | not applicable (no class declared) | 20 |
 | satisfied at `probed` | 0 |
 | satisfied at `proved` | 0 |
+
+Three of the five violations are the missing-reason finding below, which the first run of this
+battery already produced against 11 requirements. The other two are the twelfth requirement, added
+after that run to read the declared deviation rather than the field that explains it — see
+[what changed](#what-changed-since-this-finding), under finding 1.
 
 ## The violation
 
@@ -112,18 +120,73 @@ it**.
 An adopter should read the satisfied rows here as exactly this: *the record has the fields*. Not:
 *the system computes what it says it computes*.
 
+#### What changed since this finding
+
+The finding above is left as it was written, because it is the reason the duty below exists. What
+follows is what the current run does differently.
+
+`gdpr_recital71_error_risk_minimised` is a twelfth requirement, interpretive, quoting the second
+paragraph of GDPR Recital 71 — *"the controller should use appropriate mathematical or statistical
+procedures for the profiling, implement technical and organisational measures appropriate to ensure
+... that the risk of errors is minimised"*. It is not class-limited, so unlike EU AI Act Article
+13(2) it reaches a system that declares no regulatory class. Its property is
+
+```text
+always(scope_statements_declared_deviation <= artifact_logs_decision_margin)
+```
+
+— the deviation a system declares about its own approximation, against the distance between that
+decision and its own threshold. No number in it is invented: the bound is the system's own margin,
+so the duty fails exactly when a system's *declared* error is larger than the margin.
+
+Against this battery:
+
+| system | max declared deviation | decisions where the declared deviation exceeds the margin | verdict |
+| --- | ---: | ---: | --- |
+| `exact-wmc` | 0.000000 | 0/16 | satisfied |
+| `add-mult(clamped)` | 0.347356 | 0/16 | satisfied |
+| `top-1-proofs` | 0.470679 | **8/16** | **violated** |
+| `top-3-proofs` | 0.097273 | 0/16 | satisfied |
+| `min-max-prob` | 0.357000 | **5/16** | **violated** |
+
+The two systems the finding names are the two the duty flags, and the exact oracle is untouched:
+its declared deviation is `0.000000` on every instance, and `0.0 <= margin` holds even where the
+margin is zero. `add-mult(clamped)` and `top-3-proofs` stay satisfied on this duty and are right to
+— both deviate, neither ever declares a deviation larger than the decision margin. `min-max-prob`
+breaches on five decisions where the four it actually flips are a subset: a declared deviation can
+exceed the margin without having flipped the decision, and the duty reports the risk, not the flip.
+
+What has **not** changed, and what an adopter must still read the same way:
+
+- The duty reads a **self-declaration**. Nothing in reasonsmith verifies the number. A system that
+  silently under-reports its own error passes; a system honest enough to report a large one is the
+  only kind this duty can flag. It rewards the measurement, not the accuracy.
+- Silence is still not compliance, but it is not a violation either: a system that declares no
+  deviation is `unattainable` on the signal and one that declares an unmeasured statement is not
+  evaluated. Neither is `satisfied`, and neither is a finding about the system's accuracy.
+- An exact equality is a checked limit: rtamt gives it zero robustness, so the observed engine
+  reports it satisfied and cannot detect a decision that turns on an exact threshold tie without
+  signed evidence and the system's own tie-break.
+- Finding 5 below now carries twice the weight: this duty is checkable here only because nesyarena
+  ships the exact oracle beside the approximate provenance. A deployed neuro-symbolic system would
+  come back `unattainable`, and that is the honest outcome rather than a gap in the pack.
+- Every satisfied record-formalism row in this report still means only *the record has the fields*.
+
 ### 2. The top two rungs of the evidence lattice were unreachable
 
 Zero results at `probed`, zero at `proved`. There is no probe budget to report in this run because
 no probed verdict was produced.
 
 Across all three packs there is exactly one `logical` requirement
-(`gdpr_art22_1_no_prohibited_decision_for_any_input`) and one `temporal` one
-(`ecoa_reg_b_1002_9_a_1_timing_of_notice`). Both came back `unattainable` for all five systems,
-so the Z3 proved engine and the replay probed engine never ran. The logical duty needs six
-signals; the system can emit none of them, because five are facts about a controller's legal
-basis or about a human-intervention route and one is about the effect a decision has on a person.
-The temporal duty needs a notification latency the system has no concept of.
+(`gdpr_art22_1_no_prohibited_decision_for_any_input`) and two `temporal` requirements
+(`ecoa_reg_b_1002_9_a_1_timing_of_notice` and `gdpr_recital71_error_risk_minimised`). The logical
+duty and the ECOA temporal duty came back `unattainable` for all five systems, so the Z3 proved
+engine and the replay probed engine never ran. The logical duty needs six signals; the system can
+emit none of them, because five are facts about a controller's legal basis or about a
+human-intervention route and one is about the effect a decision has on a person. The ECOA temporal
+duty needs a notification latency the system has no concept of. The new GDPR temporal duty is
+checkable and produces `observed` verdicts; temporal monitoring does not reach either of the top two
+rungs.
 
 The generalisation is uncomfortable and worth stating plainly: **for any system that knows only
 its own inference, the strongest evidence reasonsmith's shipped packs can produce is `observed`.**
@@ -137,7 +200,7 @@ Four of the five systems came back `satisfied` on `ecoa_reg_b_1002_9_a_2_written
 adverse-action notice duty under 12 CFR 1002.9 — for a graph-reachability benchmark that issues no
 credit and notifies nobody.
 
-The cause is structural: all three ECOA requirements and all four GDPR requirements carry
+The cause is structural: all three ECOA requirements and all five GDPR requirements carry
 `scope = ""`, so they are not class-limited and reach every system. Only the EU AI Act pack uses
 the regulatory-class gate. reasonsmith has no notion of *decision domain* at all — nothing in a
 pack can say "this duty is about consumer credit" — so a domain mismatch is invisible where a
@@ -147,7 +210,7 @@ signal, not a missing domain.
 
 ### 4. The AI Act pack said nothing at all
 
-20 of the 55 results — every AI Act requirement for every system — are `not_applicable` because
+20 of the 60 results — every AI Act requirement for every system — are `not_applicable` because
 no regulatory class was declared. That is the designed behaviour and the report says so in full,
 but the honest summary is that running the AI Act pack against this system produced no
 information. The gate is binary: declare `high-risk` and all four duties are checked, declare
@@ -161,25 +224,28 @@ inside a high-risk system", which is what a provenance library actually is.
 this input` — because nesyarena ships the exact WMC oracle beside the approximate provenance and
 the builder computes the difference for every instance.
 
+The duty added since — `gdpr_recital71_error_risk_minimised`, above — stands on that same property,
+so this caveat is now load-bearing for a verdict rather than only for a field.
+
 The measured approximate provenances would not, standing alone, have such an oracle at inference
 time. They could honestly state *approximation*; they could not state *by how much*. Do not read
 this run as evidence that a production neuro-symbolic system can emit that field with a number in
 it. Where the tool looks strongest here, it is standing on a property of the research harness
 rather than of a deployable one.
 
-### 6. The reason rule decided the only violation in the run
+### 6. The reason rule decided three of the five violations in the run
 
-Full disclosure, because it is the one judgement call that changed a verdict. The reason field was
-defined before the run as *the facts the system's own gradient gives non-zero influence*. Under
-that rule, `add-mult(clamped)`'s saturated decisions carry no reason and are violations.
+Full disclosure, because it is the one judgement call responsible for three verdicts. The reason
+field was defined before the run as *the facts the system's own gradient gives non-zero influence*.
+Under that rule, `add-mult(clamped)`'s saturated decisions carry no reason and are violations.
 
 Had the reason been defined instead as *the proof supports enumerated for the query* — also a
 defensible reading, and non-empty on every instance in this battery — the run would have produced
-**zero violations** and 20 satisfied results. The rule was fixed first and applied identically to
-all five systems, and it is stated in the builder as `REASON_RULE` so a reader can disagree with
-it in the open. But an adopter should know that reasonsmith checks the field the adapter author
-decided to fill, and that the decision of what counts as a reason sits with that author, not with
-the tool.
+**two remaining violations** and 23 satisfied results. Those two deviation-duty violations do not
+depend on the reason rule. The rule was fixed first and applied identically to all five systems, and
+it is stated in the builder as `REASON_RULE` so a reader can disagree with it in the open. But an
+adopter should know that reasonsmith checks the field the adapter author decided to fill, and that
+the decision of what counts as a reason sits with that author, not with the tool.
 
 ## What would need to change to publish this on the site
 
