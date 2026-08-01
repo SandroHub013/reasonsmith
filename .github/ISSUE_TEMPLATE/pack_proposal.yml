@@ -1,0 +1,33 @@
+name: Pack proposal
+description: Propose a new regulation pack — which regulation, which official source, which duty.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A pack encodes duties from an official source as checkable requirements. Quoted statutory text is verified character-for-character against that source, so a good proposal does most of the homework up front. The three required fields below are what a pack needs before it can be built.
+  - type: input
+    id: regulation
+    attributes:
+      label: Which regulation
+      description: The regulation or framework the pack should cover (e.g. EU AI Act, GDPR, ECOA, NIST AI RMF).
+    validations:
+      required: true
+  - type: input
+    id: duty
+    attributes:
+      label: Which duty
+      description: The specific duty or provision to encode — article, section, clause.
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Which official source
+      description: The official text the quotes must match — the exact document, in force, with a public URL. For quoted statute, this source must be recorded in `docs/legal-sources.md` for the verbatim-quote tests and monthly statute-drift check.
+    validations:
+      required: true
+  - type: textarea
+    id: intent
+    attributes:
+      label: Why this pack
+      description: What it adds beyond the existing packs, and what conformance should look like in practice.
