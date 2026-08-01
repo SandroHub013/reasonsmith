@@ -421,8 +421,9 @@ _KEY_FINDING_CSS = """
     margin-bottom: var(--space-2xs);
   }
   .kf-title {
+    font-family: var(--font-serif);
     font-size: var(--step-2);
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1.05;
     letter-spacing: -0.02em;
     text-wrap: balance;

@@ -8,6 +8,10 @@
     :root {
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      /* ponytail: serif di sistema, non Newsreader come la landing — il report resta
+         self-contained (un woff2 inline costerebbe ~130KB per ogni report CLI).
+         Upgrade path: subset Newsreader + data-URI se l'identita' lo richiede. */
+      --font-serif: Georgia, "Times New Roman", serif;
 
       /* Dossier palette: tinted neutrals in oklch, one accent (deletion red), color by role */
       --paper: oklch(96.6% 0.005 95);
@@ -106,6 +110,23 @@
       color: oklch(72% 0.012 260);
       white-space: nowrap;
     }
+    .header-corner a { color: oklch(80% 0.06 25); text-decoration: none; }
+    .header-corner a:hover { text-decoration: underline; }
+    .dossier-foot {
+      margin: 0 var(--space-l) var(--space-m);
+      padding-top: var(--space-s);
+      border-top: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      color: var(--ink-faint);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-s);
+      flex-wrap: wrap;
+    }
+    .dossier-foot a { color: var(--accent-deep); text-decoration: none; }
+    .dossier-foot a:hover { text-decoration: underline; }
     .brand-title {
       font-family: var(--font-mono);
       font-size: var(--step--1);
@@ -116,10 +137,11 @@
       margin-bottom: var(--space-2xs);
     }
     .main-title {
+      font-family: var(--font-serif);
       font-size: var(--display);
-      font-weight: 800;
+      font-weight: 600;
       line-height: 1.0;
-      letter-spacing: -0.03em;
+      letter-spacing: -0.025em;
       text-wrap: balance;
     }
     .meta-grid {
@@ -164,10 +186,11 @@
       margin-bottom: var(--space-2xs);
     }
     .headline-text {
-      font-size: var(--step-1);
-      font-weight: 700;
-      line-height: 1.3;
-      letter-spacing: -0.01em;
+      font-family: var(--font-serif);
+      font-size: var(--step-2);
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.015em;
       color: var(--accent-deep);
       max-width: 65ch;
       text-wrap: pretty;
@@ -232,9 +255,10 @@
     .text-muted { color: var(--ink-faint); font-size: var(--step--1); }
 
     .section-title {
-      font-size: var(--step-1);
-      font-weight: 750;
-      letter-spacing: -0.01em;
+      font-family: var(--font-serif);
+      font-size: var(--step-2);
+      font-weight: 600;
+      letter-spacing: -0.015em;
       padding: var(--space-m) var(--space-l) var(--space-xs);
       border-top: 1px solid var(--line);
       color: var(--ink);
@@ -524,14 +548,16 @@
 </head>
 <body>
   <a class="skip-link" href="#findings">Skip to requirement findings</a>
-  <div class="container">
+  <div class="container" id="top">
     <header class="report-header">
       <div class="header-top">
         <div>
           <div class="brand-title">reasonsmith audit engine</div>
           <h1 class="main-title">Conformance Report</h1>
         </div>
-        <span class="header-corner" aria-hidden="true">audit dossier</span>
+        <span class="header-corner">
+          <a href="index.html">&larr; landing</a> &middot; audit dossier
+        </span>
       </div>
       <div class="meta-grid">
         <div class="meta-item">
@@ -586,8 +612,9 @@
     margin-bottom: var(--space-2xs);
   }
   .kf-title {
+    font-family: var(--font-serif);
     font-size: var(--step-2);
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1.05;
     letter-spacing: -0.02em;
     text-wrap: balance;
@@ -1006,6 +1033,10 @@
       <h3 class="limits-header">Limits of this report</h3>
       <p class="limits-text">This report is not a compliance guarantee and is not legal advice. It assesses system capability information and trace evidence against formal specifications. Whether these findings discharge legal duties remains a determination this tool does not make and cannot make. A requirement reported without a strength was not evaluated or is not applicable, and no verdict on it should be read from this report. Recital and guidance items inform how statutory duties are interpreted but create no obligation of their own; interpretive requirements are evaluated and reported separately, and are never folded into the binding headline counts. A requirement reported not applicable was excluded either because no regulatory class was declared for the system at all, or because the class that was declared is not the one the requirement is limited to. This tool never infers that class, so an undeclared system is neither placed in scope nor cleared of the duty: read the declared scope line before reading a not-applicable result.</p>
     </section>
+    <footer class="dossier-foot">
+      <span>reasonsmith &middot; audit-grade explanations</span>
+      <span><a href="index.html">landing</a> &middot; <a href="#top">top</a></span>
+    </footer>
   </div>
   <script>
     (function () {

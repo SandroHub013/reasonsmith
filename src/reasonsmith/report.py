@@ -749,6 +749,10 @@ class ConformanceReport:
     :root {{
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      /* ponytail: serif di sistema, non Newsreader come la landing — il report resta
+         self-contained (un woff2 inline costerebbe ~130KB per ogni report CLI).
+         Upgrade path: subset Newsreader + data-URI se l'identita' lo richiede. */
+      --font-serif: Georgia, "Times New Roman", serif;
 
       /* Dossier palette: tinted neutrals in oklch, one accent (deletion red), color by role */
       --paper: oklch(96.6% 0.005 95);
@@ -847,6 +851,23 @@ class ConformanceReport:
       color: oklch(72% 0.012 260);
       white-space: nowrap;
     }}
+    .header-corner a {{ color: oklch(80% 0.06 25); text-decoration: none; }}
+    .header-corner a:hover {{ text-decoration: underline; }}
+    .dossier-foot {{
+      margin: 0 var(--space-l) var(--space-m);
+      padding-top: var(--space-s);
+      border-top: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      color: var(--ink-faint);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-s);
+      flex-wrap: wrap;
+    }}
+    .dossier-foot a {{ color: var(--accent-deep); text-decoration: none; }}
+    .dossier-foot a:hover {{ text-decoration: underline; }}
     .brand-title {{
       font-family: var(--font-mono);
       font-size: var(--step--1);
@@ -857,10 +878,11 @@ class ConformanceReport:
       margin-bottom: var(--space-2xs);
     }}
     .main-title {{
+      font-family: var(--font-serif);
       font-size: var(--display);
-      font-weight: 800;
+      font-weight: 600;
       line-height: 1.0;
-      letter-spacing: -0.03em;
+      letter-spacing: -0.025em;
       text-wrap: balance;
     }}
     .meta-grid {{
@@ -905,10 +927,11 @@ class ConformanceReport:
       margin-bottom: var(--space-2xs);
     }}
     .headline-text {{
-      font-size: var(--step-1);
-      font-weight: 700;
-      line-height: 1.3;
-      letter-spacing: -0.01em;
+      font-family: var(--font-serif);
+      font-size: var(--step-2);
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.015em;
       color: var(--accent-deep);
       max-width: 65ch;
       text-wrap: pretty;
@@ -973,9 +996,10 @@ class ConformanceReport:
     .text-muted {{ color: var(--ink-faint); font-size: var(--step--1); }}
 
     .section-title {{
-      font-size: var(--step-1);
-      font-weight: 750;
-      letter-spacing: -0.01em;
+      font-family: var(--font-serif);
+      font-size: var(--step-2);
+      font-weight: 600;
+      letter-spacing: -0.015em;
       padding: var(--space-m) var(--space-l) var(--space-xs);
       border-top: 1px solid var(--line);
       color: var(--ink);
@@ -1265,14 +1289,16 @@ class ConformanceReport:
 </head>
 <body>
   <a class="skip-link" href="#findings">Skip to requirement findings</a>
-  <div class="container">
+  <div class="container" id="top">
     <header class="report-header">
       <div class="header-top">
         <div>
           <div class="brand-title">reasonsmith audit engine</div>
           <h1 class="main-title">Conformance Report</h1>
         </div>
-        <span class="header-corner" aria-hidden="true">audit dossier</span>
+        <span class="header-corner">
+          <a href="index.html">&larr; landing</a> &middot; audit dossier
+        </span>
       </div>
       <div class="meta-grid">
         <div class="meta-item">
@@ -1330,6 +1356,10 @@ class ConformanceReport:
       <h3 class="limits-header">Limits of this report</h3>
       <p class="limits-text">{limits_esc}</p>
     </section>
+    <footer class="dossier-foot">
+      <span>reasonsmith &middot; audit-grade explanations</span>
+      <span><a href="index.html">landing</a> &middot; <a href="#top">top</a></span>
+    </footer>
   </div>
   <script>
     (function () {{
