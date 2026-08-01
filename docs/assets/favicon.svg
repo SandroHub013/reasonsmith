@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="6" fill="#1c1f25"/>
+  <text x="31" y="46" font-family="'Courier New', Courier, monospace" font-weight="bold" font-size="36" letter-spacing="-2" text-anchor="middle" fill="#f5f4f0">rs</text>
+  <rect x="6" y="34.5" width="52" height="5.5" fill="#b71824" transform="rotate(-12 32 37)"/>
+</svg>

@@ -1,4 +1,4 @@
-"""Builds `docs/index.html`, the committed example conformance report page.
+"""Builds `docs/report.html`, the committed example conformance report page.
 
 What this module is for:
   The example page is generated, not hand-maintained, and this script is what generates it. It
@@ -40,7 +40,7 @@ from reasonsmith.spec import load_pack  # noqa: E402
 BUILD_COMMAND = "python docs/build_example.py"
 
 SAMPLE_LOG = ROOT / "docs" / "sample_decisions.jsonl"
-INDEX_HTML = ROOT / "docs" / "index.html"
+INDEX_HTML = ROOT / "docs" / "report.html"
 
 
 def example_report() -> ConformanceReport:
