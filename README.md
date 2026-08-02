@@ -118,10 +118,10 @@ headline: 3 requirements · 3 binding: 3 observed
 REQUIREMENT FINDINGS:
   [OBSERVED] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): satisfied
     requires: artifact_logs_decision_record, artifact_logs_notification_latency_days, artifact_logs_counteroffer_not_accepted
-    summary: Observed over 3 decision(s): temporal monitor for 'always((artifact_logs_decision_record >= 0.5) -> ((artifact_logs_notification_latency_days <= 30) or ((artifact_logs_counteroffer_not_accepted >= 0.5) and (artifact_logs_notification_latency_days <= 90))))' satisfied across all time steps.
+    summary: Observed over 3 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) -> ((artifact_logs_notification_latency_days <= 30) or ((artifact_logs_counteroffer_not_accepted >= 0.5) and (artifact_logs_notification_latency_days <= 90))))' satisfied across all time steps.
   [OBSERVED] ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): satisfied
-    requires: artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version
-    summary: Observed over 3 decision(s): every required signal (artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
+    requires: artifact_logs_decision_record, provenance_model_version
+    summary: Observed over 3 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))' satisfied across all time steps.
   [OBSERVED] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): satisfied
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
     summary: Observed over 3 decision(s): every required signal (artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
@@ -267,10 +267,12 @@ graph-reachability benchmark that issues no credit ([`docs/findings-nesyarena.md
 finding 3; `ROADMAP.md` §1). Missing too: authority over the refinement. Which formula stands for a
 clause is a judgement made in this repository and recorded as such — the proxy chosen for
 *specific* in 12 CFR 1002.9(b)(2) is the pack author's, and the regulation names nothing of the kind
-([`docs/refinement.md`](docs/refinement.md)). One shipped property is known to be wider than its
-clause: 12 CFR 1002.9(a)(2) is an either/or, and the property demands the reasons branch
-unconditionally, so a creditor lawfully using the disclosure alternative is reported violated. A
-false positive against a lawful practice disqualifies a tool from supervisory use until it is fixed.
+([`docs/refinement.md`](docs/refinement.md)). One shipped property is still known to be wider than
+its clause: 12 CFR 1002.9(a)(2) is now formalised as the either/or it is, and either lawful branch
+satisfies it, but (b)(2) is triggered only where (a)(2)(i) requires a statement of reasons, and that
+trigger is not modelled — so a creditor lawfully using the disclosure alternative is reported
+violated on (b)(2). A false positive against a lawful practice disqualifies a tool from supervisory
+use until it is fixed.
 
 **Auditors** running this against a client's system. Missing: reach into systems that are only logs.
 For any system exposing nothing but a decision trace, `observed` is the ceiling whatever the pack

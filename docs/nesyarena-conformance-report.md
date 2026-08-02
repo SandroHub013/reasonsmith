@@ -48,12 +48,13 @@ Each carries a value computed from that system's own inference on that instance:
 
 ### Signals deliberately not declared
 
-The system genuinely cannot emit these, so the duties needing them are reported
-unattainable rather than filled in:
+The system genuinely cannot emit these, so a duty whose `requires` gates one is
+reported unattainable rather than filled in:
 
 - `provenance_active_exceptions` — the programs are definite Horn clauses over independent probabilistic facts; there is no defeater or exception mechanism for an inference to record as active
 - `artifact_logs_notification_latency_days` — the system computes a query value; it neither issues nor times a notification
 - `artifact_logs_counteroffer_not_accepted` — no counteroffer exists in this decision domain
+- `artifact_logs_right_to_reasons_disclosure` — the system issues no adverse-action notice, so no decision of its own carries a disclosure of a right to request reasons. It is one branch of the either/or of 12 CFR 1002.9(a)(2) and no `requires` gates it, so its absence makes no duty unattainable: that content duty is judged on the other branch, the reason explanation
 - `artifact_logs_solely_automated` — whether a human reviews the output afterwards is a property of the pipeline the system is embedded in, which the system cannot observe
 - `artifact_logs_significant_effect` — the effect of a decision on a person is a fact about the deployment, not about the inference
 - `artifact_logs_human_intervention_route` — an intervention route is an organisational arrangement, not an inference output
@@ -234,8 +235,8 @@ REQUIREMENT FINDINGS:
     MISSING SIGNALS: artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days
     summary: Unattainable as built: the system declares no capability to emit artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days, so no amount of testing can discharge this requirement. Determined from declared capabilities alone; the system was not executed.
   [OBSERVED] ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): satisfied
-    requires: artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version
-    summary: Observed over 16 decision(s): every required signal (artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
+    requires: artifact_logs_decision_record, provenance_model_version
+    summary: Observed over 16 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))' satisfied across all time steps.
   [OBSERVED] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): satisfied
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
     summary: Observed over 16 decision(s): every required signal (artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
@@ -323,9 +324,8 @@ REQUIREMENT FINDINGS:
     MISSING SIGNALS: artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days
     summary: Unattainable as built: the system declares no capability to emit artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days, so no amount of testing can discharge this requirement. Determined from declared capabilities alone; the system was not executed.
   [OBSERVED] ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): violated
-    requires: artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version
-    ABSENT FROM TRACE: artifact_logs_reason_explanation
-    summary: Violated over 16 observed decision(s): the system declares it can emit these signals, but records carry no value for artifact_logs_reason_explanation.
+    requires: artifact_logs_decision_record, provenance_model_version
+    summary: Violated over 16 decision(s): temporal property 'always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))' failed at decision step(s) [8, 9, 10, 11].
   [OBSERVED] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): violated
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
     ABSENT FROM TRACE: artifact_logs_reason_explanation
@@ -413,8 +413,8 @@ REQUIREMENT FINDINGS:
     MISSING SIGNALS: artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days
     summary: Unattainable as built: the system declares no capability to emit artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days, so no amount of testing can discharge this requirement. Determined from declared capabilities alone; the system was not executed.
   [OBSERVED] ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): satisfied
-    requires: artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version
-    summary: Observed over 16 decision(s): every required signal (artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
+    requires: artifact_logs_decision_record, provenance_model_version
+    summary: Observed over 16 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))' satisfied across all time steps.
   [OBSERVED] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): satisfied
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
     summary: Observed over 16 decision(s): every required signal (artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
@@ -501,8 +501,8 @@ REQUIREMENT FINDINGS:
     MISSING SIGNALS: artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days
     summary: Unattainable as built: the system declares no capability to emit artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days, so no amount of testing can discharge this requirement. Determined from declared capabilities alone; the system was not executed.
   [OBSERVED] ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): satisfied
-    requires: artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version
-    summary: Observed over 16 decision(s): every required signal (artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
+    requires: artifact_logs_decision_record, provenance_model_version
+    summary: Observed over 16 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))' satisfied across all time steps.
   [OBSERVED] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): satisfied
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
     summary: Observed over 16 decision(s): every required signal (artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
@@ -589,8 +589,8 @@ REQUIREMENT FINDINGS:
     MISSING SIGNALS: artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days
     summary: Unattainable as built: the system declares no capability to emit artifact_logs_counteroffer_not_accepted, artifact_logs_notification_latency_days, so no amount of testing can discharge this requirement. Determined from declared capabilities alone; the system was not executed.
   [OBSERVED] ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): satisfied
-    requires: artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version
-    summary: Observed over 16 decision(s): every required signal (artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
+    requires: artifact_logs_decision_record, provenance_model_version
+    summary: Observed over 16 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))' satisfied across all time steps.
   [OBSERVED] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): satisfied
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
     summary: Observed over 16 decision(s): every required signal (artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.
@@ -605,7 +605,7 @@ The decisions behind every `violated` verdict above, named so a reader can
 reproduce them from the measured-inference table.
 
 - `add-mult(clamped)` / `gdpr` / `gdpr_recital71_meaningful_explanation`: 4 of 16 decisions carry no artifact_logs_reason_explanation — instances G1-P4-L2-c0, G1-P4-L2-c1, G1-P4-L3-c0, G1-P4-L3-c1 (record index 8, 9, 10, 11)
-- `add-mult(clamped)` / `ecoa` / `ecoa_reg_b_1002_9_a_2_written_statement`: 4 of 16 decisions carry no artifact_logs_reason_explanation — instances G1-P4-L2-c0, G1-P4-L2-c1, G1-P4-L3-c0, G1-P4-L3-c1 (record index 8, 9, 10, 11)
+- `add-mult(clamped)` / `ecoa` / `ecoa_reg_b_1002_9_a_2_written_statement`: 4 of 16 decisions breach `always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))` — instances G1-P4-L2-c0, G1-P4-L2-c1, G1-P4-L3-c0, G1-P4-L3-c1 (record index 8, 9, 10, 11)
 - `add-mult(clamped)` / `ecoa` / `ecoa_reg_b_1002_9_b_2_specific_reasons`: 4 of 16 decisions carry no artifact_logs_reason_explanation — instances G1-P4-L2-c0, G1-P4-L2-c1, G1-P4-L3-c0, G1-P4-L3-c1 (record index 8, 9, 10, 11)
 - `top-1-proofs` / `gdpr` / `gdpr_recital71_error_risk_minimised`: 8 of 16 decisions breach `always(scope_statements_declared_deviation <= artifact_logs_decision_margin)` — instances G1-P2-L2-c0, G1-P2-L2-c1, G1-P2-L3-c0, G1-P2-L3-c1, G1-P4-L2-c0, G1-P4-L2-c1, G1-P4-L3-c0, G1-P4-L3-c1 (record index 4, 5, 6, 7, 8, 9, 10, 11)
 - `min-max-prob` / `gdpr` / `gdpr_recital71_error_risk_minimised`: 5 of 16 decisions breach `always(scope_statements_declared_deviation <= artifact_logs_decision_margin)` — instances G1-P1-L2-c0, G1-P1-L2-c1, G1-P1-L3-c0, G1-P1-L3-c1, G1-P4-L2-c0 (record index 0, 1, 2, 3, 8)

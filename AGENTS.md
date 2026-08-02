@@ -61,6 +61,17 @@ gets the replay search, a trace gets the record or observed engine, and temporal
 and §3.5 before editing any of it — they state the rule, the two `present()` encodings, and the one
 case the ladder does not resolve (exposed logic disagreeing with the trace).
 
+`requires` is a conjunctive gate, so a branch of an either/or clause must not be listed in it: the
+loader (`spec._check_spec`, via `rulelang.unconditional_signal_names`) exempts a signal read only
+inside a disjunction, because gating one branch reports a system that lawfully took the other
+`unattainable` without running it. The exemption is narrow on purpose — every branch must be
+settled by `present()` atoms, and a name every branch reads stays gated — so a disjunction over
+magnitudes does not quietly widen the gate. `ecoa_reg_b_1002_9_a_2_written_statement` is the worked
+example and `docs/authoring-packs.md`, *An either/or clause*, is the rule, including the three costs
+it buys: a system declaring neither branch is judged on its trace rather than reported unattainable,
+a typo inside a disjunct is not caught at load time, and the duty leaves the `record` fragment, so
+a log holding a single decision is reported not evaluated on it.
+
 `src/reasonsmith/packs/*.toml` are derived, not authored. The EU AI Act, GDPR and ECOA packs quote
 `docs/legal-sources.md`, which is the retrieval record for the official statutory text and the one
 place a quote is checked against the law. The Table 7 pack restates the rows of
@@ -115,7 +126,7 @@ byte-for-byte. Anything that moves `render_text`'s wording, the nesyarena versio
 own constants means regenerating with `python docs/build_nesyarena_report.py`. Like
 `docs/index.html`, it names its build command and deliberately carries no commit hash; reproducibility
 is owned by the byte-for-byte builder test, so do not add a hash back. Its adapter declares only
-signals a provenance genuinely emits, so nine pack signals are deliberately undeclared and no
+signals a provenance genuinely emits, so ten pack signals are deliberately undeclared and no
 regulatory class is declared; the resulting unattainable and not-applicable verdicts are the
 finding, not a gap to close.
 `docs/findings-nesyarena.md` is the written account and is hand-maintained — every number in it
