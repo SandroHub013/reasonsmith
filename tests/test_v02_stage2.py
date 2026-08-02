@@ -124,7 +124,8 @@ class TestJSONLAdapter:
             verbatim_text="Quote",
             stakeholder="deployer",
             formalism="record",
-            spec="Record check",
+            spec="present(artifact_logs_reason_explanation)",
+            rationale="Why this duty exists, in English.",
             requires=("artifact_logs_reason_explanation",),
             binding=True,
             scope="",
@@ -147,7 +148,8 @@ class TestJSONLAdapter:
             verbatim_text="Quote",
             stakeholder="deployer",
             formalism="record",
-            spec="Record check",
+            spec="present(scope_statements_explanation_scope)",
+            rationale="Why this duty exists, in English.",
             requires=("scope_statements_explanation_scope",),
             binding=True,
             scope="",
@@ -175,7 +177,8 @@ class TestJSONLAdapter:
             verbatim_text="Quote",
             stakeholder="deployer",
             formalism="record",
-            spec="Record check",
+            spec="present(scope_statements_explanation_scope)",
+            rationale="Why this duty exists, in English.",
             requires=("scope_statements_explanation_scope",),
             binding=True,
             scope="",
@@ -273,13 +276,14 @@ def test_record_and_temporal_formalisms_route_through_report():
             stakeholder="deployer",
             formalism=formalism,
             spec=spec,
+            rationale="Why this duty exists, in English.",
             requires=("signal_a", "signal_b"),
             binding=True,
             scope="",
         )
 
     record = evaluate_requirement(
-        requirement("record", "not valid temporal syntax !@#$"), sut, records
+        requirement("record", "present(signal_a) and present(signal_b)"), sut, records
     )
     temporal = evaluate_requirement(
         requirement("temporal", "always((signal_a >= 0.5) -> (signal_b >= 0.5))"),
@@ -291,6 +295,37 @@ def test_record_and_temporal_formalisms_route_through_report():
     assert record.details == {"records_observed": 2}
     assert temporal.verdict == Verdict.SATISFIED
     assert "evaluation_scores" in temporal.details
+
+
+@pytest.mark.parametrize(
+    "value",
+    [pytest.param(0, id="zero"), pytest.param(False, id="false")],
+)
+def test_temporal_presence_agrees_with_record_presence_for_falsy_values(value):
+    sut = BaseSUT({"signal_a"})
+    records = [{"signal_a": value}, {"signal_a": value}]
+    fields = {
+        "source_document": "Doc",
+        "article_clause": "Art 1",
+        "verbatim_text": "Quote",
+        "stakeholder": "deployer",
+        "rationale": "A value was recorded.",
+        "requires": ("signal_a",),
+        "binding": True,
+        "scope": "",
+    }
+    record = Requirement(
+        id="record_presence", formalism="record", spec="present(signal_a)", **fields
+    )
+    temporal = Requirement(
+        id="temporal_presence",
+        formalism="temporal",
+        spec="always(present(signal_a))",
+        **fields,
+    )
+
+    assert RecordEngine.evaluate(record, sut, records).verdict == Verdict.SATISFIED
+    assert ObservedEngine.evaluate(temporal, sut, records).verdict == Verdict.SATISFIED
 
 
 class TestRecordEngine:
@@ -305,7 +340,8 @@ class TestRecordEngine:
             verbatim_text="Quote",
             stakeholder="deployer",
             formalism="record",
-            spec="Record check",
+            spec="present(provenance_model_version) and present(artifact_logs_event_log)",
+            rationale="Why this duty exists, in English.",
             requires=("provenance_model_version", "artifact_logs_event_log"),
             binding=True,
             scope="",
@@ -327,7 +363,8 @@ class TestRecordEngine:
             verbatim_text="Quote",
             stakeholder="deployer",
             formalism="record",
-            spec="Record check",
+            spec="present(provenance_model_version) and present(artifact_logs_reason_explanation)",
+            rationale="Why this duty exists, in English.",
             requires=("provenance_model_version", "artifact_logs_reason_explanation"),
             binding=True,
             scope="",
@@ -338,12 +375,16 @@ class TestRecordEngine:
         assert result.strength == Strength.OBSERVED
         assert "artifact_logs_reason_explanation" in result.details["signals_absent_from_trace"]
 
-    def test_the_record_engine_reads_requires_not_spec(self, jsonl_fixture_file: Path):
-        """A `record` duty is discharged by its `requires` list; its `spec` is never evaluated.
+    def test_the_record_engine_evaluates_its_spec(self, jsonl_fixture_file: Path):
+        """A `record` duty is discharged by the property in its `spec`, not by its `requires`.
 
-        The shipped record requirements carry free prose in `spec` ("Record check"), which no
-        parser would accept. A reader has to know that string is documentation rather than the
-        property being checked, or they will read a record verdict as a claim about it.
+        `spec` used to be free prose for a record duty and no engine read it, so two requirements
+        differing only in that field produced the identical verdict and a reader who took a record
+        verdict as a claim about the `spec` text was reading something nothing checked. It is now
+        a formula in one language with the other fragments, and this test is what says so: the
+        signals the engine looks for are the `present()` atoms the property names, and a `spec`
+        this engine cannot walk as a conjunction of them is not evaluated rather than answered
+        from `requires`.
         """
         sut = JSONLAdapter(jsonl_fixture_file)
         records = list(sut.decisions())
@@ -358,6 +399,7 @@ class TestRecordEngine:
                     stakeholder="deployer",
                     formalism="record",
                     spec=spec,
+                    rationale="Why this duty exists, in English.",
                     requires=("provenance_model_version", "artifact_logs_event_log"),
                     binding=True,
                     scope="",
@@ -366,17 +408,29 @@ class TestRecordEngine:
                 records,
             )
 
-        prose = result_for("Record check")
-        # A property that is false on every record, and one that no parser would accept at all.
-        false_property = result_for("provenance_model_version == 'never this version'")
-        unparseable = result_for("not a property !@#$")
+        both = result_for("present(provenance_model_version) and present(artifact_logs_event_log)")
+        assert both.verdict == Verdict.SATISFIED
+        assert both.strength == Strength.OBSERVED
 
-        assert prose.verdict == Verdict.SATISFIED
-        assert prose.strength == Strength.OBSERVED
-        for other in (false_property, unparseable):
-            assert other.verdict == prose.verdict
-            assert other.strength == prose.strength
-            assert other.evidence_summary == prose.evidence_summary
+        # The property, not the `requires` list, decides which signals are looked for: this one
+        # names a signal the trace does not carry, and `requires` cannot make it satisfied.
+        narrower = result_for("present(stability_signals_perturbation_sensitivity)")
+        assert narrower.verdict == Verdict.VIOLATED
+        assert narrower.details["signals_absent_from_trace"] == [
+            "stability_signals_perturbation_sensitivity"
+        ]
+
+        # Prose, a state property that is not a presence conjunction, and text no parser accepts
+        # are each not evaluated — never answered from `requires` as if the spec were absent.
+        for spec in (
+            "Record check",
+            "provenance_model_version == 'never this version'",
+            "not a property !@#$",
+        ):
+            unreadable = result_for(spec)
+            assert unreadable.verdict == Verdict.INCONCLUSIVE, spec
+            assert unreadable.strength is None, spec
+            assert "Not evaluated" in unreadable.evidence_summary, spec
 
 
 class TestObservedEngine:
@@ -392,6 +446,7 @@ class TestObservedEngine:
             stakeholder="deployer",
             formalism="temporal",
             spec="always((signal_a >= 0.5) -> (signal_b >= 0.5))",
+            rationale="Why this duty exists, in English.",
             requires=("signal_a", "signal_b"),
             binding=True,
             scope="",
@@ -404,6 +459,151 @@ class TestObservedEngine:
         assert result.verdict == Verdict.SATISFIED
         assert result.strength == Strength.OBSERVED
 
+    def test_a_false_bare_boolean_atom_is_violated(self):
+        sut = BaseSUT({"signal_a"})
+        req = Requirement(
+            id="temp_bare_false",
+            source_document="Doc",
+            article_clause="Art 1",
+            verbatim_text="Quote",
+            stakeholder="deployer",
+            formalism="temporal",
+            spec="always(signal_a)",
+            rationale="The signal remains true.",
+            requires=("signal_a",),
+            binding=True,
+            scope="",
+        )
+        records = [{"signal_a": True}, {"signal_a": False}]
+
+        result = ObservedEngine.evaluate(req, sut, records)
+        assert result.verdict == Verdict.VIOLATED
+        assert result.strength == Strength.OBSERVED
+        assert result.details["violation_step_indices"] == [1]
+
+    def test_a_bare_boolean_atom_is_monitored_for_true_and_false_traces(self):
+        sut = BaseSUT({"approved"})
+        req = Requirement(
+            id="temp_bare_boolean",
+            source_document="Doc",
+            article_clause="Art 1",
+            verbatim_text="Quote",
+            stakeholder="deployer",
+            formalism="temporal",
+            spec="always(approved)",
+            rationale="Approval remains true.",
+            requires=("approved",),
+            binding=True,
+            scope="",
+        )
+
+        satisfied = ObservedEngine.evaluate(
+            req, sut, [{"approved": True}, {"approved": True}]
+        )
+        violated = ObservedEngine.evaluate(
+            req, sut, [{"approved": True}, {"approved": False}]
+        )
+
+        assert satisfied.verdict == Verdict.SATISFIED
+        assert satisfied.strength == Strength.OBSERVED
+        assert violated.verdict == Verdict.VIOLATED
+        assert violated.strength == Strength.OBSERVED
+
+    def test_a_direct_temporal_boolean_comparison_is_not_evaluated(self):
+        sut = BaseSUT({"approved"})
+        req = Requirement(
+            id="temp_boolean_comparison",
+            source_document="Doc",
+            article_clause="Art 1",
+            verbatim_text="Quote",
+            stakeholder="deployer",
+            formalism="temporal",
+            spec="always(approved == True)",
+            rationale="Approval remains true.",
+            requires=("approved",),
+            binding=True,
+            scope="",
+        )
+
+        result = ObservedEngine.evaluate(
+            req, sut, [{"approved": True}, {"approved": True}]
+        )
+
+        assert result.verdict == Verdict.INCONCLUSIVE
+        assert result.strength is None
+        assert "always(approved)" in result.details["error"]
+
+    def test_a_bare_boolean_atom_without_an_established_kind_is_not_evaluated(
+        self,
+    ):
+        sut = BaseSUT({"signal_a"})
+        req = Requirement(
+            id="temp_bare_unknown",
+            source_document="Doc",
+            article_clause="Art 1",
+            verbatim_text="Quote",
+            stakeholder="deployer",
+            formalism="temporal",
+            spec="always(signal_a)",
+            rationale="The signal remains true.",
+            requires=("signal_a",),
+            binding=True,
+            scope="",
+        )
+
+        result = ObservedEngine.evaluate(
+            req, sut, [{"signal_a": "yes"}, {"signal_a": "no"}]
+        )
+        assert result.verdict == Verdict.INCONCLUSIVE
+        assert result.strength is None
+        assert result.details["signals_without_boolean_trace_kind"] == {"signal_a": 2}
+
+    def test_conflicting_boolean_and_magnitude_roles_are_not_evaluated(self):
+        sut = BaseSUT({"signal_a"})
+        req = Requirement(
+            id="temp_conflicting_roles",
+            source_document="Doc",
+            article_clause="Art 1",
+            verbatim_text="Quote",
+            stakeholder="deployer",
+            formalism="temporal",
+            spec="always(signal_a and signal_a > 0)",
+            rationale="The signal cannot have incompatible roles.",
+            requires=("signal_a",),
+            binding=True,
+            scope="",
+        )
+
+        result = ObservedEngine.evaluate(
+            req, sut, [{"signal_a": 1}, {"signal_a": 2}]
+        )
+        assert result.verdict == Verdict.INCONCLUSIVE
+        assert result.strength is None
+        assert "bare Boolean role" in result.details["error"]
+        assert "measured magnitude role" in result.details["error"]
+
+    def test_presence_and_bare_boolean_atoms_keep_distinct_false_semantics(self):
+        sut = BaseSUT({"signal_a"})
+        records = [{"signal_a": False}, {"signal_a": False}]
+        fields = {
+            "source_document": "Doc",
+            "article_clause": "Art 1",
+            "verbatim_text": "Quote",
+            "stakeholder": "deployer",
+            "formalism": "temporal",
+            "rationale": "The trace carries the required Boolean evidence.",
+            "requires": ("signal_a",),
+            "binding": True,
+            "scope": "",
+        }
+        presence = Requirement(
+            id="temp_present_false", spec="always(present(signal_a))", **fields
+        )
+        truth = Requirement(id="temp_bare_false", spec="always(signal_a)", **fields)
+
+        assert ObservedEngine.evaluate(presence, sut, records).verdict == Verdict.SATISFIED
+        assert ObservedEngine.evaluate(truth, sut, records).verdict == Verdict.VIOLATED
+
     def test_temporal_violated_returns_offending_segment(self):
         sut = BaseSUT({"signal_a", "signal_b"})
         req = Requirement(
@@ -414,6 +614,7 @@ class TestObservedEngine:
             stakeholder="deployer",
             formalism="temporal",
             spec="(signal_a >= 0.5) -> (signal_b >= 0.5)",
+            rationale="Why this duty exists, in English.",
             requires=("signal_a", "signal_b"),
             binding=True,
             scope="",
@@ -445,6 +646,7 @@ class TestObservedEngine:
             stakeholder="deployer",
             formalism="temporal",
             spec="always(signal_a >= 0.5)",
+            rationale="Why this duty exists, in English.",
             requires=("signal_a",),
             binding=True,
             scope="",
@@ -467,6 +669,7 @@ class TestObservedEngine:
             stakeholder="deployer",
             formalism="temporal",
             spec="always(signal_a >= 0.5)",
+            rationale="Why this duty exists, in English.",
             requires=("signal_a",),
             binding=True,
             scope="",
@@ -500,6 +703,7 @@ class TestObservedEngine:
             stakeholder="deployer",
             formalism="temporal",
             spec=spec,
+            rationale="Why this duty exists, in English.",
             requires=("signal_a", "signal_b"),
             binding=True,
             scope="",
@@ -519,6 +723,7 @@ class TestObservedEngine:
             stakeholder="deployer",
             formalism="temporal",
             spec="invalid syntax !@#$%",
+            rationale="Why this duty exists, in English.",
             requires=("signal_a",),
             binding=True,
             scope="",
@@ -577,6 +782,26 @@ class TestRequirementsMeasureTheirDuty:
         result = ObservedEngine.evaluate(req, sut, late)
         assert result.verdict == Verdict.VIOLATED
         assert result.details["violation_step_indices"] == [1]
+
+    def test_ecoa_accepted_counteroffer_keeps_the_thirty_day_deadline(self):
+        req = load_pack("ecoa").get_requirement("ecoa_reg_b_1002_9_a_1_timing_of_notice")
+        sut = BaseSUT(set(req.requires))
+        records = [
+            {
+                "artifact_logs_decision_record": {"id": "dec-1"},
+                "artifact_logs_counteroffer_not_accepted": False,
+                "artifact_logs_notification_latency_days": 90,
+            },
+            {
+                "artifact_logs_decision_record": {"id": "dec-2"},
+                "artifact_logs_counteroffer_not_accepted": False,
+                "artifact_logs_notification_latency_days": 90,
+            },
+        ]
+
+        result = ObservedEngine.evaluate(req, sut, records)
+        assert result.verdict == Verdict.VIOLATED
+        assert result.details["violation_step_indices"] == [0, 1]
 
     @pytest.mark.parametrize(
         "unmeasured_latency",

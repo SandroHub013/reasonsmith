@@ -36,6 +36,7 @@ TRACE = (
 def _req(
     req_id: str = "probe_r1",
     spec: str = "income >= 30000 implies approved == True",
+    rationale: str = "Why this duty exists, in English.",
     requires: tuple[str, ...] = ("income", "age", "approved"),
 ) -> Requirement:
     return Requirement(
@@ -46,6 +47,7 @@ def _req(
         stakeholder="Compliance",
         formalism="logical",
         spec=spec,
+        rationale=rationale,
         requires=requires,
         binding=True,
         scope="",
@@ -526,7 +528,7 @@ def test_trace_established_kind_propagates_through_arithmetic_operands():
 
     sut = SearchTrackingSUT()
     result = ProbedEngine.evaluate(
-        _req(spec="True or (reason + 1 > 0)", requires=("reason",)),
+        _req(spec="approved or (reason + 1 > 0)", requires=("approved", "reason")),
         sut,
     )
 

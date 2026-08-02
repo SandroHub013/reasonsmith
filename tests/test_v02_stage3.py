@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 import z3
 
+from reasonsmith import report as report_module
 from reasonsmith.adapters.rules import RulesAdapter
 from reasonsmith.engines import proved
 from reasonsmith.engines.proved import ProvedEngine
@@ -17,6 +18,7 @@ from reasonsmith.report import check_conformance, evaluate_requirement
 from reasonsmith.rulelang import (
     UnsupportedConstructError,
     eval_expression,
+    is_present,
     parse_expression,
     preprocess_spec,
 )
@@ -28,6 +30,7 @@ from reasonsmith.verdict import Strength, Verdict
 def _logical_req(
     req_id: str = "logic_r1",
     spec: str = "income >= 30000 and age >= 18 implies approved == True",
+    rationale: str = "Why this duty exists, in English.",
     requires: tuple[str, ...] = ("income", "age", "approved"),
     binding: bool = True,
     scope: str = "",
@@ -40,6 +43,7 @@ def _logical_req(
         stakeholder="Compliance",
         formalism="logical",
         spec=spec,
+        rationale=rationale,
         requires=requires,
         binding=binding,
         scope=scope,
@@ -65,6 +69,7 @@ def test_property_holds_for_all_inputs_proved():
 
     req = _logical_req(
         spec="income >= 30000 and age >= 18 and credit_score >= 700 implies approved == True",
+        rationale="Why this duty exists, in English.",
         requires=("income", "age", "credit_score", "approved"),
     )
 
@@ -72,6 +77,20 @@ def test_property_holds_for_all_inputs_proved():
     assert res.verdict == Verdict.SATISFIED
     assert res.strength == Strength.PROVED
     assert "Proved for all inputs" in res.evidence_summary
+    assert res.details["result"] == "unsat"
+
+
+def test_a_logical_boolean_constant_comparison_still_reaches_proved():
+    sut = RulesAdapter(
+        rules=["approved = True"],
+        variables={"approved": "bool"},
+    )
+    req = _logical_req(spec="approved == True", requires=("approved",))
+
+    res = evaluate_requirement(req, sut)
+
+    assert res.verdict == Verdict.SATISFIED
+    assert res.strength == Strength.PROVED
     assert res.details["result"] == "unsat"
 
 
@@ -95,6 +114,7 @@ def test_property_fails_with_verified_counterexample():
     # Claim that anyone with income >= 30000 gets approved (regardless of age/credit)
     req = _logical_req(
         spec="income >= 30000 implies approved == True",
+        rationale="Why this duty exists, in English.",
         requires=("income", "approved"),
     )
 
@@ -154,6 +174,7 @@ def test_system_without_logic_reported_not_evaluated():
     sut = NoLogicSUT(declared_capabilities={"income", "approved"})
     req = _logical_req(
         spec="income >= 30000 implies approved == True",
+        rationale="Why this duty exists, in English.",
         requires=("income", "approved"),
     )
 
@@ -200,11 +221,13 @@ def test_conformance_report_rendering_proved_agrees():
     req1 = _logical_req(
         req_id="r1_proved",
         spec="income >= 30000 and age >= 18 and credit_score >= 700 implies approved == True",
+        rationale="Why this duty exists, in English.",
         requires=("income", "age", "credit_score", "approved"),
     )
     req2 = _logical_req(
         req_id="r2_violated",
         spec="income >= 30000 implies approved == True",
+        rationale="Why this duty exists, in English.",
         requires=("income", "approved"),
     )
 
@@ -557,6 +580,7 @@ def test_arrow_rewriting_leaves_string_literals_alone():
     res = evaluate_requirement(
         _logical_req(
             spec='Implies(note == "a -> b", flagged == True)',
+            rationale="Why this duty exists, in English.",
             requires=("note", "flagged"),
         ),
         sut,
@@ -716,3 +740,283 @@ def test_gdpr_art22_record_duties_are_untouched_by_the_proof_duty():
         res = evaluate_requirement(req, sut)
         assert res.verdict == Verdict.SATISFIED, req_id
         assert res.strength == Strength.OBSERVED, req_id
+
+
+# --------------------------------------------------------------------------------------
+# A requirement's fragment says what the property is; the system says how strongly it can
+# be discharged. These are the tests that make that separation falsifiable.
+# --------------------------------------------------------------------------------------
+
+
+def _record_req(spec: str, requires: tuple[str, ...], req_id: str = "rec_r1") -> Requirement:
+    return Requirement(
+        id=req_id,
+        source_document="Internal Policy",
+        article_clause="Section 3.1",
+        verbatim_text="Every decision must be given a reason.",
+        stakeholder="affected individual",
+        formalism="record",
+        spec=spec,
+        rationale="Every decision carries a reason a person can read.",
+        requires=requires,
+        binding=True,
+        scope="",
+    )
+
+
+#: A rule engine that always writes a reason, whatever the input. The reason is a string, which
+#: is the realistic case: this is what an auditor means by "it can prove it always gives one".
+_REASON_RULES = [
+    "approved = credit_score >= 650",
+    'if approved:\n'
+    '    artifact_logs_reason_explanation = "approved on score"\n'
+    'else:\n'
+    '    artifact_logs_reason_explanation = "declined on score"\n',
+]
+_REASON_VARIABLES = {
+    "credit_score": "int",
+    "approved": "bool",
+    "artifact_logs_reason_explanation": "str",
+}
+
+
+def test_a_record_duty_reaches_proved_when_the_system_exposes_its_logic():
+    """The same presence property is `observed` off a trace and `proved` against `logic()`.
+
+    This is the whole point of separating what a requirement *says* from what discharges it. The
+    duty is a record-keeping duty either way; nothing about it changed. What changed is that a
+    system exposing rules that always assign the reason can have the property established for
+    every input the constraints admit, instead of for the decisions it happened to log.
+    """
+    req = _record_req(
+        "present(artifact_logs_reason_explanation)", ("artifact_logs_reason_explanation",)
+    )
+
+    exposed = RulesAdapter(
+        rules=_REASON_RULES,
+        variables=_REASON_VARIABLES,
+        declared_capabilities={"artifact_logs_reason_explanation"},
+        test_inputs=[{"credit_score": 700}, {"credit_score": 500}],
+    )
+    proved_result = evaluate_requirement(req, exposed)
+    assert proved_result.verdict == Verdict.SATISFIED
+    assert proved_result.strength == Strength.PROVED
+
+    class TraceOnlySUT(BaseSUT):
+        """The same decisions, from a system that exposes nothing but its log."""
+
+        def decisions(self):
+            return [
+                {"artifact_logs_reason_explanation": "approved on score"},
+                {"artifact_logs_reason_explanation": "declined on score"},
+            ]
+
+    observed_result = evaluate_requirement(
+        req, TraceOnlySUT(declared_capabilities={"artifact_logs_reason_explanation"})
+    )
+    assert observed_result.verdict == Verdict.SATISFIED
+    assert observed_result.strength == Strength.OBSERVED
+
+
+def test_a_record_duty_reaches_probed_when_the_system_can_only_be_re_run():
+    """`decide()` without `logic()` puts a record duty on the probe rung, never on the proof one."""
+    req = _record_req(
+        "present(artifact_logs_reason_explanation)", ("artifact_logs_reason_explanation",)
+    )
+
+    class OpaqueButRunnable(BaseSUT):
+        def __init__(self):
+            super().__init__({"artifact_logs_reason_explanation"})
+
+        def decisions(self):
+            return [{"credit_score": 700, "artifact_logs_reason_explanation": "approved"}]
+
+        def decide(self, case):
+            reason = "approved" if case.get("credit_score", 0) >= 650 else "declined"
+            return {**case, "artifact_logs_reason_explanation": reason}
+
+    result = evaluate_requirement(req, OpaqueButRunnable())
+    assert result.verdict == Verdict.SATISFIED
+    assert result.strength == Strength.PROBED
+    assert result.details["probe_budget"]["trials"] > 1
+
+
+def test_a_record_duty_the_solver_cannot_reach_falls_to_the_engine_that_can():
+    """The ladder is a search for evidence, not a commitment to the strongest engine.
+
+    Here the rules read the signal and never write it, so `present()` is not something the
+    exposed logic establishes and the proved engine says nothing. The duty must land on the
+    strongest rung that *did* produce evidence — not lose its verdict to the engine that could
+    not answer.
+    """
+    req = _record_req("present(artifact_logs_event_log)", ("artifact_logs_event_log",))
+    sut = RulesAdapter(
+        rules=["approved = artifact_logs_event_log >= 1"],
+        variables={"artifact_logs_event_log": "int", "approved": "bool"},
+        declared_capabilities={"artifact_logs_event_log"},
+        test_inputs=[{"artifact_logs_event_log": 3}, {"artifact_logs_event_log": 0}],
+    )
+    assert sut.logic() is not None
+
+    result = evaluate_requirement(req, sut)
+    assert result.verdict == Verdict.SATISFIED
+    assert result.strength == Strength.PROBED
+
+
+def test_presence_is_not_proved_when_only_one_branch_assigns_the_signal():
+    req = _record_req("present(artifact_logs_event_log)", ("artifact_logs_event_log",))
+    sut = RulesAdapter(
+        rules=["if condition:\n    artifact_logs_event_log = 1"],
+        variables={"condition": "bool", "artifact_logs_event_log": "int"},
+        declared_capabilities={"artifact_logs_event_log"},
+        test_inputs=[{"condition": True}, {"condition": False}],
+    )
+    assert "artifact_logs_event_log" not in sut.decide({"condition": False})
+
+    result = evaluate_requirement(req, sut)
+    assert result.verdict == Verdict.VIOLATED
+    assert result.strength == Strength.PROBED
+
+
+class _BrokenLogicSUT(BaseSUT):
+    """A system whose optional `logic()` is present but broken, and whose trace is fine."""
+
+    def __init__(self):
+        super().__init__({"artifact_logs_reason_explanation"})
+        self.logic_calls = 0
+
+    def decisions(self):
+        return [{"artifact_logs_reason_explanation": "approved on score"}]
+
+    def logic(self):
+        self.logic_calls += 1
+        raise RuntimeError("logic export is broken")
+
+
+def test_a_record_duty_survives_a_system_whose_logic_raises():
+    """A broken optional interface must not cost a duty the evidence it does have.
+
+    `logic()` raising establishes nothing, which is what `strength=None` means, so the search
+    continues to the rung that can answer. Before the ladder read the callable surface instead
+    of invoking it, this duty lost its verdict to an interface it never needed.
+    """
+    req = _record_req(
+        "present(artifact_logs_reason_explanation)", ("artifact_logs_reason_explanation",)
+    )
+    sut = _BrokenLogicSUT()
+
+    result = evaluate_requirement(req, sut)
+
+    assert result.verdict == Verdict.SATISFIED
+    assert result.strength == Strength.OBSERVED
+    assert sut.logic_calls == 1
+
+
+def test_a_logical_duty_names_the_logic_failure_rather_than_propagating_it():
+    req = _logical_req(
+        spec="present(artifact_logs_reason_explanation)",
+        requires=("artifact_logs_reason_explanation",),
+    )
+    sut = _BrokenLogicSUT()
+
+    result = evaluate_requirement(req, sut)
+
+    assert result.strength is None
+    assert "RuntimeError" in result.evidence_summary
+    assert "logic export is broken" in result.evidence_summary
+
+
+def test_building_the_ladder_never_executes_the_system():
+    """Selecting a rung is a question about the surface, never a call into the system."""
+    req = _record_req(
+        "present(artifact_logs_reason_explanation)", ("artifact_logs_reason_explanation",)
+    )
+    sut = _BrokenLogicSUT()
+    resources = report_module._EvaluationResources(sut)
+
+    ladder = report_module._engine_ladder(req, sut, None, resources)
+
+    assert sut.logic_calls == 0
+    assert [strength for strength, _ in ladder] == [Strength.PROVED, Strength.OBSERVED]
+
+
+def test_a_raising_logic_is_attempted_once_per_evaluation():
+    """The failure is cached like the trace's: the second reader gets it, not a second call."""
+    sut = _BrokenLogicSUT()
+    resources = report_module._EvaluationResources(sut)
+
+    for _ in range(2):
+        with pytest.raises(RuntimeError):
+            resources.logic()
+
+    assert sut.logic_calls == 1
+
+
+def test_a_temporal_duty_never_rises_above_observed():
+    """No engine in this build reasons about a formula quantified over a trace.
+
+    A system exposing `logic()` and `decide()` still gets `observed` for a temporal duty, because
+    inventing a stronger rung for a claim no engine established is the overclaim this package
+    exists to refuse.
+    """
+    req = Requirement(
+        id="temporal_r1",
+        source_document="Internal Policy",
+        article_clause="Section 4.1",
+        verbatim_text="A reason must accompany every decision, always.",
+        stakeholder="affected individual",
+        formalism="temporal",
+        spec="always(present(artifact_logs_reason_explanation))",
+        rationale="At every step of the log, a reason was recorded.",
+        requires=("artifact_logs_reason_explanation",),
+        binding=True,
+        scope="",
+    )
+    sut = RulesAdapter(
+        rules=_REASON_RULES,
+        variables=_REASON_VARIABLES,
+        declared_capabilities={"artifact_logs_reason_explanation"},
+        test_inputs=[{"credit_score": 700}, {"credit_score": 500}],
+    )
+    result = evaluate_requirement(req, sut)
+    assert result.verdict == Verdict.SATISFIED
+    assert result.strength == Strength.OBSERVED
+
+
+def test_the_solvers_blank_string_is_pythons_blank_string():
+    """`present()` over a string must mean the same thing to Z3 as it does to the interpreter.
+
+    `is_present` calls a string absent when `strip()` leaves nothing. The solver encodes that as
+    "not in the language of blanks", so the two agree only while `BLANK_CHARACTERS` is exactly the
+    set `str.strip()` removes. Approximating it with `x != ""` would prove presence for a value
+    the trace semantics call absent — a proof of the wrong property, at the strongest rung.
+    """
+    assert set(proved.BLANK_CHARACTERS) == {
+        chr(code) for code in range(0x110000) if chr(code).isspace()
+    }
+    for blank in ("", " ", "\t\n", "\xa0", " "):
+        assert not is_present(blank)
+    for carried in ("x", " x ", "0"):
+        assert is_present(carried)
+
+
+def test_a_presence_proof_refuses_the_blank_string_the_solver_could_choose():
+    """A system whose rules can write a blank reason is not proved to have written one."""
+    req = _record_req(
+        "present(artifact_logs_reason_explanation)", ("artifact_logs_reason_explanation",)
+    )
+    sut = RulesAdapter(
+        rules=[
+            "approved = credit_score >= 650",
+            'if approved:\n'
+            '    artifact_logs_reason_explanation = "approved on score"\n'
+            'else:\n'
+            '    artifact_logs_reason_explanation = "  "\n',
+        ],
+        variables=_REASON_VARIABLES,
+        declared_capabilities={"artifact_logs_reason_explanation"},
+        test_inputs=[{"credit_score": 700}],
+    )
+    result = evaluate_requirement(req, sut)
+    assert result.verdict == Verdict.VIOLATED
+    assert result.strength == Strength.PROVED

@@ -6,6 +6,15 @@ What this module is for:
   Z3 encoding in `engines/proved.py` and the reference interpreter in `adapters/rules.py` agree on
   exactly which constructs exist.
 
+  It is also the one property language every requirement's `spec` is written in. A `spec` used to
+  mean two unrelated things — a formula for `temporal` and `logical`, free English prose for
+  `record` that no engine read — so a reader met prose and an STL formula in the same field.
+  `classify_fragment` names which fragment of this one language a spec belongs to, the pack loader
+  refuses a spec whose fragment is not the one the pack declared, and the English moved to the
+  `rationale` field, which means prose. What a requirement *says* is now separate from what
+  evidence discharges it: see `report.evaluate_requirement`, which searches for the strongest
+  engine the fragment and the system's exposed surface allow.
+
 What a reader must not break:
   - Nothing here may call `eval`, `exec` or `compile`. Pack files are data supplied by third
     parties; a pack that can run arbitrary Python is a pack that can do anything the user can.
@@ -19,6 +28,12 @@ What a reader must not break:
     Why this matters: counterexample verification runs the interpreter against the solver's model.
     If one side models a statement the other drops, verification agrees with itself about the
     wrong program.
+  - `classify_fragment` names the *narrowest* fragment a spec belongs to, and the loader demands
+    an exact match rather than a compatible one. A presence conjunction is also a well-formed
+    `logical` property, so a lenient check would let one be declared `logical` and lose the record
+    engine's per-signal, per-record diagnostics for nothing.
+    Why this matters: the fragment is what decides which engines may discharge the duty. A
+    fragment nobody checks is the silent downgrade this field was introduced to end.
 """
 
 from __future__ import annotations
@@ -28,6 +43,49 @@ from typing import Any
 
 _EQUIVALENCE_TOKENS = ("<=>", "<->")
 _IMPLICATION_TOKENS = ("=>", "->", " implies ")
+
+#: The atom asking whether a decision record carries a value for a signal at all.
+PRESENCE_CALL = "present"
+
+#: The numeric comparison that gives a signal the flag role rather than the magnitude role.
+FLAG_THRESHOLD = 0.5
+
+#: The temporal operators of the language, in the prefix call form a Python parser accepts.
+#: rtamt's infix `until` and `since` are deliberately absent: they do not parse here, so a spec
+#: using one is refused at load time rather than accepted into a fragment nothing can classify.
+TEMPORAL_OPERATORS = frozenset(
+    {"always", "eventually", "once", "historically", "next", "prev", "rise", "fall"}
+)
+
+#: The non-temporal function calls, with their arity.
+VALUE_CALLS = {"implies": 2, "Implies": 2, "abs": 1, "min": 2, "max": 2}
+
+#: The fragments of this language, narrowest first. `record` is a conjunction of presence atoms;
+#: `logical` is any other state property of one decision record; `temporal` is anything reaching
+#: across records with a temporal operator.
+FRAGMENTS = ("record", "logical", "temporal")
+
+#: The fragments that are properties of a single decision record, and can therefore be discharged
+#: by an engine that reasons about one decision at a time (the solver, the replay search) as well
+#: as by reading a trace.
+STATE_FRAGMENTS = ("record", "logical")
+
+
+def is_present(value: Any) -> bool:
+    """True when a trace value carries something, not merely a key.
+
+    A missing key, None, a blank string and an empty list/dict/set all mean the system
+    emitted nothing for that signal. Only the first of those is caught by a key check,
+    and only the first two by a truthiness check on `str(value)` — `str([])` is `"[]"`,
+    which is why an empty reason list would otherwise pass as a reason given.
+    """
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, frozenset, dict)):
+        return len(value) > 0
+    return True
 
 
 class UnsupportedConstructError(Exception):
@@ -159,6 +217,355 @@ def parse_expression(text: str) -> ast.Expression:
     return ast.parse(preprocess_spec(text), mode="eval")
 
 
+def parse_property(text: str) -> ast.Expression:
+    """Parse a requirement `spec` and refuse every construct outside this language.
+
+    `parse_expression` answers only whether Python could parse the text. This is the gate a
+    requirement passes: it refuses `"Record check"` and `"not a property !@#$"` alike, naming
+    what it found, so a spec that is prose can no longer sit in a field that means something
+    executable.
+    """
+    try:
+        node = parse_expression(text)
+    except SyntaxError as exc:
+        raise UnsupportedConstructError(
+            f"{text!r} is not a property in this language: {exc.msg}. A requirement's `spec` is a "
+            "formula; English belongs in `rationale`."
+        ) from exc
+    validate_property(node)
+    return node
+
+
+def _require_kind(kind: str, expected: str, node: ast.AST) -> None:
+    if kind not in (expected, "unknown"):
+        raise UnsupportedConstructError(
+            f"{ast.unparse(node)!r} has type {kind}, expected {expected}"
+        )
+
+
+def expression_kind(node: ast.AST) -> str:
+    """Return the language-level kind of an expression, checking its typed positions."""
+    if isinstance(node, ast.Expression):
+        return expression_kind(node.body)
+
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool):
+            return "boolean"
+        if isinstance(node.value, (int, float)):
+            return "number"
+        if isinstance(node.value, str):
+            return "string"
+        if node.value is None:
+            return "none"
+        raise UnsupportedConstructError(
+            f"Unsupported constant type {type(node.value).__name__}: {node.value!r}"
+        )
+
+    if isinstance(node, ast.Name):
+        return "unknown"
+
+    if isinstance(node, ast.UnaryOp):
+        operand_kind = expression_kind(node.operand)
+        if isinstance(node.op, ast.Not):
+            _require_kind(operand_kind, "boolean", node.operand)
+            return "boolean"
+        if isinstance(node.op, (ast.USub, ast.UAdd)):
+            _require_kind(operand_kind, "number", node.operand)
+            return "number"
+        raise UnsupportedConstructError(f"Unsupported unary operator: {type(node.op).__name__}")
+
+    if isinstance(node, ast.BinOp):
+        if not isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod)):
+            raise UnsupportedConstructError(
+                f"Unsupported binary operator: {type(node.op).__name__}"
+            )
+        left_kind = expression_kind(node.left)
+        right_kind = expression_kind(node.right)
+        _require_kind(left_kind, "number", node.left)
+        _require_kind(right_kind, "number", node.right)
+        return "number"
+
+    if isinstance(node, ast.BoolOp):
+        if not isinstance(node.op, (ast.And, ast.Or)):
+            raise UnsupportedConstructError(
+                f"Unsupported boolean operator: {type(node.op).__name__}"
+            )
+        for value in node.values:
+            _require_kind(expression_kind(value), "boolean", value)
+        return "boolean"
+
+    if isinstance(node, ast.Compare):
+        for op in node.ops:
+            if not isinstance(op, (ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE)):
+                raise UnsupportedConstructError(f"Unsupported comparison: {type(op).__name__}")
+        expression_kind(node.left)
+        for comparator in node.comparators:
+            expression_kind(comparator)
+        return "boolean"
+
+    if isinstance(node, ast.Call):
+        if node.keywords:
+            raise UnsupportedConstructError(
+                f"Keyword arguments are unsupported: {ast.unparse(node)!r}"
+            )
+        name = node.func.id if isinstance(node.func, ast.Name) else ""
+        if name == PRESENCE_CALL:
+            # A signal name, not an expression: `present(x)` asks whether the record carries a
+            # value for the signal called x, and there is no such question about a computed value.
+            if len(node.args) != 1 or not isinstance(node.args[0], ast.Name):
+                raise UnsupportedConstructError(
+                    f"{PRESENCE_CALL}() takes one signal name: {ast.unparse(node)!r}"
+                )
+            return "boolean"
+        if name in TEMPORAL_OPERATORS:
+            if len(node.args) != 1:
+                raise UnsupportedConstructError(
+                    f"{name} takes one operand, got {len(node.args)}: {ast.unparse(node)!r}"
+                )
+            _require_kind(expression_kind(node.args[0]), "boolean", node.args[0])
+            return "boolean"
+        arity = VALUE_CALLS.get(name)
+        if arity is None:
+            raise UnsupportedConstructError(f"Unsupported function call: {ast.unparse(node)!r}")
+        if len(node.args) != arity:
+            raise UnsupportedConstructError(
+                f"{name} expects {arity} argument(s), got {len(node.args)}"
+            )
+        kinds = [expression_kind(argument) for argument in node.args]
+        expected_kind = "boolean" if name in ("implies", "Implies") else "number"
+        for argument, kind in zip(node.args, kinds, strict=True):
+            _require_kind(kind, expected_kind, argument)
+        return expected_kind
+
+    raise UnsupportedConstructError(f"Unsupported language construct: {type(node).__name__}")
+
+
+def validate_property(node: ast.AST) -> None:
+    """Refuse a parsed expression that is not a Boolean property in this language."""
+    kind = expression_kind(node)
+    if kind not in ("boolean", "unknown"):
+        raise UnsupportedConstructError(
+            f"Requirement spec {ast.unparse(node)!r} is not a boolean property"
+        )
+    constants = bare_boolean_constants(node)
+    if constants:
+        values = ", ".join(repr(value) for value in constants)
+        raise UnsupportedConstructError(
+            f"Boolean constant(s) {values} cannot stand as bare Boolean atoms. Compare a signal "
+            "to a Boolean constant when that is the property being stated"
+        )
+    conflicting = sorted(
+        set(bare_boolean_names(node)) & set(measured_magnitude_names(node))
+    )
+    if conflicting:
+        raise UnsupportedConstructError(
+            "Signal(s) used in both a bare Boolean role and a measured magnitude role: "
+            f"{', '.join(conflicting)}. A signal cannot have both roles in one property"
+        )
+
+
+def validate_temporal_property(node: ast.AST) -> None:
+    """Refuse valid state expressions that the temporal fragment cannot render soundly."""
+    for comparison in (item for item in ast.walk(node) if isinstance(item, ast.Compare)):
+        left = comparison.left
+        for operator, right in zip(
+            comparison.ops, comparison.comparators, strict=True
+        ):
+            boolean = None
+            operand = None
+            if isinstance(left, ast.Constant) and isinstance(left.value, bool):
+                boolean = left.value
+                operand = right
+            elif isinstance(right, ast.Constant) and isinstance(right.value, bool):
+                boolean = right.value
+                operand = left
+            if boolean is not None and isinstance(operator, (ast.Eq, ast.NotEq)):
+                rendered = ast.unparse(
+                    ast.Compare(left=left, ops=[operator], comparators=[right])
+                )
+                if isinstance(operand, ast.Name):
+                    positive = boolean == isinstance(operator, ast.Eq)
+                    atom = operand.id if positive else f"not {operand.id}"
+                    raise UnsupportedConstructError(
+                        f"Temporal comparison {rendered!r} against a Boolean constant is "
+                        f"unsupported; write the bare Boolean atom instead, for example "
+                        f"always({atom})"
+                    )
+                raise UnsupportedConstructError(
+                    f"Temporal comparison {rendered!r} against a Boolean constant is "
+                    "unsupported; write the Boolean expression directly as an atom"
+                )
+            left = right
+
+
+def presence_atoms(node: ast.AST) -> tuple[str, ...] | None:
+    """The signal names of a property that is a conjunction of `present()` atoms, else None.
+
+    `None` is the answer for every other shape, including `present(a) or present(b)` and
+    `present(a) and x > 1`: the record engine walks this conjunction to name which conjunct
+    failed, and it can only do that for a conjunction.
+    """
+    if isinstance(node, ast.Expression):
+        return presence_atoms(node.body)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == PRESENCE_CALL
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Name)
+    ):
+        return (node.args[0].id,)
+    if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.And):
+        names: list[str] = []
+        for value in node.values:
+            part = presence_atoms(value)
+            if part is None:
+                return None
+            names.extend(part)
+        return tuple(names)
+    return None
+
+
+def signal_names(node: ast.AST) -> tuple[str, ...]:
+    """Every signal name a property reads, sorted, excluding the names of its function calls."""
+    called = {
+        id(call.func)
+        for call in ast.walk(node)
+        if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+    }
+    return tuple(
+        sorted(
+            {
+                name.id
+                for name in ast.walk(node)
+                if isinstance(name, ast.Name) and id(name) not in called
+            }
+        )
+    )
+
+
+def _bare_boolean_parts(node: ast.AST) -> tuple[tuple[str, ...], tuple[bool, ...]]:
+    names: set[str] = set()
+    constants: set[bool] = set()
+
+    def visit(current: ast.AST, boolean_position: bool = False) -> None:
+        if isinstance(current, ast.Expression):
+            visit(current.body, True)
+        elif isinstance(current, ast.Name):
+            if boolean_position:
+                names.add(current.id)
+        elif isinstance(current, ast.Constant):
+            if boolean_position and isinstance(current.value, bool):
+                constants.add(current.value)
+        elif isinstance(current, ast.UnaryOp):
+            visit(current.operand, isinstance(current.op, ast.Not))
+        elif isinstance(current, ast.BinOp):
+            visit(current.left)
+            visit(current.right)
+        elif isinstance(current, ast.BoolOp):
+            for value in current.values:
+                visit(value, True)
+        elif isinstance(current, ast.Compare):
+            visit(current.left)
+            for comparator in current.comparators:
+                visit(comparator)
+        elif isinstance(current, ast.Call):
+            name = current.func.id if isinstance(current.func, ast.Name) else ""
+            if name in TEMPORAL_OPERATORS or name in ("implies", "Implies"):
+                for argument in current.args:
+                    visit(argument, True)
+            elif name != PRESENCE_CALL:
+                for argument in current.args:
+                    visit(argument)
+
+    visit(node)
+    return tuple(sorted(names)), tuple(sorted(constants))
+
+
+def bare_boolean_names(node: ast.AST) -> tuple[str, ...]:
+    """Signal names used directly where the property language requires a Boolean value."""
+    return _bare_boolean_parts(node)[0]
+
+
+def bare_boolean_constants(node: ast.AST) -> tuple[bool, ...]:
+    """Boolean literals used directly where the property language requires a Boolean atom."""
+    return _bare_boolean_parts(node)[1]
+
+
+def _value_signal_names(node: ast.AST) -> set[str]:
+    if isinstance(node, ast.Name):
+        return {node.id}
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == PRESENCE_CALL
+    ):
+        return set()
+    names: set[str] = set()
+    for child in ast.iter_child_nodes(node):
+        if isinstance(node, ast.Call) and child is node.func:
+            continue
+        names.update(_value_signal_names(child))
+    return names
+
+
+def _flag_comparison(left: ast.AST, operator: ast.cmpop, right: ast.AST) -> bool:
+    left_flag = (
+        isinstance(left, ast.Name)
+        and isinstance(operator, ast.GtE)
+        and isinstance(right, ast.Constant)
+        and not isinstance(right.value, bool)
+        and right.value == FLAG_THRESHOLD
+    )
+    right_flag = (
+        isinstance(right, ast.Name)
+        and isinstance(operator, ast.LtE)
+        and isinstance(left, ast.Constant)
+        and not isinstance(left.value, bool)
+        and left.value == FLAG_THRESHOLD
+    )
+    return left_flag or right_flag
+
+
+def measured_magnitude_names(node: ast.AST) -> tuple[str, ...]:
+    """Signals used in comparisons that require measured numeric magnitudes."""
+    names: set[str] = set()
+    for comparison in (item for item in ast.walk(node) if isinstance(item, ast.Compare)):
+        left = comparison.left
+        for operator, right in zip(
+            comparison.ops, comparison.comparators, strict=True
+        ):
+            if not _flag_comparison(left, operator, right):
+                names.update(_value_signal_names(left))
+                names.update(_value_signal_names(right))
+            left = right
+    return tuple(sorted(names))
+
+
+def has_temporal_operator(node: ast.AST) -> bool:
+    """True when a property reaches across records with one of `TEMPORAL_OPERATORS`."""
+    return any(
+        isinstance(child, ast.Call)
+        and isinstance(child.func, ast.Name)
+        and child.func.id in TEMPORAL_OPERATORS
+        for child in ast.walk(node)
+    )
+
+
+def classify_fragment(spec: str) -> str:
+    """The narrowest fragment of this language `spec` belongs to.
+
+    `temporal` when anything in it reaches across records; `record` when it is a conjunction of
+    presence atoms and nothing else; `logical` for every other well-formed state property. Raises
+    `UnsupportedConstructError` for text that is not in the language at all.
+    """
+    node = parse_property(spec)
+    if has_temporal_operator(node):
+        validate_temporal_property(node)
+        return "temporal"
+    return "record" if presence_atoms(node) is not None else "logical"
+
+
 def _implies(antecedent: Any, consequent: Any) -> bool:
     return (not antecedent) or bool(consequent)
 
@@ -251,6 +658,15 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
             raise UnsupportedConstructError(
                 f"Keyword arguments are unsupported: {ast.unparse(node)!r}"
             )
+        if name == PRESENCE_CALL:
+            # Asked before the argument is evaluated, and answered without raising: a signal the
+            # record does not carry is exactly what this atom is for, and resolving the name
+            # first would turn "absent" into a NameError.
+            if len(node.args) != 1 or not isinstance(node.args[0], ast.Name):
+                raise UnsupportedConstructError(
+                    f"{PRESENCE_CALL}() takes one signal name: {ast.unparse(node)!r}"
+                )
+            return is_present(env.get(node.args[0].id))
         args = [eval_expression(arg, env) for arg in node.args]
         if name in ("implies", "Implies"):
             _require_arity(name, args, 2)

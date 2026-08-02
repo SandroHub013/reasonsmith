@@ -3,11 +3,11 @@
 Every block below is stdout pasted unedited from a real run, not a hand-written illustration of
 what the tool would print. Regenerate any block by running the command shown above it.
 
-- **Captured at:** commit `8b4c72042443dfdb116c851d67f6dc3884392665` (branch
-  `fm/rs-land-contributor-demos`), where the demo transcript was regenerated over the four Table 7
-  demos added on that branch; the two CLI blocks are unchanged from commit
-  `ea4bf3711abbd6922dcf4f1448cb177807bbe3d6` (branch `fm/rs-readable-repo`) and reproduce at both
-  commits
+- **Capture provenance:** the demo transcript was captured at commit
+  `8b4c72042443dfdb116c851d67f6dc3884392665` (branch `fm/rs-land-contributor-demos`), where it was
+  regenerated over the four Table 7 demos added on that branch. The CLI blocks were regenerated
+  from the commands below for the property-language change; `test_committed_transcripts_are_the_real_stdout`
+  re-runs all three commands and holds every committed block to its real stdout.
 - **Environment:** Python 3.12.9, Linux, `nesyarena` at the commit `pyproject.toml` pinned when
   these transcripts were captured (`57720fa212834689692e171882272140f1d1fed7`); re-run since
   against the PyPI release `nesyarena==0.1.0` now pinned, byte-for-byte identical
@@ -958,7 +958,7 @@ headline: 3 requirements · 3 binding: 3 observed
 REQUIREMENT FINDINGS:
   [OBSERVED] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): satisfied
     requires: artifact_logs_decision_record, artifact_logs_notification_latency_days, artifact_logs_counteroffer_not_accepted
-    summary: Observed over 3 decision(s): temporal monitor for 'always((artifact_logs_decision_record >= 0.5) -> ((artifact_logs_notification_latency_days <= 30) or ((artifact_logs_counteroffer_not_accepted >= 0.5) and (artifact_logs_notification_latency_days <= 90))))' satisfied across all time steps.
+    summary: Observed over 3 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) -> ((artifact_logs_notification_latency_days <= 30) or ((artifact_logs_counteroffer_not_accepted >= 0.5) and (artifact_logs_notification_latency_days <= 90))))' satisfied across all time steps.
   [OBSERVED] ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): satisfied
     requires: artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version
     summary: Observed over 3 decision(s): every required signal (artifact_logs_reason_explanation, artifact_logs_decision_record, provenance_model_version) carries a value in every record. Holds on the trace supplied; nothing here extends the claim to decisions not in it.

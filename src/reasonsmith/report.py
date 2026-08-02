@@ -9,6 +9,15 @@ What a reader must not break:
   - No result claims a strength it did not earn (`strength` is `None` when un-evaluated).
     Why this matters: A requirement never evaluated (e.g. unsupported formalism or empty trace)
     is recorded as un-evaluated, never quietly counted as satisfied or given an unearned strength.
+  - `_engine_ladder` decides which engines may discharge a requirement from two things: the
+    fragment its property belongs to, and what the system under test exposes. `evaluate_requirement`
+    then takes the strongest evidence any of them produced, falling to the next rung when an engine
+    established nothing.
+    Why this matters: `formalism` used to name the property *and* pick the engine, so 17 of 18
+    shipped duties could never exceed `observed` however much a system exposed — a fact about a
+    word in a TOML file, reported as a fact about the system. Which rung a duty reaches must be a
+    fact about the system. What a verdict *means* is untouched by this: see `docs/semantics.md`
+    §3.5, including the case where exposed logic and trace disagree.
   - Combining zero verdicts is `inconclusive`, never vacuously `satisfied`.
     Why this matters: Having checked nothing is not evidence that a requirement holds.
   - The unattainable analysis must NEVER execute the system (`sut.decisions()` is never called).
@@ -24,10 +33,11 @@ from __future__ import annotations
 import json
 import subprocess
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, cast
 
+from reasonsmith.rulelang import STATE_FRAGMENTS, is_present
 from reasonsmith.spec import Pack, Requirement, normalize_scope
 from reasonsmith.sut import SystemUnderTest, _validate_capability_collection
 from reasonsmith.verdict import Strength, Verdict
@@ -79,21 +89,11 @@ def _budget_line(budget: Mapping[str, Any]) -> str:
     )
 
 
-def _is_present(value: Any) -> bool:
-    """True when a trace value carries something, not merely a key.
-
-    A missing key, None, a blank string and an empty list/dict/set all mean the system
-    emitted nothing for that signal. Only the first of those is caught by a key check,
-    and only the first two by a truthiness check on `str(value)` — `str([])` is `"[]"`,
-    which is why an empty reason list would otherwise pass as a reason given.
-    """
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, (list, tuple, set, frozenset, dict)):
-        return len(value) > 0
-    return True
+#: Re-exported so the engines and the JSONL adapter keep importing presence from one place. The
+#: definition lives in `rulelang` because `present(signal)` is an atom of the property language
+#: and the interpreter has to answer it; having two definitions of "present" is how the record
+#: engine and a `present()` atom would come to disagree about the same record.
+_is_present = is_present
 
 
 @dataclass(frozen=True)
@@ -1485,6 +1485,7 @@ class _EvaluationResources:
         self._records: object = _UNREAD
         self._trace_error: Exception | None = None
         self._logic_data: Any = _UNREAD
+        self._logic_error: Exception | None = None
 
     def trace(self) -> list[dict[str, Any]]:
         if self._records is _UNREAD:
@@ -1500,7 +1501,13 @@ class _EvaluationResources:
     def logic(self) -> Any:
         if self._logic_data is _UNREAD:
             logic_func = getattr(self.sut, "logic", None)
-            self._logic_data = logic_func() if callable(logic_func) else None
+            try:
+                self._logic_data = logic_func() if callable(logic_func) else None
+            except Exception as exc:
+                self._logic_error = exc
+                self._logic_data = None
+        if self._logic_error is not None:
+            raise self._logic_error
         return self._logic_data
 
 
@@ -1613,36 +1620,152 @@ def evaluate_requirement(
             scope=req.scope,
         )
 
-    if req.formalism in ("record", "temporal") and records is None:
-        records = resources.trace()
+    candidates = _engine_ladder(req, sut, records, resources)
+    if not candidates:
+        raise NotImplementedError(
+            f"{req.formalism!r} is listed in SUPPORTED_FORMALISMS but no engine here evaluates "
+            "it. Widen SUPPORTED_FORMALISMS when the engine lands, not before."
+        )
+
+    # Take the strongest evidence there is a basis for, not the first engine tried. An engine
+    # that came back with `strength=None` established nothing, so it discharged nothing, and the
+    # next rung down is the strongest evidence this run actually has. The order comes from the
+    # lattice rather than from the order `_engine_ladder` appended, so a rung added there cannot
+    # be tried out of turn.
+    #
+    # When nothing established anything, the strongest engine's not-evaluated result is reported,
+    # so the reader is told how the best available engine fell short. The one exception is a proof
+    # rung that never had any logic to reason over: that says nothing about this evaluation, so a
+    # lower rung's account of the evidence the system did supply displaces it.
+    fallback: RequirementResult | None = None
+    for _strength, run in sorted(candidates, key=lambda rung: rung[0], reverse=True):
+        result = run()
+        if result.strength is not None:
+            return result
+        if fallback is None or fallback.details.get("result") == _NO_LOGIC_TO_REASON_OVER:
+            fallback = result
+    return cast(RequirementResult, fallback)
+
+
+#: Tags a proof-rung result produced without any logic to reason over — `logic()` absent, returning
+#: None, or raising. Such a result is not an account of this evaluation, only of an interface that
+#: was never there, so `evaluate_requirement` lets a lower rung's not-evaluated result displace it.
+_NO_LOGIC_TO_REASON_OVER = "no_logic_to_reason_over"
+
+
+def _run_proof_rung(
+    req: Requirement,
+    sut: SystemUnderTest,
+    records: list[dict[str, Any]] | None,
+    resources: _EvaluationResources,
+) -> RequirementResult:
+    """The proof rung, with a broken `logic()` reported rather than raised.
+
+    `logic()` is an optional interface, and one that raises has established nothing — which is
+    what `strength=None` means. Letting the exception out would take the whole evaluation down
+    with it, so a duty whose trace the record engine could have read would lose a verdict it had
+    the evidence for. A malformed *trace* is deliberately not treated this way: that is the
+    system's own decision log coming back the wrong shape, and it still raises and names the
+    system.
+    """
+    from reasonsmith.engines.proved import ProvedEngine
+
+    try:
+        logic_data = resources.logic()
+    except Exception as exc:
+        return RequirementResult(
+            requirement_id=req.id,
+            source_clause=f"{req.source_document} {req.article_clause}",
+            verdict=Verdict.INCONCLUSIVE,
+            strength=None,
+            signals_required=tuple(req.requires),
+            evidence_summary=(
+                f"Not evaluated: reading the system's decision logic failed — "
+                f"{type(sut).__name__}.logic() raised {type(exc).__name__}: {exc}. "
+                "Nothing was proved about this requirement."
+            ),
+            details={"result": _NO_LOGIC_TO_REASON_OVER},
+            binding=req.binding,
+            scope=req.scope,
+        )
+    result = ProvedEngine.evaluate(req, sut, records, logic_data=logic_data)
+    if logic_data is None:
+        return replace(result, details={**result.details, "result": _NO_LOGIC_TO_REASON_OVER})
+    return result
+
+
+def _engine_ladder(
+    req: Requirement,
+    sut: SystemUnderTest,
+    records: list[dict[str, Any]] | None,
+    resources: _EvaluationResources,
+) -> list[tuple[Strength, Any]]:
+    """Every engine that could discharge this requirement, strongest first.
+
+    Two things decide the list, and `formalism` is only one of them. The fragment says what kind
+    of property this is — a state property of one decision record, or a temporal one reaching
+    across records — and the system's exposed surface says what can be reasoned over. A presence
+    property checked against a trace is `observed`; the *same* property discharged against exposed
+    `logic()` is `proved`. Which rung a duty reaches is therefore a fact about the system, not
+    about which word a pack author typed.
+
+    Building the ladder never *executes* the system: both optional rungs are selected from the
+    callable surface alone, `logic` exactly as `decide` already was. Calling `logic()` here to
+    decide whether the proof rung belongs would let a system whose `logic()` raises abort a duty
+    the record engine could have answered from its trace.
+
+    Temporal properties reach only the observed engine. The solver and the replay search both
+    reason about one decision at a time and have nothing to say about a formula quantified over
+    the trace; there is no temporal engine above `observed` in this build, and inventing a rung
+    for one would be the overclaim this package exists to refuse.
+    """
+    ladder: list[tuple[Strength, Any]] = []
+
+    if req.formalism in STATE_FRAGMENTS:
+        if callable(getattr(sut, "logic", None)):
+            ladder.append((Strength.PROVED, lambda: _run_proof_rung(req, sut, records, resources)))
+        if callable(getattr(sut, "decide", None)):
+            from reasonsmith.engines.probed import ProbedEngine
+            ladder.append(
+                (
+                    Strength.PROBED,
+                    lambda: ProbedEngine.evaluate(
+                        req,
+                        sut,
+                        records,
+                        trace_provider=resources.trace if records is None else None,
+                    ),
+                )
+            )
 
     if req.formalism == "record":
         from reasonsmith.engines.record import RecordEngine
-        return RecordEngine.evaluate(req, sut, records or [])
+        ladder.append(
+            (
+                Strength.OBSERVED,
+                lambda: RecordEngine.evaluate(
+                    req, sut, records if records is not None else resources.trace()
+                ),
+            )
+        )
     elif req.formalism == "temporal":
         from reasonsmith.engines.observed import ObservedEngine
-        return ObservedEngine.evaluate(req, sut, records or [])
-    elif req.formalism == "logical":
-        # A system that exposes its decision logic gets the strongest engine there is a basis
-        # for. One that exposes only `decide()` has nothing to reason over, and probing it is
-        # the difference between a verdict and no verdict at all — but never a proof. A system
-        # exposing neither goes to the proved engine, which reports that as no evidence.
-        logic_data = resources.logic()
-        if logic_data is None and callable(getattr(sut, "decide", None)):
-            from reasonsmith.engines.probed import ProbedEngine
-            return ProbedEngine.evaluate(
-                req,
-                sut,
-                records,
-                trace_provider=resources.trace if records is None else None,
+        ladder.append(
+            (
+                Strength.OBSERVED,
+                lambda: ObservedEngine.evaluate(
+                    req, sut, records if records is not None else resources.trace()
+                ),
             )
+        )
+    elif not ladder:
+        # A logical duty against a system exposing neither `logic()` nor `decide()`. The proved
+        # engine is the one that can say which interface was missing, so it is reached to report
+        # no evidence rather than left out to produce none.
         from reasonsmith.engines.proved import ProvedEngine
-        return ProvedEngine.evaluate(req, sut, records, logic_data=logic_data)
+        ladder.append((Strength.PROVED, lambda: ProvedEngine.evaluate(req, sut, records)))
 
-    raise NotImplementedError(
-        f"{req.formalism!r} is listed in SUPPORTED_FORMALISMS but no engine here evaluates it. "
-        "Widen SUPPORTED_FORMALISMS when the engine lands, not before."
-    )
+    return ladder
 
 
 def check_conformance(
