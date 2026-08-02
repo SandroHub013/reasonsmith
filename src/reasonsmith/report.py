@@ -519,6 +519,7 @@ class ConformanceReport:
         command: str | None = None,
         extra_section_html: str | None = None,
         audience: str | None = None,
+        provenance_note: str | None = None,
     ) -> str:
         """Self-contained HTML conformance report rendering.
 
@@ -541,6 +542,9 @@ class ConformanceReport:
         document handed to an auditor, is exactly the false completeness this package refuses.
         The caller that passes it owns the claim it makes and escapes its own content.
 
+        `provenance_note` is one caller-owned sentence appended to the provenance bar, for an
+        origin claim this package cannot establish for itself — see `render.render_html`.
+
         `audience` selects an audience projection, exactly as it does for `render_text`.
         """
         from reasonsmith.render import render_html
@@ -551,6 +555,7 @@ class ConformanceReport:
             command=command,
             extra_section_html=extra_section_html,
             audience=audience,
+            provenance_note=provenance_note,
         )
 
 
