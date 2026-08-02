@@ -27,6 +27,7 @@ from pathlib import Path
 
 from reasonsmith.engines.probed import ProbedEngine
 from reasonsmith.report import check_conformance, evaluate_requirement
+from reasonsmith.rulelang import STATE_FRAGMENTS
 from reasonsmith.spec import load_pack
 from reasonsmith.verdict import Strength, Verdict
 
@@ -144,12 +145,20 @@ def test_the_chosen_duty_is_binding_and_reaches_an_undeclared_system():
     is what puts it inside a duty about adverse-action reasons. A system that declared nothing
     would be reported not applicable here rather than judged, and the artefact would demonstrate
     nothing; that is the gate working, not a way around it.
+
+    The fragment changed from `record` to `logical` when the duty gained the (a)(2)(i) trigger and
+    the clause's own negative constraint: an implication is not a conjunction of `present()` atoms.
+    Both are `STATE_FRAGMENTS` — properties of a single decision record — which is what keeps all
+    three rungs reachable, and is why the assertion below is on that rather than on either name.
+    A `temporal` property here would cap every system at `observed` and the document would have no
+    thesis left.
     """
     req = load_pack("ecoa").get_requirement("ecoa_reg_b_1002_9_b_2_specific_reasons")
     assert req.binding is True
     assert req.scope == ""
     assert req.domains == ("consumer-credit",)
-    assert req.formalism == "record"
+    assert req.formalism == "logical"
+    assert req.formalism in STATE_FRAGMENTS
     for name in ("neural_scorer", "probabilistic_scorer", "symbolic_rules"):
         module = _load(name)
         assert module.system_under_test().system_domains == ("consumer-credit",)
