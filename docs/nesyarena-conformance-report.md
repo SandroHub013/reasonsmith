@@ -55,6 +55,7 @@ reported unattainable rather than filled in:
 - `artifact_logs_notification_latency_days` — the system computes a query value; it neither issues nor times a notification
 - `artifact_logs_counteroffer_not_accepted` — no counteroffer exists in this decision domain
 - `artifact_logs_right_to_reasons_disclosure` — the system issues no adverse-action notice, so no decision of its own carries a disclosure of a right to request reasons. It is one branch of the either/or of 12 CFR 1002.9(a)(2) and no `requires` gates it, so its absence makes no duty unattainable: that content duty is judged on the other branch, the reason explanation
+- `artifact_logs_deleted_reason_count` — unlike every other signal here, this one is not something the system emits into a record: reasonsmith measures it itself from an inference artefact the system exposes through the optional `artifact()` method. None of the five provenances exposes one, so there is nothing to measure and no longer trace could ever supply it
 - `artifact_logs_solely_automated` — whether a human reviews the output afterwards is a property of the pipeline the system is embedded in, which the system cannot observe
 - `artifact_logs_significant_effect` — the effect of a decision on a person is a fact about the deployment, not about the inference
 - `artifact_logs_human_intervention_route` — an intervention route is an organisational arrangement, not an inference output
@@ -230,8 +231,8 @@ system: nesyarena:exact-wmc
 declared scope: undeclared
 declared domains: undeclared
 pack: ecoa
-headline: 3 requirements · 3 binding: 3 not applicable
-DUTIES NOT CHECKED: 3 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
+headline: 4 requirements · 4 binding: 4 not applicable
+DUTIES NOT CHECKED: 4 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): not_applicable
@@ -244,6 +245,10 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
   [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
+    domain limit: consumer-credit
+    summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
+  [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_principal_reasons_complete (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     domain limit: consumer-credit
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
 
@@ -325,8 +330,8 @@ system: nesyarena:add-mult(clamped)
 declared scope: undeclared
 declared domains: undeclared
 pack: ecoa
-headline: 3 requirements · 3 binding: 3 not applicable
-DUTIES NOT CHECKED: 3 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
+headline: 4 requirements · 4 binding: 4 not applicable
+DUTIES NOT CHECKED: 4 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): not_applicable
@@ -339,6 +344,10 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
   [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
+    domain limit: consumer-credit
+    summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
+  [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_principal_reasons_complete (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     domain limit: consumer-credit
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
 
@@ -419,8 +428,8 @@ system: nesyarena:top-1-proofs
 declared scope: undeclared
 declared domains: undeclared
 pack: ecoa
-headline: 3 requirements · 3 binding: 3 not applicable
-DUTIES NOT CHECKED: 3 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
+headline: 4 requirements · 4 binding: 4 not applicable
+DUTIES NOT CHECKED: 4 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): not_applicable
@@ -433,6 +442,10 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
   [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
+    domain limit: consumer-credit
+    summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
+  [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_principal_reasons_complete (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     domain limit: consumer-credit
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
 
@@ -513,8 +526,8 @@ system: nesyarena:top-3-proofs
 declared scope: undeclared
 declared domains: undeclared
 pack: ecoa
-headline: 3 requirements · 3 binding: 3 not applicable
-DUTIES NOT CHECKED: 3 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
+headline: 4 requirements · 4 binding: 4 not applicable
+DUTIES NOT CHECKED: 4 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): not_applicable
@@ -527,6 +540,10 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
   [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
+    domain limit: consumer-credit
+    summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
+  [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_principal_reasons_complete (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     domain limit: consumer-credit
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
 
@@ -607,8 +624,8 @@ system: nesyarena:min-max-prob
 declared scope: undeclared
 declared domains: undeclared
 pack: ecoa
-headline: 3 requirements · 3 binding: 3 not applicable
-DUTIES NOT CHECKED: 3 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
+headline: 4 requirements · 4 binding: 4 not applicable
+DUTIES NOT CHECKED: 4 domain-limited duties were reported not applicable without being checked, because this system declares no decision domain. Nothing in this report says those duties are met. Declare what kind of decision this system makes — --system-domain <domain>, repeatable, or a system_domains attribute on the adapter — and run it again; docs/authoring-packs.md names the vocabulary.
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): not_applicable
@@ -621,6 +638,10 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
   [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
     requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
+    domain limit: consumer-credit
+    summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
+  [NOT APPLICABLE] ecoa_reg_b_1002_9_b_2_principal_reasons_complete (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): not_applicable
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     domain limit: consumer-credit
     summary: Not applicable: this duty is about consumer-credit decisions, but the system's decision domain is undeclared. reasonsmith never infers a system's decision domain, and the domain vocabulary is the pack author's rather than the regulation's — see docs/authoring-packs.md.
 

@@ -9,8 +9,8 @@ Each objective gives a **measurable outcome** — a check that fails today and w
 objective is met — and what it **depends on**. Where the honest answer is that an objective is
 blocked, or deliberately not started, that is written down rather than left as an implied "soon".
 
-Current state, for scale: **4 packs, 18 requirements, 4 engines** (`record`, `observed`, `probed`,
-`proved`). `reasonsmith validate-pack ecoa eu_ai_act gdpr table7` prints what each contains.
+Current state, for scale: **4 packs, 19 requirements, 5 engines** (`record`, `observed`, `probed`,
+`certificate` — also at `probed` — and `proved`). `reasonsmith validate-pack ecoa eu_ai_act gdpr table7` prints what each contains.
 
 ---
 
@@ -70,7 +70,9 @@ requirement in this repository* removed from that document because it has stoppe
 
 **Depends on.** A design answer before any code: `conformance.stratified()` already computes
 per-group figures, but it does so over reason-deletion certificates and produces statistics, not a
-requirement verdict, and the two paths do not meet. Deciding whether a protected attribute may be a
+requirement verdict, and that path still does not meet a duty. What a single certificate takes to
+become a verdict is now shown by `engines/certificate.py` — one decision at a time, grounding one
+measured signal — and a group statistic is not that. Deciding whether a protected attribute may be a
 signal in a decision record at all — and what it means for a property to read one — is the work.
 It also depends on the four-outcome discipline of `docs/semantics.md` §4 holding: a fairness
 property that cannot be evaluated must report *not evaluated*, never `satisfied`.

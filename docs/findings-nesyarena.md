@@ -37,11 +37,15 @@ as a number. The decision margin and numeric deviation are the two signals added
 its property compares them, and its capability declaration also requires the existing approximation
 statement. The first run carried eight signals and no duty read the deviation at all.
 
-Nine further pack signals were **not** declared, because the system genuinely cannot emit them —
+Eleven further pack signals were **not** declared, because the system genuinely cannot emit them —
 `provenance_active_exceptions` (definite Horn programs have no defeater mechanism),
 `artifact_logs_notification_latency_days` and `artifact_logs_counteroffer_not_accepted` (no
-notification exists in this domain), and the six Article 22 signals that are facts about a
-controller's legal position or about the pipeline the system is embedded in, not about an
+notification exists in this domain), `artifact_logs_right_to_reasons_disclosure` (the system issues
+no adverse-action notice; it is the ungated branch of the either/or of 12 CFR 1002.9(a)(2), so its
+absence makes no duty unattainable), `artifact_logs_deleted_reason_count` (the one signal
+reasonsmith *measures* from an inference artefact rather than reads from a record, and no
+provenance here exposes one through `artifact()`), and the six Article 22 signals that are facts
+about a controller's legal position or about the pipeline the system is embedded in, not about an
 inference. Filling any of those in would have made a duty checkable that this system cannot
 discharge, which is the failure this whole exercise exists to avoid.
 
@@ -51,12 +55,12 @@ a measurement harness, not an AI system placed on the market in an Annex III use
 
 **No decision domain was declared either.** These provenances decide graph reachability and Sudoku
 validity. They issue no credit, hire nobody and treat no patient, so there is nothing to declare,
-and the three ECOA duties come back not applicable rather than checked. That is finding 3 below,
+and the four ECOA duties come back not applicable rather than checked. That is finding 3 below,
 and it is the reason the gate exists.
 
 ## The headline
 
-60 results — 5 systems × 12 requirements across the three packs:
+65 results — 5 systems × 13 requirements across the three packs:
 
 | outcome | count |
 | --- | ---: |
@@ -64,7 +68,7 @@ and it is the reason the gate exists.
 | violated, at strength `observed` | 3 |
 | inconclusive, `unattainable` | 10 |
 | not applicable (no class declared) | 20 |
-| not applicable (no decision domain declared) | 15 |
+| not applicable (no decision domain declared) | 20 |
 | satisfied at `probed` | 0 |
 | satisfied at `proved` | 0 |
 
@@ -76,7 +80,8 @@ after that run to read the declared deviation rather than the field that explain
 The whole ECOA column moved to *not applicable* when the decision-domain gate landed: 8 satisfied,
 2 violated and 5 unattainable results became 15 not-applicable ones. Nothing about these systems
 changed. What changed is that a duty about consumer credit stopped being answered against a graph
-solver — finding 3.
+solver — finding 3. The column is 20 results rather than 15 today only because the pack has since
+gained a fourth duty; the gate did what that sentence says it did to the three that existed then.
 
 ## The violation
 
@@ -197,26 +202,30 @@ What has **not** changed, and what an adopter must still read the same way:
 Zero results at `probed`, zero at `proved`. There is no probe budget to report in this run because
 no probed verdict was produced.
 
-Across all three packs there is exactly one `logical` requirement
-(`gdpr_art22_1_no_prohibited_decision_for_any_input`) and three `temporal` requirements
+Across all three packs there are three `logical` requirements
+(`gdpr_art22_1_no_prohibited_decision_for_any_input`, `ecoa_reg_b_1002_9_b_2_specific_reasons` and
+`ecoa_reg_b_1002_9_b_2_principal_reasons_complete`) and three `temporal` requirements
 (`ecoa_reg_b_1002_9_a_1_timing_of_notice`, `ecoa_reg_b_1002_9_a_2_written_statement` and
-`gdpr_recital71_error_risk_minimised`). The logical duty and the ECOA *timing* duty came back
+`gdpr_recital71_error_risk_minimised`). The GDPR logical duty and the ECOA *timing* duty came back
 `unattainable` for all five systems, so the Z3 proved engine and the replay probed engine never
-ran. The logical duty needs six signals; the system can emit none of them, because five are facts
+ran. That GDPR duty needs six signals; the system can emit none of them, because five are facts
 about a controller's legal basis or about a human-intervention route and one is about the effect a
 decision has on a person. The ECOA timing duty needs a notification latency the system has no
 concept of. The GDPR error-risk duty and the ECOA content duty are checkable and produce `observed`
 verdicts; temporal monitoring does not reach either of the top two rungs, and no engine in this
 build reasons about a formula quantified over a trace (`docs/semantics.md` §3.5). (Since finding 3,
 the ECOA content duty no longer reaches this system at all — its ceiling is unchanged, but this run
-is no longer where it can be seen.)
+is no longer where it can be seen.) This account of why the top two rungs went unreached was
+written when `gdpr_art22_1_no_prohibited_decision_for_any_input` was the only `logical` duty in
+these packs; it does not cover the two ECOA `logical` duties added since, and why they also
+produce no `probed` or `proved` verdict here has not been re-derived.
 
 `ecoa_reg_b_1002_9_a_2_written_statement` is temporal only since the either/or of 12 CFR
 1002.9(a)(2) was formalised; it was a `record` duty when this run was first made, and its verdicts
 here are the same either way — the five systems supply `artifact_logs_reason_explanation` or they
 do not, and none of them discloses a right to request reasons.
 
-That leaves the eight `record` duties these three packs hold, and there is a second cause behind
+That leaves the seven `record` duties these three packs hold, and there is a second cause behind
 them that this finding originally mistook for the first. When this run was first made, a `record` duty could never exceed
 `observed` for *any* system: `formalism` both named the property and picked the engine, so a human
 typing `record` in a TOML file capped the rung regardless of what the system exposed. That defect
@@ -245,7 +254,7 @@ Four of the five systems came back `satisfied` on `ecoa_reg_b_1002_9_a_2_written
 adverse-action notice duty under 12 CFR 1002.9 — for a graph-reachability benchmark that issues no
 credit and notifies nobody.
 
-The cause is structural: all three ECOA requirements and all five GDPR requirements carry
+The cause is structural: all four ECOA requirements and all five GDPR requirements carry
 `scope = ""`, so they are not class-limited and reach every system. Only the EU AI Act pack uses
 the regulatory-class gate. reasonsmith has no notion of *decision domain* at all — nothing in a
 pack can say "this duty is about consumer credit" — so a domain mismatch is invisible where a
@@ -257,12 +266,17 @@ signal, not a missing domain.
 
 **Fixed, and this is what fixing it cost.** A `domains` field now sits beside `scope` on every
 requirement, naming the kinds of decision a duty is about, and it is matched by intersection against
-what a system declares (`--system-domain`, or `system_domains` on an adapter). The three ECOA duties
-carry `domains = ["consumer-credit"]`; this run declares no domain; all fifteen ECOA results are now
+what a system declares (`--system-domain`, or `system_domains` on an adapter). The four ECOA duties
+carry `domains = ["consumer-credit"]`; this run declares no domain; all twenty ECOA results are now
 `not_applicable`, where four of the five systems were `satisfied` on
 `ecoa_reg_b_1002_9_a_2_written_statement` before. The GDPR results did **not** move, and that is the
 right answer rather than a gap: Article 22 governs a solely-automated decision whatever the decision
 is about, so the five GDPR duties carry `domains = []` and reach every system, including this one.
+The gate is not the only thing standing between these systems and the fourth of those duties:
+`ecoa_reg_b_1002_9_b_2_principal_reasons_complete` gates on `artifact_logs_deleted_reason_count`, a
+count reasonsmith *measures* from an inference artefact a system exposes through the optional
+`artifact()` method rather than reads from a log, so even a run declaring `consumer-credit` would
+report it `unattainable` on all five provenances, where the other three would become checkable.
 
 Three things this did not fix, in descending order of how much they should worry a reader:
 
@@ -284,12 +298,12 @@ Three things this did not fix, in descending order of how much they should worry
 
 And the observation this finding made about the *output* is now less true but not gone: the
 unattainable verdict on the timing requirement was the only hint the domain did not fit. It has been
-replaced by fifteen results that name the domain mismatch directly. What has not been replaced is
+replaced by twenty results that name the domain mismatch directly. What has not been replaced is
 any way to tell, from the report alone, whether the classification behind them was a good one.
 
 ### 4. The AI Act pack said nothing at all
 
-20 of the 60 results — every AI Act requirement for every system — are `not_applicable` because
+20 of the 65 results — every AI Act requirement for every system — are `not_applicable` because
 no regulatory class was declared. That is the designed behaviour and the report says so in full,
 but the honest summary is that running the AI Act pack against this system produced no
 information. The gate is binary: declare `high-risk` and all four duties are checked, declare
