@@ -2,10 +2,20 @@
 
 What this module is for:
   Defines the required `SystemUnderTest` protocol interface (`capabilities()`, `decisions()`,
-  `logic()`), the optional `decide(case)` replay hook used for active probing, and
-  `CAPABILITY_TAXONOMY` categories for black-box models, rule engines, and log traces.
+  `logic()`), the two optional hooks — `decide(case)` for active probing and `artifact(decision)`
+  for the reason-deletion certificate — and `CAPABILITY_TAXONOMY` categories for black-box models,
+  rule engines, and log traces.
 
 What a reader must not break:
+  - `artifact(decision)` is the second optional hook, and it returns the *inputs* to
+    `certificate.certify` — `program`, `base`, `query`, `adapter`, `exact_depth`, and optionally
+    `tol` and `labels` — never a verdict. A decision this system cannot open up returns None.
+    Why this matters: an adapter that returned its own certificate, or a `reasons_are_complete`
+    flag, would be a system grading its own homework, and `docs/semantics.md` §3 refuses exactly
+    that. reasonsmith runs the enumeration and the deletion probes itself, over the artefact, so
+    the number in the verdict is measured rather than declared. It stays outside the protocol for
+    the reason `decide` does: a system that cannot expose its inference artefact is a lawful
+    system, reported unattainable on a reason-adequacy duty rather than broken.
   - BaseSUT requires explicit capability declarations; an adapter that instead derives them from a
     trace must say so by setting the plain instance attribute `capability_basis = "trace"`. It is
     not part of the protocol above: `report._unattainable_result` reads it with
@@ -16,6 +26,15 @@ What a reader must not break:
     explicit declarations represent an authoritative system claim. A trace-reading adapter that
     misses the attribute has its finding worded "Unattainable as built ... the system was not
     executed" — a claim about the system, made from one sample trace.
+  - `system_domains` is the second plain instance attribute the report reads off an adapter, the
+    way `system_scope` already was: a collection of `spec.DECISION_DOMAINS` names saying what kind
+    of decision this system makes. It is outside the protocol for the same reason `system_scope`
+    is — an adapter that declares nothing is a system whose domain is undeclared, which is a
+    lawful state and not a broken adapter.
+    Why this matters: a system that declares no domain is never reported `satisfied` on a
+    domain-limited duty. An adapter that sets the attribute to a domain its system does not
+    decide in is claiming reach it does not have, and the report will answer duties that do not
+    govern it — the false positive the gate exists to stop, reintroduced from the adapter side.
   - A capability set is the enabled signal names and nothing else: `_validate_capability_collection`
     rejects a bare string, a mapping, a non-iterable, and any blank or non-string name, at both
     sites capabilities cross into reasonsmith.
@@ -33,9 +52,10 @@ What a reader must not break:
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from functools import lru_cache
 from typing import Any, Optional, Protocol, runtime_checkable
 
-from reasonsmith.spec import load_pack
+from reasonsmith.spec import Pack, load_pack
 
 #: Section 6.3 top-level taxonomy for capability signals supplied through the SUT protocol
 #: (Stan, Sciavicco & Napoletano, JAIR 2026, Section 6.3, p. 36:24):
@@ -84,9 +104,10 @@ def _validate_capability_collection(declared: Any, subject: str) -> None:
 class SystemUnderTest(Protocol):
     """Required protocol for a system under test in reasonsmith.
 
-    An adapter may additionally expose ``decide(case)``. It stays outside this protocol because
-    replay is optional: logical requirements use it for active probing only when no exposed
-    ``logic()`` is available.
+    An adapter may additionally expose ``decide(case)`` or ``artifact(decision)``. Both stay
+    outside this protocol because both are optional: ``decide`` is used for active probing only
+    when no exposed ``logic()`` is available, and ``artifact`` only by a reason-adequacy duty,
+    which reports a system exposing none unattainable rather than judging it on something weaker.
     """
 
     def capabilities(self) -> set[str]:
@@ -124,6 +145,17 @@ class BaseSUT:
         return None
 
 
+@lru_cache(maxsize=1)
+def _table7_pack() -> Pack:
+    """The shipped Table 7 pack, parsed once for every derivation below.
+
+    Cached because both derivations are read in the same constructor, and a reference system
+    is built many times over a run: `load_pack` re-reads and re-parses the TOML on every call.
+    The pack is frozen, so a shared instance cannot be edited by one caller under another.
+    """
+    return load_pack("table7")
+
+
 def _table7_signals() -> set[str]:
     """Every signal the shipped Table 7 pack asks for, read from the pack itself.
 
@@ -131,7 +163,18 @@ def _table7_signals() -> set[str]:
     changes, and a reference system that declares stale signal names would make the
     unattainable analysis look wrong when it is right.
     """
-    return {signal for req in load_pack("table7").requirements for signal in req.requires}
+    return {signal for req in _table7_pack().requirements for signal in req.requires}
+
+
+def _table7_domains() -> tuple[str, ...]:
+    """Every decision domain the shipped Table 7 pack targets, read from the pack itself.
+
+    The same reasoning as `_table7_signals`: these reference systems exist to be the case where
+    nothing is missing, so what they declare is read off the pack rather than typed out beside
+    it. A hand-written list would make the domain gate look wrong the first time a row of the
+    pack changed domain.
+    """
+    return tuple(sorted({d for req in _table7_pack().requirements for d in req.domains}))
 
 
 #: The Table 7 evidence fields that carry a per-decision reason. Row 3 (GDPR Art. 22)
@@ -159,12 +202,18 @@ class FullCapabilitySUT(BaseSUT):
     """Reference SUT declaring every signal the Table 7 pack requires."""
 
     def __init__(
-        self, extra_capabilities: Optional[set[str]] = None, system_scope: str = "high-risk"
+        self,
+        extra_capabilities: Optional[set[str]] = None,
+        system_scope: str = "high-risk",
+        system_domains: Optional[Iterable[str]] = None,
     ):
         declared = _table7_signals() | {"decision", "timestamp"} | (extra_capabilities or set())
         super().__init__(declared)
         self.execution_count = 0
         self.system_scope = system_scope
+        self.system_domains = (
+            _table7_domains() if system_domains is None else tuple(system_domains)
+        )
 
     def decisions(self) -> Iterable[dict[str, Any]]:
         self.execution_count += 1
@@ -183,10 +232,15 @@ class NoReasonsSUT(BaseSUT):
     unattainable analysis answered without running the system.
     """
 
-    def __init__(self, system_scope: str = "high-risk"):
+    def __init__(
+        self, system_scope: str = "high-risk", system_domains: Optional[Iterable[str]] = None
+    ):
         super().__init__((_table7_signals() | {"decision", "timestamp"}) - REASON_SIGNALS)
         self.was_executed = False
         self.system_scope = system_scope
+        self.system_domains = (
+            _table7_domains() if system_domains is None else tuple(system_domains)
+        )
 
     def decisions(self) -> Iterable[dict[str, Any]]:
         self.was_executed = True

@@ -12,9 +12,10 @@ Where this document and the code disagree, the code is right and this document h
 
 ## 1. The objects
 
-**Requirement** — `spec.py`, `Requirement`. A frozen record of one duty, carrying exactly the eleven
+**Requirement** — `spec.py`, `Requirement`. A frozen record of one duty, carrying exactly the twelve
 fields of `REQUIREMENT_FIELDS` and no others: `id`, `source_document`, `article_clause`,
-`verbatim_text`, `stakeholder`, `formalism`, `spec`, `rationale`, `requires`, `binding`, `scope`.
+`verbatim_text`, `stakeholder`, `formalism`, `spec`, `rationale`, `requires`, `binding`, `scope`,
+`domains`.
 
 `spec` is the property, written in the one language of §2. `rationale` is the English explanation of
 the duty; it is carried on the requirement and in `to_dict()`, and **no verdict is derived from its
@@ -39,7 +40,12 @@ never asked for by the unattainable analysis, so a system declaring neither bran
 trace and can be reported `violated` there
 (`test_a_creditor_giving_neither_branch_is_violated`).
 `binding` separates a statutory obligation from an interpretive recital. `scope` is a regulatory
-class from `REGULATORY_CLASSES`, or empty for a duty that is not class-limited. A pack that omits a
+class from `REGULATORY_CLASSES`, or empty for a duty that is not class-limited. `domains` is the set
+of decision domains the duty is about, from `DECISION_DOMAINS`, or empty for a duty about no
+particular kind of decision; the two are separate axes and are gated separately (§4). Neither
+vocabulary is guessed at, and only one of them belongs to a regulation: `REGULATORY_CLASSES` is the
+EU AI Act's own, `DECISION_DOMAINS` is this repository's, which is a claim a pack using one has to
+carry (`docs/authoring-packs.md`). A pack that omits a
 field, adds one, or leaves one blank is refused at load time rather than loaded with a guess
 (`test_loader_rejects_missing_field`, `test_loader_rejects_an_unknown_field`,
 `test_loader_rejects_blank_and_duplicate_fields`, `test_requirement_needs_at_least_one_signal`).
@@ -49,13 +55,20 @@ requirement ids are refused, because `get_requirement` returns the first match a
 be unreachable.
 
 **System under test** — `sut.py`, `SystemUnderTest`. A protocol with three methods —
-`capabilities()`, `decisions()`, `logic()` — and one optional method, `decide(case)`, deliberately
-outside the protocol because replay is optional. Three plain instance attributes outside that
+`capabilities()`, `decisions()`, `logic()` — and two optional methods deliberately outside it,
+because neither capability is one a system must have: `decide(case)` for replay, and
+`artifact(decision)` returning the *inputs* to `certificate.certify` for the inference a decision
+came from — never a verdict, which would be the system grading its own homework (§3,
+*certificate*). Four plain instance attributes outside that
 protocol are also semantic inputs. `evaluate_requirement` and `check_conformance` in `report.py`
 select `system_scope`, falling back to `declared_scope`, to decide applicability
 (`test_declared_scope_attribute_is_the_applicability_fallback`,
 `test_system_scope_precedes_a_conflicting_declared_scope`,
-`test_the_two_scope_gates_never_disagree`). `_unattainable_result` reads `capability_basis` to
+`test_the_two_scope_gates_never_disagree`). They read `system_domains` the same way, with no second
+spelling honoured, for the domain gate; an adapter that sets nothing is a system whose domain is
+undeclared, which is a lawful state and not a broken adapter
+(`test_an_undeclared_system_cannot_reach_satisfied_on_a_domain_limited_duty`,
+`test_the_two_domain_gates_never_disagree`). `_unattainable_result` reads `capability_basis` to
 decide whether a missing signal describes the system as built or only the supplied trace
 (`test_unattainable_from_a_trace_does_not_speak_for_the_system`,
 `test_declared_capabilities_word_the_finding_as_about_the_system`).
@@ -137,6 +150,69 @@ engine answers, and they answer it the same way because there is one definition
 (`rulelang.is_present`) rather than one per engine. Its argument is a signal name, never an
 expression: there is no such question about a computed value.
 
+### `contains(signal, "phrase")` — the phrase atom
+
+`contains(x, "p")` asks whether the text a record carries for `x` carries `p`. Like `present()`,
+its first argument is a signal name and never an expression, for the same reason: every engine has
+to bind it to one field of one decision record. Its second argument is a **string literal and never
+a name**, so the wording a duty forbids is fixed by the pack rather than supplied by the system
+being audited. Anything else — an arity other than two, a computed haystack, a name where the
+phrase belongs, an empty phrase, a non-ASCII phrase — is refused where it is written
+(`test_a_malformed_contains_atom_is_refused_rather_than_guessed_at`).
+
+**Why it exists.** Fifteen of the eighteen duties shipping before it were conjunctions of
+`present()`, so the strongest claim available about an explanation duty was *"for every admitted
+input the reason field is non-blank"* — which a reason string of `"n/a"` satisfies and
+12 CFR 1002.9(b)(2) does not accept. The clause supplies its own negative constraint, naming two
+statements that are insufficient, and this is the narrowest atom that expresses one.
+
+**What it means, exactly.**
+
+- **Comparison folds ASCII case and nothing else.** `fold_ascii_case` lowercases the twenty-six
+  ASCII capitals and leaves every other character alone. `str.lower()` is not length-preserving over
+  the whole of Unicode — `"İ".lower()` is two characters — and the Z3 encoding renders each phrase
+  character as a regular language matching *exactly one* character, so a fold that is not
+  one-to-one would make the solver and the interpreter disagree about the same string. A non-ASCII
+  phrase is therefore refused at load time rather than compared under a fold only one side can
+  perform (`test_the_fold_is_ascii_case_and_reaches_no_further`).
+- **A record carrying nothing carries no phrase.** Where `_is_present` says the signal is absent,
+  `contains()` is false. That is what lets an implication guarded by `present()` decide a duty that
+  only bites where a statement was made (`test_a_record_carrying_no_statement_carries_no_phrase`).
+- **A statement given in parts is read part by part.** A log recording reasons as a list of
+  strings is recording a statement of reasons, and refusing to read it would report *not evaluated*
+  because of how the log is shaped rather than because of what it says. The parts are searched
+  separately and never joined, so a phrase cannot match across the seam between two reasons that
+  never appeared together (`test_a_statement_given_in_parts_is_read_part_by_part`,
+  `test_the_parts_of_a_statement_are_never_joined`).
+- **Any other present value is refused, not read as carrying nothing.** A number or a mapping is
+  not a statement, and answering `False` there would report a system satisfied on a field nothing
+  read. The interpreter raises, and every engine that reads the atom — the trace monitor and the
+  replay search alike — reports the whole requirement not evaluated, naming the signal, so the
+  stronger rung is never the easier one to satisfy. That is the same discipline an unmeasured
+  magnitude gets (`test_a_present_value_that_is_not_a_statement_is_refused`,
+  `test_a_non_text_value_makes_the_duty_not_evaluated_never_satisfied`,
+  `test_a_non_text_value_is_not_evaluated_on_every_rung`).
+- **It is a substring test and claims to be nothing more.** It answers whether a phrase occurs. It
+  does not model whether a statement is *specific*, does not paraphrase, and catches no wording but
+  the one the pack names. A duty built on it can establish that a statement the clause itself calls
+  insufficient was made; it cannot establish that any other statement is sufficient.
+
+**The three encodings, and how they are held together.** `contains()` is evaluated in three places,
+and a predicate meaning one thing to the monitor and another to the solver would report `proved`
+about a property nobody wrote. The rulelang interpreter compares folded strings. rtamt cannot reason
+about text at all, so — exactly as `present()` already does — the atom is evaluated in Python per
+record and reaches the monitor as a synthetic flag, which is what keeps its meaning the one meaning
+(`test_a_forbidden_phrase_in_the_trace_is_an_observed_violation`). That rewriting is textual, and a
+call head a phrase merely quotes is skipped rather than rewritten
+(`test_a_call_head_a_phrase_merely_quotes_is_not_rewritten`). Z3 encodes it as a bracketed regular
+language, character by character, conjoined with the blankness language `present()` already uses —
+a substring search alone would find a phrase of blanks in a string of blanks, where the interpreter
+says the record carries nothing
+(`test_the_solver_finds_no_phrase_in_a_string_the_record_does_not_carry`). A generated corpus,
+blank haystacks included, checks that the solver's answer is the interpreter's
+(`test_the_solvers_fold_is_the_interpreters_fold`) — the counterpart of what
+`test_the_solvers_blank_string_is_pythons_blank_string` does for `present()`.
+
 ### `temporal` — Signal Temporal Logic, monitored by rtamt
 
 `ObservedEngine` renders the property in rtamt's syntax with `to_stl` and hands that to
@@ -212,7 +288,7 @@ never calls `eval`, `exec` or `compile`; the whitelist is the interpreter itself
 | Binary | `+`, `-`, `*`, `/`, `%` |
 | Boolean | `and`, `or` |
 | Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`, including chained |
-| Calls | `implies(a, b)` / `Implies(a, b)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `present(signal)` — no keyword arguments |
+| Calls | `implies(a, b)` / `Implies(a, b)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `present(signal)`, `contains(signal, "phrase")` — no keyword arguments |
 | Temporal | `always`, `eventually`, `once`, `historically`, `next`, `prev`, `rise`, `fall`, each over one operand |
 | Arrows | `<=>` and `<->` rewrite to `==`; `=>`, `->` and ` implies ` rewrite to `Implies(...)` |
 
@@ -286,7 +362,10 @@ answered from `requires` as though the property were absent
 (`test_the_record_engine_evaluates_its_spec`).
 
 *What it does not tell you.* Nothing about the correctness, truthfulness or usefulness of those
-values — presence is not correctness. A reason field containing `"n/a"` is present. Nothing about
+values — presence is not correctness. A reason field containing `"n/a"` is present, and a duty that
+wants more than presence has to say so: `contains()` (§2) is how a clause's own words about what a
+statement may not say get into a property, and 12 CFR 1002.9(b)(2) is the shipped duty that does it
+(`test_the_property_does_not_decide_whether_any_other_statement_is_specific`). Nothing about
 decisions outside the supplied trace; the evidence summary says so in the result itself
 (`test_observed_verdict_states_what_it_does_not_cover`). And the trace is a sample chosen by whoever
 produced it.
@@ -409,7 +488,11 @@ verdict may present it otherwise (`test_probed_never_rounds_up_to_proved`). It a
 about inputs for which `decide()` or property evaluation raised: both are aggregated into the
 budget's `inputs_errored` count and skipped, not read as passes
 (`test_an_input_the_system_cannot_decide_is_counted_not_read_as_a_pass`,
-`test_an_input_whose_property_cannot_be_evaluated_is_counted_not_read_as_a_pass`).
+`test_an_input_whose_property_cannot_be_evaluated_is_counted_not_read_as_a_pass`). One refusal is
+not an errored input: where a replayed decision records something that is not a statement for a
+signal a `contains()` atom reads, the whole run is reported not evaluated rather than counted and
+passed over — the same answer the observed engine gives for that shape off a trace, so the stronger
+rung is never the easier one to satisfy (`test_a_non_text_value_is_not_evaluated_on_every_rung`).
 
 > **If it reports `violated` at strength `probed`, then:** one replayed input produced a decision
 > failing `req.spec`, and that same input, replayed a second time through `decide()`, failed again.
@@ -421,6 +504,87 @@ system exposing no `decide()` (`test_a_system_without_decide_is_not_evaluated_ne
 trace with nothing to perturb around (`test_an_empty_trace_gives_the_search_nothing_to_probe_around`),
 a non-positive trial budget (`test_nonpositive_trial_budget_is_not_confused_with_an_empty_trace`), and
 a property this engine cannot express (`test_the_complete_property_must_be_expressible_and_boolean`).
+
+### `certificate` — `engines/certificate.py`
+
+The second engine at `probed`, and the only one whose evidence comes from *exact* inference. It
+answers one duty — `ecoa_reg_b_1002_9_b_2_principal_reasons_complete`, whether the reasons a notice
+states are all the reasons the decision's inference used — by running the reason-deletion
+certificate of `certificate.py` over the artefact the system exposes through the optional
+`artifact(decision)` hook, and grounding the one signal
+`engines.certificate.DELETED_REASON_COUNT` with what the probes measured.
+
+Its reason for existing is a defect, and the defect is worth stating plainly. `certificate.py`,
+`conformance.py` and `drift.py` were reachable from no duty and no CLI verb. The two halves of this
+package met in exactly one place — `demo.render_key_finding_html`, on decision `APP-1042` — and
+there they disagreed: the Table 7 evidence record reports COMPLETE while the certificate reports
+FAIL. So `reasonsmith check` reported the reason-giving duty **satisfied** on a decision this same
+package proves has four of five legally owed reasons deleted. This engine is what closes that
+(`test_the_demonstrations_own_decision_is_reported_violated`,
+`test_form_completeness_and_reason_fidelity_are_now_separate_verdicts`).
+
+> **If the certificate engine reports `satisfied` at strength `probed`, then:** for every decision
+> the system exposed an artefact for, bounded proof enumeration to that artefact's own
+> `exact_depth` found the decision's reasons, and every reason holding a fact no other reason uses
+> was switched off alone and the system's own engine re-run on the perturbed interpretation. Each
+> such deletion moved the system's answer, so no reason was shown deleted, and the property held on
+> that decision's record with the measured count in place. The budget records how many inferences
+> were replayed, over how many decisions and how many switched-off reasons
+> (`test_the_certificate_verdict_carries_its_probe_budget`,
+> `test_an_engine_that_deletes_nothing_is_probed_and_never_proved`).
+
+*The domain, exactly.* The decisions the system's trace holds **and** for which `artifact()`
+returned an artefact rather than None. The enumeration is exact on *one* ground program and one
+base interpretation — `certificate.LIMITS` says so in its own words — so this rung is `probed` and
+never `proved`: nothing here establishes the property for a decision the system did not expose, or
+for a reason lying past the `exact_depth` the artefact itself supplied. A reason whose every fact
+is shared with another reason cannot be switched off alone, so its dependency is neither shown nor
+assumed; it is counted as deleted by nothing and as live by nothing, and the result reports how
+many there were.
+
+*What it does not tell you.* Nothing about whether the reasons are *correct*, only that the system
+used all of the ones exact inference found. Nothing about whether they are what a person would call
+principal. And nothing about a system that lies about its own artefact — a system that returns a
+program it did not run is a system misdescribing itself to its auditor, which *the assumption all
+five share* below already covers.
+
+> **If it reports `violated` at strength `probed`, then:** on at least one certified decision, the
+> deletion probe showed the system's answer does not depend on a reason exact inference found. The
+> result names the decision, the reasons, and the certificate's own attribution — which inference
+> setting the loss is consistent with (`test_the_demonstrations_own_decision_is_reported_violated`).
+
+**The count is measured, never read.** The engine builds the property's environment from the
+decision record and then writes the measured count over whatever that record claimed for it, so a
+system that logs its own zero is still judged on the measurement
+(`test_a_logged_completeness_count_never_settles_the_duty`). A `reasons_are_complete` flag the
+adapter sets about itself is the self-declaration this section refuses everywhere else, and this is
+the one duty where it would have been easy.
+
+**A system that cannot supply the oracle is `unattainable`, and is never returned to the presence
+check.** `report._engine_ladder` gives this duty a ladder of exactly one rung, so no trace, no
+replay and no proof over exposed rules can answer it in the weaker sibling duty's place — the
+substitution is the whole defect, and it is the kind that comes back as a convenience. The result
+names the signal that could not be measured and says why nothing weaker stands in for it
+(`test_a_system_exposing_no_oracle_is_unattainable_and_names_the_signal`,
+`test_the_adequacy_duty_is_never_downgraded_to_the_presence_check`).
+
+One consequence of that gate is worth stating rather than discovering: an adapter whose
+capabilities are derived from a trace can never declare `artifact_logs_deleted_reason_count`,
+because no record carries it, so a plain decision log is reported unattainable by the capability
+analysis with its generic wording — *a longer trace could show the system emitting these signals* —
+which is true of the mechanism and unhelpful about this signal. A log that does carry the key
+reaches this engine and gets the accurate message. Both end at `unattainable`; only the wording
+differs.
+
+Reported not evaluated, never satisfied: an empty trace, and a trace no decision of which the
+system could open up (`test_a_trace_with_no_artifact_is_not_evaluated_never_satisfied`); an
+`artifact()` that raises, returns something that is not a mapping, or returns arguments `certify`
+refuses (`test_an_artifact_that_raises_or_is_the_wrong_shape_is_not_evaluated`); a property
+that never reads the one signal this engine measures
+(`test_the_engine_refuses_a_property_it_cannot_ground`); and a property this engine cannot decide
+on a certified decision — a construct it does not interpret, or a second signal the record does not
+carry — where the measurement was made and the verdict is still withheld
+(`test_a_property_that_cannot_be_decided_on_a_record_is_not_evaluated`).
 
 ### `proved` — `engines/proved.py`
 
@@ -457,7 +621,7 @@ vacuous model proves every property and its negation alike
 does not model (`test_unsupported_construct_reported_not_evaluated`); rules undefined on the witness
 the solver chose (`test_rules_undefined_on_the_witness_are_named_as_such`); a disagreement between
 encoding and interpreter (`test_encoding_disagreeing_with_the_interpreter_is_not_a_proof`); a system
-exposing no logic at all (`test_system_without_logic_reported_not_evaluated`); and a counterexample
+exposing no logic at all (`test_the_proof_rung_still_names_the_missing_logic_when_it_is_asked_directly`); and a counterexample
 that does not reproduce (`test_counterexample_verification_failure_reported_not_evaluated`,
 `test_unverified_counterexample_is_not_rendered_as_a_violation`).
 
@@ -466,7 +630,7 @@ that does not reproduce (`test_counterexample_verification_failure_reported_not_
 > exists, otherwise against the declared logic, and the summary names which
 > (`test_property_fails_with_verified_counterexample`).
 
-### The assumption all four share
+### The assumption all five share
 
 None of these engines defends against a system that is adversarial toward its own audit. The probed
 engine states the boundary and this document does not invent a second version of it — from
@@ -480,7 +644,7 @@ The isolation against *accidental* mutation is real and tested
 (`test_nested_mutation_cannot_change_the_verification_input_or_witness`,
 `test_uncloneable_probe_input_is_not_evaluated`). The defence against a deliberate one is not claimed.
 
-Read across all four engines, the same shape holds: a declared capability set is taken at its word, a
+Read across all five engines, the same shape holds: a declared capability set is taken at its word, a
 trace is taken as given, and exposed logic is taken as describing the system. reasonsmith checks
 what a system says against what a specification asks. It does not check whether the system was
 honest.
@@ -497,8 +661,50 @@ list, and the requirement supplies only one of them:
   — properties of a single decision record — so an engine that reasons about one decision at a time
   can discharge them. `temporal` is not.
 - **The system's exposed surface** says what can be reasoned over. A non-`None` `logic()` admits
-  `ProvedEngine`; a callable `decide()` admits `ProbedEngine`; a trace admits `RecordEngine` for a
-  presence property and `ObservedEngine` for a temporal one.
+  `ProvedEngine`; a callable `decide()` admits `ProbedEngine`; **a trace admits a rung for every
+  fragment** (`test_every_valid_formalism_has_an_engine_that_reads_a_trace`). Which engine reads it
+  depends on the shape: `RecordEngine` for a presence conjunction, `ObservedEngine` for everything
+  else, temporal and `logical` alike.
+
+**One duty has a ladder of exactly one rung, and for the opposite reason to everything above.** A
+duty gating on `engines.certificate.DELETED_REASON_COUNT` asks whether the reasons a decision
+states are *all* the reasons its inference had. Every other rung would answer a weaker question off
+the system's own log — that the reason field is non-blank, or that the number the system wrote in
+it is small — so a system exposing no inference artefact is reported `unattainable` by the
+certificate engine rather than falling through to a presence check
+(`test_the_adequacy_duty_is_never_downgraded_to_the_presence_check`). Everywhere else on this page
+a weaker rung answers the *same* property with weaker evidence; here it would answer a *different*
+property under the same duty's name, which is the substitution §3 (*certificate*) exists to remove.
+
+The second bullet used to give `logical` nothing, and that contradicted the first. A `logical`
+property is a property of one decision record — that is what puts it in `STATE_FRAGMENTS` — so a
+trace of decision records is evidence about it, and a build that refused to read one reported *not
+evaluated* while the evidence sat in front of it. The label on the fragment was deciding what could
+be checked, which is the defect fragment classification exists to prevent. A `logical` duty is now
+answered from a trace exactly as a `record` one always was
+(`test_a_logical_duty_is_answered_from_a_trace_when_there_is_nothing_to_reason_over`).
+
+**A presence conjunction keeps the record engine, and that is not an ordering detail.** The record
+engine walks the conjunction conjunct by conjunct and names *which* signal was missing from *which*
+record; the rtamt monitor cannot, because robustness is one number for the whole formula. Routing
+presence through the monitor to make the two branches look alike would trade that diagnostic away
+for nothing (§3, `record`).
+
+**Two limits of the trace rung, both stated rather than silent.** rtamt scores real-valued signals,
+so the shapes it cannot render soundly are reported *not evaluated*, never satisfied — a comparison
+against a Boolean constant, which the `logical` fragment otherwise permits (§2), is one
+(`test_the_trace_rung_does_not_reach_every_logical_shape_and_says_so`). And the monitor renders the
+`spec` **as the pack wrote it**, so implication must be spelled `->` rather than `Implies(...)`:
+the two are the same property to every other engine, and only the arrow reaches rtamt
+(`test_the_monitor_reads_the_spec_as_written_so_implication_is_spelled_with_an_arrow`). That is
+arbitrary, which is why the shipped Article 22 duty is spelled with the arrow and the test says so;
+teaching the renderer to lower the prefix form is a change to the renderer, not to this ladder.
+
+**A temporal duty never rises above `observed`, and that ceiling is untouched by the above.** It is
+in the next-but-one paragraph and it is a different claim: the solver and the replay search reason
+about one decision at a time, so they have nothing to say about a formula quantified over a trace.
+Giving the state fragments a rung *downward* to the trace does not give the temporal fragment one
+upward.
 
 So the same presence property is `observed` against a trace and `proved` against exposed `logic()`
 (`test_a_record_duty_reaches_proved_when_the_system_exposes_its_logic`), and `probed` against a
@@ -512,7 +718,7 @@ typed. It was the second of those before this section existed, which is substant
 lands on the strongest rung that actually produced evidence
 (`test_a_record_duty_the_solver_cannot_reach_falls_to_the_engine_that_can`). When no engine produced
 any, the strongest engine's not-evaluated result is what is reported, so the reader is told which
-interface was missing (`test_system_without_logic_reported_not_evaluated`) — except for a proof
+interface was missing (`test_the_proof_rung_still_names_the_missing_logic_when_it_is_asked_directly`) — except for a proof
 rung that never had any logic to reason over, which says nothing about the evaluation and yields
 to a lower rung's account of the evidence the system did supply
 (`test_an_empty_trace_is_not_evidence`). An engine whose
@@ -520,7 +726,8 @@ interface *raises* is treated the same way as one that returns no evidence: a `l
 throws establishes nothing, so the failure is named in a `strength=None` result and the duty
 still lands on the strongest rung that did produce evidence
 (`test_a_record_duty_survives_a_system_whose_logic_raises`,
-`test_a_logical_duty_names_the_logic_failure_rather_than_propagating_it`). Selecting the rungs
+`test_a_logical_duty_survives_a_system_whose_logic_raises`,
+`test_a_logic_failure_is_named_when_no_rung_produced_evidence`). Selecting the rungs
 never executes the system: both optional rungs are read off the callable surface
 (`test_building_the_ladder_never_executes_the_system`). A malformed *trace* is deliberately not
 absorbed this way — that is the system's own decision log coming back the wrong shape, and it
@@ -552,6 +759,18 @@ answer rather than losing its verdict:
 - **Only some branches assign `x`.** An assignment in an `if` without an assignment on the other
   path does not establish that every decision carries it
   (`test_presence_is_not_proved_when_only_one_branch_assigns_the_signal`).
+
+### When the phrase atom cannot be proved
+
+`contains()` refuses the same free-input case, for the same reason, and one of its own: a signal the
+declared rules give a sort other than string is not one this predicate reads, and coercing a sort
+would prove a property about a program nobody wrote
+(`test_the_solver_refuses_a_signal_it_cannot_read_as_text`). Both refusals drop the duty to the
+strongest engine that *can* answer it. Where the rules do write text, the duty is genuinely proved
+over every admitted input — a system whose rules can write a statement the clause calls
+insufficient is proved to violate it rather than watched until one turns up in a log
+(`test_a_forbidden_phrase_the_rules_can_write_is_proved_to_violate`,
+`test_rules_that_never_write_a_forbidden_phrase_are_proved_to_satisfy`).
 
 The signal's sort is not itself a reason for refusal. In particular, **a string is not refused**:
 `present()` over a string encodes as
@@ -595,11 +814,14 @@ vacuous `satisfied` (`test_verdict_combination`, `test_combining_no_verdicts_is_
 `not applicable`, `unattainable`, `not evaluated` and `violated` are four distinct report categories
 (`test_the_four_unresolved_outcomes_are_four_distinct_report_categories`), every result lands in
 exactly one, and the counts reconcile against the total rather than merely summing to something
-plausible (`test_counts_reconcile_against_both_totals`). They differ in what a reader should do next:
+plausible (`test_counts_reconcile_against_both_totals`). `not applicable` is one category reached by
+two independent gates, split into two rows below because they are two different instructions; the
+result's own summary says which gate answered. They differ in what a reader should do next:
 
 | Outcome | What happened | What to do next |
 |---|---|---|
-| **not applicable** | The duty is limited to a regulatory class, and the system was not declared to be in it — either no class was declared at all, or a different one was. Nothing about the system was checked. reasonsmith never infers the class. | Declare the class and re-run, or establish that the duty genuinely does not reach the system. Read the declared-scope line first: an undeclared system is neither placed in scope nor cleared. |
+| **not applicable — class** | The duty is limited to a regulatory class, and the system was not declared to be in it — either no class was declared at all, or a different one was. Nothing about the system was checked. reasonsmith never infers the class. | Declare the class and re-run, or establish that the duty genuinely does not reach the system. Read the declared-scope line first: an undeclared system is neither placed in scope nor cleared. |
+| **not applicable — domain** | The duty is about a kind of decision the system was not declared to make — either no decision domain was declared at all, or none of the ones declared is one the duty is about. Nothing about the system was checked. reasonsmith never infers the domain. | Declare the domain and re-run (`--system-domain`), or establish that the duty genuinely does not govern this kind of decision. Two things this does *not* say: that the system is compliant, and that any regulator agrees with the classification — the domain vocabulary is the pack author's (`docs/authoring-packs.md`). |
 | **unattainable — declared basis** | The signals the duty needs are outside the system's declared capability set. Computed as a set difference, *without executing the system*. | Change the system. |
 | **unattainable — trace basis** | No record in the supplied trace carries the required signals; the adapter derived its capability set from that trace. This does not establish that the system cannot emit them. | Supply a longer trace or an explicit capability declaration. Change the system only if further evidence confirms the signals are absent. |
 | **not evaluated** | The duty reaches the system, the system can emit the signals, and no engine here established anything: an empty trace, an unparseable formula, a solver timeout, an unmodelled construct. `strength=None`, which is deliberately not a rung on the lattice. | Fix the evidence or the specification and re-run. This is a gap in the audit, not a finding about the system. |
@@ -608,6 +830,71 @@ plausible (`test_counts_reconcile_against_both_totals`). They differ in what a r
 Collapsing any two of them loses that instruction. "Unattainable" read as "violated" sends someone to
 fix a system that is behaving as designed; "not evaluated" read as "satisfied" is the single overclaim
 this tool exists to prevent; "not applicable" read as "satisfied" clears a duty nobody checked.
+
+**Why an undeclared domain is `not applicable` and not `inconclusive`.** The two are not
+interchangeable: `inconclusive` says a duty that *does* reach the system was not resolved, and
+`not_applicable` says the duty's reach was never established over this system, so nothing was
+checked. Neither is a perfect fit — with no declaration, reasonsmith does not *know* the duty fails
+to reach — and the choice is made on what each answer instructs a reader to do. `inconclusive` sends
+someone to look for better evidence about a system the duty may not govern at all, and it would put
+every domain-limited duty into the unresolved column of a run against a system nobody classified.
+`not_applicable` sends them to declare what the system decides, which is the actual missing input,
+and it carries no strength, so nothing can be read from it as a finding
+(`test_an_undeclared_system_cannot_reach_satisfied_on_a_domain_limited_duty`). It is also what the
+class gate already answers for an undeclared class, and a reader who has learned one of the two
+gates should not have to learn the other separately. What stops that reading as *cleared* is the
+same thing that stops it for the class: the reason string names which of the two ways the duty
+failed to reach, and `LIMITS` carries all four on every report
+(`test_limits_cover_both_ways_a_requirement_becomes_not_applicable`).
+
+**A duty with no domain is a wildcard, and that is deliberate.** `domains = []` means the duty is
+about no particular kind of decision — GDPR Article 22 governs a solely-automated decision whatever
+it is about — and such a duty is answered on its evidence against a system that declares nothing
+(`test_a_duty_with_no_domain_still_reaches_a_system_that_declares_none`). The wildcard is safe only
+because it cannot be reached by omission: `domains` is a required field with no default, so a pack
+that has not classified a requirement fails to load rather than being guessed for
+(`test_a_pack_that_has_not_classified_a_requirement_is_refused`).
+
+**A run that skipped duties for a missing declaration does not read like a run that checked them.**
+A duty reported not applicable *solely* because the system declared no decision domain is a missing
+input, not an answer, and it is flagged as one on the result itself
+(`report.UNDECLARED_DOMAIN_KEY`). The text report, the HTML dossier and the CLI's stderr each carry
+a line naming how many duties that was and what to declare to check them; a duty skipped because the
+system declared a domain that is simply not this duty's raises no such line, because that one was
+answered (`test_a_run_that_skipped_duties_for_a_missing_declaration_says_so`). The exit code is
+unchanged, which is why the notice exists.
+
+### The gap these four leave: a duty whose trigger never fired
+
+Some clauses only bite in some circumstances. 12 CFR 1002.9(b)(2) governs, by its own words, "the
+statement of reasons required by paragraph (a)(2)(i)", so a creditor that lawfully took the
+(a)(2)(ii) disclosure branch has no such statement and the clause does not reach that notification.
+That trigger is expressible — it is an implication whose antecedent is
+`present(artifact_logs_reason_explanation)` — and formalising it removed a false violation on a
+binding duty (`test_a_creditor_who_took_the_disclosure_branch_is_not_violated`).
+
+**But the outcome it produces is `satisfied`, and that is not quite the truth.** Two traces get the
+same verdict at the same strength: one where the duty imposed a requirement and every record met it,
+and one where the antecedent never held, so the duty imposed nothing and the wording of no statement
+was ever examined. No field of the result distinguishes them
+(`test_a_duty_whose_trigger_never_fires_is_satisfied_vacuously_and_the_report_cannot_say_so`).
+
+`not applicable` would be the honest answer for the second, and **the property language cannot reach
+it**. Applicability here is a per-*requirement*, per-*system* question, decided from the declared
+regulatory class and decision domain before any engine runs. Both gates are about the system,
+not about the record: neither can say that a duty reached this system and then imposed nothing
+on *this decision*. There is no per-record equivalent, and a formula is Boolean per record with
+no third value to return. Reporting the vacuous case `satisfied` is therefore
+literally true of what was monitored — the observed engine's claim is non-negative robustness at
+every step, which held — and misleading about what was learned.
+
+This is recorded as a gap rather than closed. Closing it would mean a per-record applicability
+verdict that every engine, every count and every rendering could carry, which is a change to the
+result model and not to a pack. The mitigation available today is that the duty's `rationale` says
+when the clause bites, and a reader who needs the distinction can get it from
+`ecoa_reg_b_1002_9_a_2_written_statement`, which reports *which* branch each notification took.
+Until then, `satisfied` on a triggered duty means "no record breached it", not "every record was
+tested against it".
 
 The operational consequence is in the exit code: among completed reports, only a violation exits
 non-zero. Unattainable
@@ -638,6 +925,13 @@ Two consequences of that report text, followed by a separate package-level termi
   (`test_report_limits_exclude_legal_determination_and_scope_inference`,
   `test_the_two_scope_gates_never_disagree`). A misspelled class is refused rather than read as
   out-of-scope (`test_a_scope_outside_the_vocabulary_is_refused`).
+- reasonsmith does not infer a system's decision domain either, and — separately — the domain
+  vocabulary it compares against is written by this repository and by no regulation
+  (`reasonsmith.spec.DECISION_DOMAINS`, `docs/authoring-packs.md`). A not-applicable verdict on that
+  gate is a statement about a classification a pack author made, never a finding that a statute does
+  not govern the system, and nothing checks that a system declaring `consumer-credit` issues credit
+  (`test_report_limits_exclude_legal_determination_and_scope_inference`,
+  `test_a_domain_outside_the_vocabulary_is_refused`, `test_the_two_domain_gates_never_disagree`).
 - Separately, the package emits a **reason-deletion certificate**, a measured artifact about which
   reasons an approximate engine dropped. It does not issue a **compliance certification**. The
   artifact detects a dropped reason and carries its separate limits
@@ -656,7 +950,15 @@ Two consequences of that report text, followed by a separate package-level termi
 | A record verdict is a claim about the trace and says so | `test_observed_verdict_states_what_it_does_not_cover` |
 | A record duty is discharged by the property in its `spec`, not by its `requires` | `test_the_record_engine_evaluates_its_spec` |
 | `record` and `temporal` route to their respective engine families | `test_record_and_temporal_formalisms_route_through_report` |
-| `logical` routes to proved with exposed logic, probed with only `decide()`, and no evidence with neither | `test_property_holds_for_all_inputs_proved`, `test_an_opaque_system_reaches_probed_through_the_report`, `test_system_without_logic_reported_not_evaluated` |
+| `logical` routes to proved with exposed logic, probed with only `decide()`, and the observed engine off a trace | `test_property_holds_for_all_inputs_proved`, `test_an_opaque_system_reaches_probed_through_the_report`, `test_a_logical_duty_is_answered_from_a_trace_when_there_is_nothing_to_reason_over` |
+| Every valid formalism has an engine that reads a trace, so no fragment is left unreadable | `test_every_valid_formalism_has_an_engine_that_reads_a_trace`, `test_a_formalism_without_an_engine_is_not_evaluated` |
+| A system with neither logic nor decisions is not evaluated, and the proof rung still names the missing interface when asked | `test_system_without_logic_or_a_trace_is_not_evaluated`, `test_the_proof_rung_still_names_the_missing_logic_when_it_is_asked_directly` |
+| A universal prohibition is never proved on the strength of a sample; a trace answers it at `observed` and no higher | `test_gdpr_art22_without_exposed_logic_is_never_proved_on_the_strength_of_a_sample` |
+| The trace rung does not reach every logical shape, and says so rather than guessing | `test_the_trace_rung_does_not_reach_every_logical_shape_and_says_so`, `test_the_monitor_reads_the_spec_as_written_so_implication_is_spelled_with_an_arrow` |
+| A duty whose trigger never fired is reported satisfied, and the four outcomes cannot say so | `test_a_duty_whose_trigger_never_fires_is_satisfied_vacuously_and_the_report_cannot_say_so` |
+| 12 CFR 1002.9(b)(2) is falsifiable on a plain decision log, and the disclosure branch is no longer violated | `test_a_statement_the_clause_calls_insufficient_is_violated_on_a_bare_log`, `test_a_statement_resting_on_internal_standards_or_policies_is_violated`, `test_a_statement_naming_a_principal_factor_is_satisfied`, `test_a_creditor_who_took_the_disclosure_branch_is_not_violated` |
+| Every forbidden wording is the clause's own, and the one derived reading is named as one | `test_the_forbidden_wordings_are_the_clauses_own` |
+| The specificity duty leaves the record fragment, so a one-decision log no longer answers it | `test_a_single_decision_log_is_not_evaluated_never_satisfied` |
 | One property language: the loader classifies the fragment and refuses a mismatch, prose and definitely non-Boolean roots included | `test_the_loader_refuses_a_spec_that_is_not_in_the_declared_fragment`, `test_the_loader_refuses_prose_where_a_property_belongs`, `test_the_loader_refuses_quoted_prose_as_a_non_boolean_property`, `test_the_loader_refuses_arithmetic_as_a_non_boolean_property` |
 | A signal the property reads unconditionally must be gated by `requires` | `test_the_loader_refuses_a_spec_reading_an_ungated_signal` |
 | A branch of an either/or is not gated, so neither branch alone makes the duty unattainable | `test_the_loader_lets_a_disjunct_go_ungated_but_not_the_rest_of_the_property`, `test_neither_branch_signal_gates_the_content_duty` |
@@ -665,12 +967,18 @@ Two consequences of that report text, followed by a separate package-level termi
 | Quantified over the trace, the 12 CFR 1002.9(a)(2) content duty is not evaluated on a single-decision log rather than satisfied | `test_a_single_decision_trace_is_not_evaluated_never_satisfied` |
 | The same presence property is observed off a trace, probed against `decide()`, and proved against `logic()` | `test_a_record_duty_reaches_proved_when_the_system_exposes_its_logic`, `test_a_record_duty_reaches_probed_when_the_system_can_only_be_re_run` |
 | The ladder takes the strongest evidence produced, not the strongest engine available | `test_a_record_duty_the_solver_cannot_reach_falls_to_the_engine_that_can` |
-| An engine whose interface raises establishes nothing, and the duty still lands on the rung that answered | `test_a_record_duty_survives_a_system_whose_logic_raises`, `test_a_logical_duty_names_the_logic_failure_rather_than_propagating_it`, `test_a_raising_logic_is_attempted_once_per_evaluation` |
+| An engine whose interface raises establishes nothing, and the duty still lands on the rung that answered | `test_a_record_duty_survives_a_system_whose_logic_raises`, `test_a_logical_duty_survives_a_system_whose_logic_raises`, `test_a_logic_failure_is_named_when_no_rung_produced_evidence`, `test_a_raising_logic_is_attempted_once_per_evaluation` |
 | Building the ladder reads the callable surface and never executes the system | `test_building_the_ladder_never_executes_the_system` |
 | A malformed trace still raises and names the system | `test_a_trace_of_the_wrong_shape_names_the_system` |
 | A presence proof requires the rules to assign the signal on every path | `test_a_record_duty_the_solver_cannot_reach_falls_to_the_engine_that_can`, `test_presence_is_not_proved_when_only_one_branch_assigns_the_signal` |
 | A temporal duty never rises above observed | `test_a_temporal_duty_never_rises_above_observed` |
 | The solver's blank string is Python's blank string, so a provable blank reason is a violation | `test_the_solvers_blank_string_is_pythons_blank_string`, `test_a_presence_proof_refuses_the_blank_string_the_solver_could_choose` |
+| `contains()` takes a signal name and a literal ASCII phrase, and every other shape is refused | `test_a_malformed_contains_atom_is_refused_rather_than_guessed_at`, `test_a_contains_atom_is_a_boolean_property_outside_the_record_fragment`, `test_the_phrase_is_not_a_signal_the_property_reads` |
+| The solver's ASCII case fold is the interpreter's, over a generated corpus | `test_the_solvers_fold_is_the_interpreters_fold`, `test_the_fold_is_ascii_case_and_reaches_no_further` |
+| A record carrying no statement carries no phrase, for the solver too; a statement in parts is read part by part and never joined; any other present value is refused | `test_a_record_carrying_no_statement_carries_no_phrase`, `test_the_solver_finds_no_phrase_in_a_string_the_record_does_not_carry`, `test_a_statement_given_in_parts_is_read_part_by_part`, `test_the_parts_of_a_statement_are_never_joined`, `test_a_present_value_that_is_not_a_statement_is_refused`, `test_a_non_text_value_makes_the_duty_not_evaluated_never_satisfied` |
+| A forbidden phrase in the trace is an observed violation, and a statement naming a factor is satisfied | `test_a_forbidden_phrase_in_the_trace_is_an_observed_violation`, `test_a_statement_naming_a_factor_is_observed_satisfied` |
+| Rewriting for rtamt skips a call head a phrase merely quotes | `test_a_call_head_a_phrase_merely_quotes_is_not_rewritten` |
+| Exposed rules that can write a forbidden phrase are proved to violate; a signal the rules do not type as text is refused | `test_a_forbidden_phrase_the_rules_can_write_is_proved_to_violate`, `test_rules_that_never_write_a_forbidden_phrase_are_proved_to_satisfy`, `test_the_solver_refuses_a_signal_it_cannot_read_as_text` |
 | An absent or blank signal in an observed record is a violation, naming it | `test_record_engine_violated_on_blank_field`, `test_a_declared_signal_absent_from_the_trace_is_a_violation` |
 | Presence means non-empty, not merely keyed, in every engine | `test_a_present_but_empty_signal_does_not_count_as_evidence`, `test_a_falsy_but_real_signal_value_counts`, `test_temporal_presence_agrees_with_record_presence_for_falsy_values` |
 | An empty trace is not evaluated, never satisfied | `test_an_empty_trace_is_not_evidence` |
@@ -697,6 +1005,7 @@ Two consequences of that report text, followed by a separate package-level termi
 | The budget counts the inputs the system was actually run on | `test_the_engine_replays_exactly_the_planned_inputs` |
 | Probed never rounds up to proved, in any count, headline or rendering | `test_probed_never_rounds_up_to_proved` |
 | An input whose `decide()` or property evaluation raises is counted, not read as a pass | `test_an_input_the_system_cannot_decide_is_counted_not_read_as_a_pass`, `test_an_input_whose_property_cannot_be_evaluated_is_counted_not_read_as_a_pass` |
+| A value that is not a statement is not evaluated on the probed rung as it is on the observed one, never counted and passed over | `test_a_non_text_value_is_not_evaluated_on_every_rung` |
 | `probed violated` ⇒ the counterexample reproduced on a second replay | `test_a_genuine_counterexample_is_reported_violated_with_the_input` |
 | A counterexample that does not reproduce is not evaluated, never violated | `test_a_counterexample_that_does_not_reproduce_is_not_evaluated` |
 | No `decide()`, no trace, no budget, or an inexpressible property ⇒ not evaluated | `test_a_system_without_decide_is_not_evaluated_never_satisfied`, `test_an_empty_trace_gives_the_search_nothing_to_probe_around`, `test_nonpositive_trial_budget_is_not_confused_with_an_empty_trace`, `test_the_complete_property_must_be_expressible_and_boolean` |
@@ -710,7 +1019,7 @@ Two consequences of that report text, followed by a separate package-level termi
 | Arrow rewriting preserves the property | `test_arrow_rewriting_respects_parentheses_and_precedence`, `test_arrow_rewriting_leaves_string_literals_alone` |
 | A proof over reals names the rational/float64 gap | `test_a_proof_over_reals_says_it_is_a_proof_over_the_rationals` |
 | A declared sort never becomes a hidden input constraint | `test_declared_sorts_never_become_hidden_input_constraints` |
-| A system exposing no logic is not evaluated | `test_system_without_logic_reported_not_evaluated` |
+| A system exposing no logic is not proved, and the proof rung names the interface it wanted | `test_the_proof_rung_still_names_the_missing_logic_when_it_is_asked_directly` |
 | `proved violated` ⇒ the counterexample reproduced, and the summary names what against | `test_property_fails_with_verified_counterexample`, `test_counterexample_replayed_on_declared_logic_says_so` |
 | An unverified counterexample is not rendered as a violation | `test_counterexample_verification_failure_reported_not_evaluated`, `test_unverified_counterexample_is_not_rendered_as_a_violation` |
 | The lattice is a strict total order, and this document states the order the code defines | `test_strength_lattice_ordering`, `test_semantics_doc_states_the_lattice_the_code_defines` |
@@ -728,6 +1037,17 @@ Two consequences of that report text, followed by a separate package-level termi
 | A pack's requirement fields are exact and non-blank | `test_loader_rejects_missing_field`, `test_loader_rejects_an_unknown_field`, `test_loader_rejects_blank_and_duplicate_fields`, `test_requirement_needs_at_least_one_signal` |
 | Report limits exclude legal-duty determination and regulatory-class inference | `test_report_limits_exclude_legal_determination_and_scope_inference`, `test_limits_cover_both_ways_a_requirement_becomes_not_applicable` |
 | A misspelled regulatory class is refused rather than read as out-of-scope | `test_a_scope_outside_the_vocabulary_is_refused` |
+| An undeclared system never reaches `satisfied` on a domain-limited duty, and a declared mismatch is worded apart from it | `test_an_undeclared_system_cannot_reach_satisfied_on_a_domain_limited_duty`, `test_a_system_in_another_domain_is_not_applicable_rather_than_judged` |
+| A duty with no domain still reaches a system that declares none, and matching is intersection | `test_a_duty_with_no_domain_still_reaches_a_system_that_declares_none`, `test_matching_is_intersection_so_one_shared_domain_is_enough` |
+| A pack that has not classified a requirement fails to load; there is no default domain | `test_a_pack_that_has_not_classified_a_requirement_is_refused`, `test_every_shipped_pack_classifies_every_requirement` |
+| A misspelled decision domain is refused on both sides, and a domain list is domain names and nothing else | `test_a_domain_outside_the_vocabulary_is_refused`, `test_a_domain_list_is_domain_names_and_nothing_else` |
+| The whole-pack plan and the single-requirement path give the same applicability answer, and neither runs an out-of-reach system | `test_the_two_domain_gates_never_disagree`, `test_an_undeclared_domain_never_runs_the_system` |
+| A run that skipped duties for an undeclared domain says so in every rendering, and a declared mismatch raises no such notice | `test_a_run_that_skipped_duties_for_a_missing_declaration_says_so` |
+| The certificate engine reaches a duty at all: the demonstration's own `APP-1042` is reported violated, and form completeness and reason fidelity are separate verdicts | `test_the_demonstrations_own_decision_is_reported_violated`, `test_form_completeness_and_reason_fidelity_are_now_separate_verdicts`, `test_the_cli_reports_the_demonstration_decision_violated` |
+| A system that cannot supply the oracle is unattainable, and the adequacy duty is never downgraded to the presence check | `test_a_system_exposing_no_oracle_is_unattainable_and_names_the_signal`, `test_the_adequacy_duty_is_never_downgraded_to_the_presence_check` |
+| The deleted-reason count is measured, never read from the system's own record | `test_a_logged_completeness_count_never_settles_the_duty` |
+| A certificate verdict carries its probe budget, and exact inference behind a decision still reaches probed and no higher | `test_the_certificate_verdict_carries_its_probe_budget`, `test_an_engine_that_deletes_nothing_is_probed_and_never_proved` |
+| No artefact, a broken artefact, or a property the engine cannot ground ⇒ not evaluated | `test_a_trace_with_no_artifact_is_not_evaluated_never_satisfied`, `test_an_artifact_that_raises_or_is_the_wrong_shape_is_not_evaluated`, `test_the_engine_refuses_a_property_it_cannot_ground` |
 | A reason-deletion certificate detects a dropped reason and excludes compliance certification beyond its measured input | `test_a_perturbed_engine_that_drops_a_reason_fails`, `test_certificate_limits_exclude_compliance_certification`, `test_certificate_carries_its_limits` |
 | A report carries no narrative it did not measure | `test_report_for_an_arbitrary_system_carries_no_narrative_it_did_not_measure` |
 | This document is linked, and every test it names exists | `test_semantics_doc_is_linked_from_the_readmes`, `test_every_test_named_in_the_semantics_doc_exists` |

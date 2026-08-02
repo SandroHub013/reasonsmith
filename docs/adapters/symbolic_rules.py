@@ -19,11 +19,15 @@ What a reader must not break:
     `reasonsmith.rulelang` with the solver, so a proof and a replay cannot come to be about
     different programs. Writing a tidier summary here and calling it the logic would produce a
     proof about the summary.
-  - Every branch assigns `artifact_logs_reason_explanation` a non-blank string. That is what the
-    solver checks, and it checks it over every input `CONSTRAINTS` admits — not over `TEST_INPUTS`,
-    which only supply a decision trace for the weaker rungs to fall back on. Adding a branch that
-    leaves the reason unset (or sets it blank) turns the verdict to `violated` with a
-    counterexample, which is the tool working, not failing.
+  - Every branch assigns `artifact_logs_reason_explanation` a non-blank string **naming a factor**.
+    Both halves matter, because the duty checks both: that a statement was made at all, and that it
+    is not one of the two the clause itself calls insufficient — resting on the creditor's internal
+    standards or policies, or on a failure to achieve a qualifying score. The solver checks that
+    over every input `CONSTRAINTS` admits, not over `TEST_INPUTS`, which only supply a decision
+    trace for the weaker rungs to fall back on. Adding a branch that leaves the reason unset, sets
+    it blank, or writes one of those forbidden statements turns the verdict to `violated` with a
+    counterexample, which is the tool working, not failing. The reason codes below are the
+    standardised ECOA ones precisely because they name factors.
   - `CONSTRAINTS` bound the input space the proof quantifies over, so they are part of what the
     verdict claims. Widening them weakens nothing; narrowing them to dodge a counterexample would
     make the proof true of a system nobody deployed.
@@ -37,9 +41,16 @@ from reasonsmith.adapters.rules import RulesAdapter
 from reasonsmith.report import check_conformance
 from reasonsmith.spec import load_pack
 
-#: The duty all three systems in `docs/adapters/` are checked against. Binding, and limited to no
-#: regulatory class, so it reaches every system without a declared scope.
+#: The duty all three systems in `docs/adapters/` are checked against. Binding, limited to no
+#: regulatory class, and limited to the consumer-credit decision domain — which all three of these
+#: systems are in, and which each of them declares below through `system_domains`. A system that
+#: declared nothing would be reported not applicable on this duty rather than judged on its trace.
 REQUIREMENT_ID = "ecoa_reg_b_1002_9_b_2_specific_reasons"
+
+#: What kind of decision this system makes. Not inferred by reasonsmith from anything: an
+#: undeclared system is never reported satisfied on a domain-limited duty, so the declaration is
+#: what puts this system within the duty's reach at all.
+DECLARED_DOMAINS = ("consumer-credit",)
 
 #: The underwriting policy, in execution order. Reason codes are the standardised ECOA ones.
 RULES = [
@@ -113,7 +124,7 @@ TEST_INPUTS = [
 
 def system_under_test() -> RulesAdapter:
     """The system as reasonsmith sees it: exposed logic, and a capability set declared with it."""
-    return RulesAdapter(
+    sut = RulesAdapter(
         rules=RULES,
         variables=VARIABLES,
         constraints=CONSTRAINTS,
@@ -126,6 +137,8 @@ def system_under_test() -> RulesAdapter:
         },
         test_inputs=TEST_INPUTS,
     )
+    sut.system_domains = DECLARED_DOMAINS
+    return sut
 
 
 def main() -> None:

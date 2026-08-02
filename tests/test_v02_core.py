@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import reasonsmith.report as report_module
 from reasonsmith.report import (
     LIMITS as REPORT_LIMITS,
 )
@@ -22,6 +23,7 @@ from reasonsmith.rulelang import classify_fragment, eval_expression, parse_prope
 from reasonsmith.spec import (
     PACKS_DIR,
     REGULATORY_CLASSES,
+    VALID_FORMALISMS,
     Pack,
     Requirement,
     list_packs,
@@ -54,6 +56,7 @@ def _requirement(**overrides) -> Requirement:
         "requires": ("signal_a",),
         "binding": True,
         "scope": "",
+        "domains": (),
     }
     fields.update(overrides)
     return Requirement(**fields)
@@ -237,7 +240,7 @@ def test_pack_source_metadata_matches_transcription():
 @pytest.mark.parametrize(
     "field_name",
     ["id", "source_document", "article_clause", "verbatim_text", "stakeholder", "formalism",
-     "spec", "rationale", "requires", "binding", "scope"],
+     "spec", "rationale", "requires", "binding", "scope", "domains"],
 )
 def test_loader_rejects_missing_field(tmp_path, field_name):
     """A requirement missing any field is a malformed pack, not a partial one."""
@@ -253,6 +256,7 @@ def test_loader_rejects_missing_field(tmp_path, field_name):
         "requires": '["signal_a"]',
         "binding": 'true',
         "scope": '""',
+        "domains": '[]',
     }
     del fields[field_name]
     body = "[[requirement]]\n" + "".join(f"{k} = {v}\n" for k, v in fields.items())
@@ -271,7 +275,7 @@ def test_loader_rejects_requires_as_bare_string(tmp_path):
         '[[requirement]]\nid = "r1"\nsource_document = "Doc"\narticle_clause = "Art. 1"\n'
         'verbatim_text = "quoted"\nstakeholder = "deployer"\nformalism = "record"\n'
         'spec = "present(per_decision_reason_string)"\nrationale = "Why."\n'
-        'requires = "per_decision_reason_string"\nbinding = true\nscope = ""\n'
+        'requires = "per_decision_reason_string"\nbinding = true\nscope = ""\ndomains = []\n'
     )
     with pytest.raises(ValueError, match="must be an array of signal names"):
         load_pack(_write_pack(tmp_path, body))
@@ -283,7 +287,7 @@ def test_loader_rejects_blank_and_duplicate_fields(tmp_path):
         '[[requirement]]\nid = "r1"\nsource_document = "Doc"\narticle_clause = "Art. 1"\n'
         'verbatim_text = {verbatim}\nstakeholder = "deployer"\nformalism = "record"\n'
         'spec = "present(a)"\nrationale = "Why."\nrequires = {requires}\n'
-        'binding = true\nscope = ""\n'
+        'binding = true\nscope = ""\ndomains = []\n'
     )
     with pytest.raises(ValueError, match="verbatim_text.*non-empty"):
         load_pack(_write_pack(tmp_path, base.format(verbatim='"   "', requires='["a"]')))
@@ -305,7 +309,8 @@ def test_loader_rejects_empty_pack_and_bad_formalism(tmp_path):
     body = (
         '[[requirement]]\nid = "r1"\nsource_document = "Doc"\narticle_clause = "Art. 1"\n'
         'verbatim_text = "q"\nstakeholder = "deployer"\nformalism = "vibes"\n'
-        'spec = "present(a)"\nrationale = "Why."\nrequires = ["a"]\nbinding = true\nscope = ""\n'
+        'spec = "present(a)"\nrationale = "Why."\nrequires = ["a"]\nbinding = true\n'
+        'scope = ""\ndomains = []\n'
     )
     with pytest.raises(ValueError, match="Invalid formalism"):
         load_pack(_write_pack(tmp_path, body))
@@ -316,7 +321,8 @@ def test_loader_error_names_the_offending_block(tmp_path):
     good = (
         '[[requirement]]\nid = "r1"\nsource_document = "Doc"\narticle_clause = "Art. 1"\n'
         'verbatim_text = "q"\nstakeholder = "deployer"\nformalism = "record"\n'
-        'spec = "present(a)"\nrationale = "Why."\nrequires = ["a"]\nbinding = true\nscope = ""\n'
+        'spec = "present(a)"\nrationale = "Why."\nrequires = ["a"]\nbinding = true\n'
+        'scope = ""\ndomains = []\n'
     )
     bad = good.replace('id = "r1"', 'id = "r2"').replace('spec = "present(a)"\n', "")
     with pytest.raises(ValueError, match=r"custom\.toml \[\[requirement\]\] #2 \('r2'\)"):
@@ -328,7 +334,8 @@ def test_loader_rejects_an_unknown_field(tmp_path):
     good = (
         '[[requirement]]\nid = "r1"\nsource_document = "Doc"\narticle_clause = "Art. 1"\n'
         'verbatim_text = "q"\nstakeholder = "deployer"\nformalism = "record"\n'
-        'spec = "present(a)"\nrationale = "Why."\nrequires = ["a"]\nbinding = true\nscope = ""\n'
+        'spec = "present(a)"\nrationale = "Why."\nrequires = ["a"]\nbinding = true\n'
+        'scope = ""\ndomains = []\n'
     )
     with pytest.raises(ValueError, match=r"custom\.toml.*unknown field\(s\): stakeholders"):
         load_pack(_write_pack(tmp_path, good + 'stakeholders = "deployer"\n'))
@@ -661,27 +668,63 @@ def test_an_empty_trace_is_not_evidence():
     assert "[NOT EVALUATED]" in report.render_text()
 
 
-@pytest.mark.parametrize("formalism", ["logical"])
-def test_a_formalism_without_an_engine_is_not_evaluated(formalism):
-    """Declaring the signals a logical property needs does not establish it.
+def test_a_formalism_without_an_engine_is_not_evaluated(monkeypatch):
+    """A formalism nothing here evaluates is reported as such, and its trace is never read.
 
-    There is no solver in this build (stage 3). Checking such a requirement by looking
-    for the signal names in the trace would report `satisfied` for a property nothing tested —
-    the failure mode that would make every verdict in this tool unfalsifiable.
+    What changed, and why: this was parametrised over `logical`, on the premise that the build had
+    no engine for one. It has had a solver since stage 3, and now a `logical` property — a property
+    of a single decision record, by `docs/semantics.md` §3.5's own definition — is also monitored
+    per record against a trace. So `logical` is no longer an example of an uncovered formalism, and
+    asserting that it is would pin the defect rather than the rule.
+
+    The rule itself is unchanged and still worth holding: a requirement whose formalism no engine
+    covers must be reported not evaluated from the capability declaration alone, never answered by
+    looking for its signal names in the trace. `SUPPORTED_FORMALISMS` is narrowed here to reach that
+    branch, because every valid formalism now has an engine — which the first assertion pins, so
+    this test fails if a formalism is ever added without one.
     """
 
     class TraceSUT(BaseSUT):
         def decisions(self):
             raise AssertionError("must not read the trace for a formalism no engine covers")
 
-    req = _requirement(formalism=formalism, requires=("signal_a",))
+    assert set(report_module.SUPPORTED_FORMALISMS) == set(VALID_FORMALISMS)
+
+    req = _requirement(formalism="logical", requires=("signal_a",))
+    monkeypatch.setattr(report_module, "SUPPORTED_FORMALISMS", ("record", "temporal"))
+
     result = evaluate_requirement(req, TraceSUT({"signal_a"}))
     assert result.verdict == Verdict.INCONCLUSIVE
     assert result.strength is None
-    assert formalism in result.evidence_summary
+    assert "logical" in result.evidence_summary
 
     report = check_conformance(TraceSUT({"signal_a"}), Pack("p", "P", "", (req,)))
     assert report.headline == "1 requirements · 1 binding: 1 not evaluated"
+
+
+def test_every_valid_formalism_has_an_engine_that_reads_a_trace():
+    """The claim the test above stopped being able to make: no fragment is left unreadable.
+
+    A state fragment is a property of one decision record, so a trace of decision records is
+    evidence about it. A build that classified a property into a fragment and then refused to read
+    the trace in front of it reported *not evaluated* because of a label rather than because of the
+    evidence — the defect the fragment classification exists to prevent.
+    """
+    trace = [{"signal_a": "given"}, {"signal_a": "given"}]
+
+    class TraceOnlySUT(BaseSUT):
+        def decisions(self):
+            return trace
+
+    for formalism, spec in (
+        ("record", "present(signal_a)"),
+        ("logical", "present(signal_a) -> present(signal_a)"),
+        ("temporal", "always(present(signal_a))"),
+    ):
+        req = _requirement(formalism=formalism, spec=spec, requires=("signal_a",))
+        result = evaluate_requirement(req, TraceOnlySUT({"signal_a"}))
+        assert result.verdict == Verdict.SATISFIED, formalism
+        assert result.strength == Strength.OBSERVED, formalism
 
 
 def test_result_cannot_claim_more_than_its_evidence():
@@ -945,17 +988,27 @@ def test_ai_act_pack_high_risk_declaration_outcomes():
 
 
 def test_limits_cover_both_ways_a_requirement_becomes_not_applicable():
-    """The undeclared case is the default path, so the limits paragraph has to name it."""
-    limits = check_conformance(FullCapabilitySUT(system_scope=""), load_pack("table7")).limits
+    """The undeclared case is the default path, so the limits paragraph has to name it.
+
+    There are two gates now — regulatory class and decision domain — and each fails in the same
+    two ways. All four have to be in the paragraph, because a reader who meets `not applicable`
+    with only three of them named will guess the fourth, and the guess available is `cleared`.
+    """
+    limits = check_conformance(
+        FullCapabilitySUT(system_scope="", system_domains=()), load_pack("table7")
+    ).limits
     assert "no regulatory class was declared" in limits
     assert "not the one the requirement is limited to" in limits
-    assert "never infers that class" in limits
+    assert "no decision domain was declared" in limits
+    assert "none of the domains that were declared is one the requirement is about" in limits
+    assert "infers neither the class nor the domain" in limits
 
 
 def test_report_limits_exclude_legal_determination_and_scope_inference():
     assert "findings discharge legal duties" in REPORT_LIMITS
     assert "determination this tool does not make and cannot make" in REPORT_LIMITS
-    assert "This tool never infers that class" in REPORT_LIMITS
+    assert "This tool infers neither the class nor the domain" in REPORT_LIMITS
+    assert "vocabulary is written by the pack author and by no regulation" in REPORT_LIMITS
 
 
 @pytest.mark.parametrize("typo", ["hihg-risk", "high risk", "high_risk", "highrisk", "High Risk"])
@@ -1017,7 +1070,7 @@ def test_a_pack_scope_outside_the_vocabulary_is_refused_at_load(tmp_path):
         '[[requirement]]\nid = "r1"\nsource_document = "Doc"\narticle_clause = "Art. 1"\n'
         'verbatim_text = "q"\nstakeholder = "deployer"\nformalism = "record"\n'
         'spec = "present(a)"\nrationale = "Why."\nrequires = ["a"]\nbinding = true\n'
-        'scope = "hihg-risk"\n'
+        'scope = "hihg-risk"\ndomains = []\n'
     )
     with pytest.raises(ValueError, match=r"'r1'.*'scope'.*not a known regulatory class"):
         load_pack(_write_pack(tmp_path, body))
@@ -1037,7 +1090,7 @@ def test_a_blank_scope_is_a_typo_not_an_absent_class(tmp_path):
         '[[requirement]]\nid = "r1"\nsource_document = "Doc"\narticle_clause = "Art. 1"\n'
         'verbatim_text = "q"\nstakeholder = "deployer"\nformalism = "record"\n'
         'spec = "present(a)"\nrationale = "Why."\nrequires = ["a"]\nbinding = true\n'
-        'scope = "   "\n'
+        'scope = "   "\ndomains = []\n'
     )
     with pytest.raises(ValueError, match=r"'r1'.*'scope'.*not a known regulatory class"):
         load_pack(_write_pack(tmp_path, body))
@@ -1108,7 +1161,7 @@ def _spec_pack(tmp_path: Path, formalism: str, spec: str, requires: str = '["sig
         '[[requirement]]\nid = "r1"\nsource_document = "Doc"\narticle_clause = "Art. 1"\n'
         'verbatim_text = "q"\nstakeholder = "deployer"\n'
         f'formalism = "{formalism}"\nspec = {spec!r}\nrationale = "Why."\n'
-        f"requires = {requires}\nbinding = true\nscope = \"\"\n"
+        f"requires = {requires}\nbinding = true\nscope = \"\"\ndomains = []\n"
     )
     return _write_pack(tmp_path, body)
 

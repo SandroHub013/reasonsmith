@@ -17,7 +17,9 @@ What a reader must not break:
     shipped duties could never exceed `observed` however much a system exposed — a fact about a
     word in a TOML file, reported as a fact about the system. Which rung a duty reaches must be a
     fact about the system. What a verdict *means* is untouched by this: see `docs/semantics.md`
-    §3.5, including the case where exposed logic and trace disagree.
+    §3.5, including the case where exposed logic and trace disagree. One duty has a single-rung
+    ladder, for the opposite reason: a weaker rung on a reason-adequacy duty would answer a
+    *different* property off the system's own log — see `_engine_ladder`.
   - Combining zero verdicts is `inconclusive`, never vacuously `satisfied`.
     Why this matters: Having checked nothing is not evidence that a requirement holds.
   - The unattainable analysis must NEVER execute the system (`sut.decisions()` is never called).
@@ -38,7 +40,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from reasonsmith.rulelang import STATE_FRAGMENTS, is_present
-from reasonsmith.spec import Pack, Requirement, normalize_scope
+from reasonsmith.spec import Pack, Requirement, normalize_domains, normalize_scope
 from reasonsmith.sut import SystemUnderTest, _validate_capability_collection
 from reasonsmith.verdict import Strength, Verdict
 
@@ -51,10 +53,14 @@ LIMITS = (
     "Recital and guidance items inform how statutory duties are interpreted but create no "
     "obligation of their own; interpretive requirements are evaluated and reported separately, "
     "and are never folded into the binding headline counts. A requirement reported not "
-    "applicable was excluded either because no regulatory class was declared for the system at "
-    "all, or because the class that was declared is not the one the requirement is limited to. "
-    "This tool never infers that class, so an undeclared system is neither placed in scope nor "
-    "cleared of the duty: read the declared scope line before reading a not-applicable result."
+    "applicable was excluded on one of two independent gates. Either no regulatory class was "
+    "declared for the system at all, or the class that was declared is not the one the "
+    "requirement is limited to; or no decision domain was declared for the system at all, or "
+    "none of the domains that were declared is one the requirement is about. This tool infers "
+    "neither the class nor the domain, so an undeclared system is neither placed in scope nor "
+    "cleared of the duty: read the declared scope and domain lines before reading a "
+    "not-applicable result. The decision-domain vocabulary is written by the pack author and by "
+    "no regulation, and a duty declaring no domain reaches every system it is run against."
 )
 
 #: Formalisms this build can actually evaluate.
@@ -68,6 +74,14 @@ SUPPORTED_FORMALISMS = ("record", "temporal", "logical")
 PROBE_BUDGET_KEY = "probe_budget"
 PROBE_BUDGET_FIELDS = ("trials", "strategy", "seed", "input_space")
 _UNREAD = object()
+
+#: Where a not-applicable result records that the *system* said nothing, rather than that it said
+#: something else. The two are not the same finding: a declared domain that does not meet the
+#: duty's is an answer, while an undeclared one is a missing input, and a run that skipped duties
+#: for a missing input must not read like a run that checked them. Carried as a flag rather than
+#: left to be recovered from the reason prose, so every rendering asks the result rather than
+#: parsing a sentence that is free to be reworded.
+UNDECLARED_DOMAIN_KEY = "skipped_for_undeclared_domain"
 
 
 def _budget_line(budget: Mapping[str, Any]) -> str:
@@ -107,9 +121,11 @@ class RequirementResult:
     `details`.
 
     `binding` records whether the duty is a legally binding obligation (true) or an
-    interpretive recital/guidance item (false), and `scope` records any regulatory class the
-    duty is limited to (e.g. 'high-risk'). Both are carried through from the requirement so a
-    reader of a single result never has to go back to the pack to know what kind of duty it is.
+    interpretive recital/guidance item (false), `scope` records any regulatory class the
+    duty is limited to (e.g. 'high-risk'), and `domains` records the kinds of decision it is
+    about (e.g. 'consumer-credit'), empty meaning it is not domain-limited. All three are
+    carried through from the requirement so a reader of a single result never has to go back to
+    the pack to know what kind of duty it is.
     """
 
     requirement_id: str
@@ -122,6 +138,7 @@ class RequirementResult:
     details: dict[str, Any] = field(default_factory=dict)
     binding: bool = True
     scope: str = ""
+    domains: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         # Every invariant below compares against the enum members, so a raw string would
@@ -132,6 +149,7 @@ class RequirementResult:
             object.__setattr__(self, "strength", Strength.parse(self.strength))
         object.__setattr__(self, "binding", bool(self.binding))
         object.__setattr__(self, "scope", str(self.scope))
+        object.__setattr__(self, "domains", normalize_domains(self.domains))
         for name in ("signals_required", "signals_missing"):
             object.__setattr__(self, name, self._signal_names(name))
 
@@ -239,6 +257,7 @@ class RequirementResult:
             "details": dict(self.details),
             "binding": self.binding,
             "scope": self.scope,
+            "domains": list(self.domains),
         }
 
 
@@ -376,7 +395,11 @@ class ConformanceReport:
     system_name: str
     results: tuple[RequirementResult, ...]
     system_scope: str | None = None
+    system_domains: tuple[str, ...] = ()
     limits: str = LIMITS
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "system_domains", normalize_domains(self.system_domains))
 
     @property
     def counts(self) -> dict[str, int]:
@@ -431,14 +454,53 @@ class ConformanceReport:
             parts.append(f"{counts[total_key]} {noun}{detail}")
         return " · ".join(parts)
 
+    @property
+    def skipped_for_undeclared_domain(self) -> tuple[str, ...]:
+        """The duties reported not applicable *solely* because this system declared no domain.
+
+        A declared domain that does not meet a duty's is not counted here: that duty was answered,
+        not skipped for want of an input.
+        """
+        return tuple(
+            r.requirement_id for r in self.results if r.details.get(UNDECLARED_DOMAIN_KEY)
+        )
+
+    @property
+    def undeclared_domain_notice(self) -> str | None:
+        """The one sentence every rendering owes a reader when duties went unchecked, or None.
+
+        A run that skipped duties for a missing declaration exits exactly as a run that checked
+        them does — only a violation exits non-zero, and that is deliberate (`docs/semantics.md`
+        §4). So the report itself has to carry what the exit code cannot, in the place a reader
+        cannot miss and in every format, or a compliance gate goes green and stays green over
+        duties nothing here looked at.
+        """
+        skipped = self.skipped_for_undeclared_domain
+        if not skipped:
+            return None
+        duties = "duty was" if len(skipped) == 1 else "duties were"
+        return (
+            f"{len(skipped)} domain-limited {duties} reported not applicable without being "
+            "checked, because this system declares no decision domain. Nothing in this report "
+            "says those duties are met. Declare what kind of decision this system makes — "
+            "--system-domain <domain>, repeatable, or a system_domains attribute on the "
+            "adapter — and run it again; docs/authoring-packs.md names the vocabulary."
+        )
+
     def render_text(self) -> str:
         """Readable text rendering of the report."""
         lines = [
             "CONFORMANCE REPORT",
             f"system: {self.system_name}",
             f"declared scope: {self.system_scope or 'undeclared'}",
+            f"declared domains: {', '.join(self.system_domains) or 'undeclared'}",
             f"pack: {self.pack_id}",
             f"headline: {self.headline}",
+        ]
+        notice = self.undeclared_domain_notice
+        if notice:
+            lines.append(f"DUTIES NOT CHECKED: {notice}")
+        lines += [
             "",
             "REQUIREMENT FINDINGS:",
         ]
@@ -455,6 +517,8 @@ class ConformanceReport:
             lines.append(f"    requires: {', '.join(r.signals_required)}")
             if r.scope:
                 lines.append(f"    scope limit: {r.scope}")
+            if r.domains:
+                lines.append(f"    domain limit: {', '.join(r.domains)}")
             if r.signals_missing:
                 lines.append(f"    MISSING SIGNALS: {', '.join(r.signals_missing)}")
             absent = r.details.get("signals_absent_from_trace")
@@ -506,6 +570,7 @@ class ConformanceReport:
         sys_name = html.escape(self.system_name)
         pack_name = html.escape(self.pack_id)
         sys_scope = html.escape(self.system_scope or "undeclared")
+        sys_domains = html.escape(", ".join(self.system_domains) or "undeclared")
         headline_esc = html.escape(self.headline)
         limits_esc = html.escape(self.limits)
         c_short_esc = html.escape(commit_hash[:7]) if commit_hash else ""
@@ -539,6 +604,16 @@ class ConformanceReport:
         interp_pills = render_pill_group("interpretive_")
         extra_section = extra_section_html or ""
 
+        notice = self.undeclared_domain_notice
+        notice_html = (
+            '<div class="headline-banner notice-banner">'
+            '<div class="headline-title">Duties Not Checked</div>'
+            f'<div class="notice-text">{html.escape(notice)}</div>'
+            "</div>"
+            if notice
+            else ""
+        )
+
         req_html_blocks = []
         for r in self.results:
             r._validate_probe_budget()
@@ -547,6 +622,10 @@ class ConformanceReport:
             summary = html.escape(r.evidence_summary)
             sc_esc = html.escape(r.scope)
             scope_tag = f'<span class="badge badge-scope">Scope: {sc_esc}</span>' if r.scope else ""
+            dom_esc = html.escape(", ".join(r.domains))
+            domain_tag = (
+                f'<span class="badge badge-scope">Domain: {dom_esc}</span>' if r.domains else ""
+            )
             binding_tag = (
                 '<span class="badge badge-binding">Binding</span>'
                 if r.binding
@@ -721,6 +800,7 @@ class ConformanceReport:
             <div class="badge-group">
               {binding_tag}
               {scope_tag}
+              {domain_tag}
               {v_badge}
             </div>
           </header>
@@ -931,6 +1011,21 @@ class ConformanceReport:
       letter-spacing: 0.14em;
       color: var(--accent-deep);
       margin-bottom: var(--space-2xs);
+    }}
+    .notice-banner {{
+      background: var(--warn-soft);
+      border-color: var(--warn-line);
+      border-left-color: var(--warn);
+    }}
+    .notice-banner .headline-title {{ color: var(--warn); }}
+    .notice-text {{
+      font-family: var(--font-serif);
+      font-size: var(--step-0);
+      font-weight: 600;
+      line-height: 1.45;
+      color: var(--warn);
+      max-width: 70ch;
+      text-wrap: pretty;
     }}
     .headline-text {{
       font-family: var(--font-serif);
@@ -1333,6 +1428,10 @@ class ConformanceReport:
           <span class="meta-value">{sys_scope}</span>
         </div>
         <div class="meta-item">
+          <span class="meta-label">Declared Domains</span>
+          <span class="meta-value">{sys_domains}</span>
+        </div>
+        <div class="meta-item">
           <span class="meta-label">Regulation Pack</span>
           <span class="meta-value">{pack_name}</span>
         </div>
@@ -1344,6 +1443,8 @@ class ConformanceReport:
       <div class="headline-text">{headline_esc}</div>
       {provenance_html}
     </div>
+
+    {notice_html}
 
     {extra_section}
 
@@ -1431,6 +1532,7 @@ class ConformanceReport:
         return {
             "system_name": self.system_name,
             "system_scope": self.system_scope,
+            "system_domains": list(self.system_domains),
             "pack_id": self.pack_id,
             "headline": self.headline,
             "counts": self.counts,
@@ -1546,55 +1648,148 @@ def _unattainable_result(
     )
 
 
+def _declared_scope(sut: SystemUnderTest, system_scope: str | None) -> str | None:
+    """The regulatory class this run is judging against — the argument, or the system's own.
+
+    Refused here, beside `_declared_domains` and on the same terms, rather than at the first
+    requirement that happens to be class-limited: a pack with no requirements, or none carrying
+    a class, would otherwise end in a clean run on a misspelled one. The value returned is the
+    declaration as it was given, because that is what a report prints back to its reader.
+    """
+    if system_scope is None:
+        system_scope = getattr(sut, "system_scope", getattr(sut, "declared_scope", None))
+    normalize_scope(system_scope, "declared system scope")
+    return system_scope
+
+
+def _declared_domains(sut: SystemUnderTest, system_domains: Any) -> tuple[str, ...]:
+    """The decision domains this run is judging against — the argument, or the system's own.
+
+    No second attribute name is honoured here, unlike `declared_scope` beside it: a domain
+    declaration is new in this version, so there is no older spelling of it in the wild to keep
+    working, and inventing one would be a second place a system could speak from.
+    """
+    if system_domains is None:
+        system_domains = getattr(sut, "system_domains", None)
+    return normalize_domains(system_domains, "declared system decision domain")
+
+
+def _not_applicable(
+    req: Requirement, summary: str, details: dict[str, Any] | None = None
+) -> RequirementResult:
+    """The not-applicable result: no strength, no missing signals, nothing about the system."""
+    return RequirementResult(
+        requirement_id=req.id,
+        source_clause=f"{req.source_document} {req.article_clause}",
+        verdict=Verdict.NOT_APPLICABLE,
+        strength=None,
+        signals_required=tuple(req.requires),
+        evidence_summary=summary,
+        details=dict(details or {}),
+        binding=req.binding,
+        scope=req.scope,
+        domains=req.domains,
+    )
+
+
+def _inapplicability(
+    req: Requirement, sys_scope_norm: str, sys_domains: tuple[str, ...], system_scope: Any
+) -> tuple[str, dict[str, Any]] | None:
+    """Why this duty does not reach this system, and what that is, or None when it does.
+
+    The second element is the details a result carries away from here. A duty skipped because
+    the system declared *no* decision domain is flagged with `UNDECLARED_DOMAIN_KEY`: that is a
+    missing input rather than an answer, and every rendering says so. A duty skipped because the
+    system declared a domain that is simply not this duty's carries nothing — that one is a real
+    answer, and warning about it would train a reader to ignore the warning that matters.
+
+    Two independent gates, on two axes that are not the same question. `scope` is a regulatory
+    class from one statute's own fixed vocabulary; `domains` is the kind of decision the duty is
+    about, from a vocabulary this repository wrote (`spec.DECISION_DOMAINS`). A duty is evaluated
+    only when it passes both.
+
+    Each gate is a conjunction against a declaration this tool never infers, and each fails in
+    the same two ways — the system declared nothing, or declared something else — because those
+    two are one instruction to the reader: *say what this system is, and run it again*. The
+    message names which of the two it was, so nobody reads "not applicable" as "cleared".
+
+    An unset gate on the requirement is a deliberate wildcard, not an accident: `scope = ""` is a
+    duty no regulatory class limits, and `domains = []` is a duty about no particular kind of
+    decision — the GDPR's Article 22 is both. Neither can be reached by omission, because the
+    loader refuses a requirement that does not carry both fields.
+    """
+    if req.scope and normalize_scope(req.scope) != sys_scope_norm:
+        desc = f"declared as {system_scope!r}" if sys_scope_norm else "undeclared"
+        return (
+            f"Not applicable: requirement scope is {req.scope!r}, but system regulatory "
+            f"class is {desc}. reasonsmith never infers a system's regulatory class.",
+            {},
+        )
+    if req.domains and not (set(req.domains) & set(sys_domains)):
+        desc = f"declared as {', '.join(sys_domains)}" if sys_domains else "undeclared"
+        return (
+            f"Not applicable: this duty is about {', '.join(req.domains)} decisions, but the "
+            f"system's decision domain is {desc}. reasonsmith never infers a system's decision "
+            "domain, and the domain vocabulary is the pack author's rather than the "
+            "regulation's — see docs/authoring-packs.md.",
+            {} if sys_domains else {UNDECLARED_DOMAIN_KEY: True},
+        )
+    return None
+
+
 def evaluate_requirement(
     req: Requirement,
     sut: SystemUnderTest,
     records: list[dict[str, Any]] | None = None,
     system_scope: str | None = None,
+    system_domains: Iterable[str] | None = None,
     *,
     _resources: _EvaluationResources | None = None,
 ) -> RequirementResult:
     """Evaluate a single requirement against a SUT.
 
-    A requirement limited to a regulatory class is answered first: if the system's declared
-    class is not that class, the duty does not reach this system and the result is
-    NOT_APPLICABLE with no strength, because nothing about the system was checked. The class
-    is never inferred — an undeclared system is not silently treated as in scope, and the
-    result says which of the two it was. A declared class outside `REGULATORY_CLASSES` is
-    refused rather than answered, here as well as in `check_conformance`, so a caller reaching
-    this function directly gets the same guarantee.
+    Applicability is answered first, on the two gates `_inapplicability` describes: a requirement
+    limited to a regulatory class the system is not declared to be in, or about a kind of
+    decision the system is not declared to make, does not reach this system, and the result is
+    NOT_APPLICABLE with no strength, because nothing about the system was checked. Neither the
+    class nor the domain is ever inferred — an undeclared system is not silently treated as in
+    scope, and the result says which of the two it was. A declared class outside
+    `REGULATORY_CLASSES`, or a domain outside `DECISION_DOMAINS`, is refused rather than
+    answered, here as well as in `check_conformance`, so a caller reaching this function
+    directly gets the same guarantee.
 
     If the adapter's capability set does not cover the required signals, returns UNATTAINABLE
     without executing the SUT. Otherwise `records` is used as the decision trace; when it is
     None the trace is fetched from the SUT, so callers holding a trace already can avoid
     re-running the system once per requirement.
     """
+    result = _evaluate_requirement(
+        req, sut, records, system_scope, system_domains, _resources=_resources
+    )
+    # The duty's own domain limit is stamped once, here, rather than threaded through four
+    # engines: an engine has nothing to say about which systems a duty reaches, and a rung that
+    # forgot to carry it would render a domain-limited duty as one that reaches everything.
+    return replace(result, domains=req.domains)
+
+
+def _evaluate_requirement(
+    req: Requirement,
+    sut: SystemUnderTest,
+    records: list[dict[str, Any]] | None,
+    system_scope: str | None,
+    system_domains: Iterable[str] | None,
+    *,
+    _resources: _EvaluationResources | None,
+) -> RequirementResult:
     resources = _resources or _EvaluationResources(sut)
 
-    if system_scope is None:
-        system_scope = getattr(sut, "system_scope", getattr(sut, "declared_scope", None))
-
+    system_scope = _declared_scope(sut, system_scope)
     sys_scope_norm = normalize_scope(system_scope, "declared system scope")
+    sys_domains = _declared_domains(sut, system_domains)
 
-    req_scope_norm = normalize_scope(req.scope)
-
-    if req_scope_norm:
-        if not sys_scope_norm or sys_scope_norm != req_scope_norm:
-            clause = f"{req.source_document} {req.article_clause}"
-            desc = f"declared as {system_scope!r}" if sys_scope_norm else "undeclared"
-            return RequirementResult(
-                requirement_id=req.id,
-                source_clause=clause,
-                verdict=Verdict.NOT_APPLICABLE,
-                strength=None,
-                signals_required=tuple(req.requires),
-                evidence_summary=(
-                    f"Not applicable: requirement scope is {req.scope!r}, but system regulatory "
-                    f"class is {desc}. reasonsmith never infers a system's regulatory class."
-                ),
-                binding=req.binding,
-                scope=req.scope,
-            )
+    inapplicable = _inapplicability(req, sys_scope_norm, sys_domains, system_scope)
+    if inapplicable:
+        return _not_applicable(req, *inapplicable)
 
     is_unattainable, missing = analyze_unattainable(req, sut)
     if is_unattainable:
@@ -1714,11 +1909,43 @@ def _engine_ladder(
     decide whether the proof rung belongs would let a system whose `logic()` raises abort a duty
     the record engine could have answered from its trace.
 
-    Temporal properties reach only the observed engine. The solver and the replay search both
-    reason about one decision at a time and have nothing to say about a formula quantified over
-    the trace; there is no temporal engine above `observed` in this build, and inventing a rung
-    for one would be the overclaim this package exists to refuse.
+    **Every state fragment admits a trace rung, `logical` included.** A `logical` property is a
+    property of one decision record — that is what puts it in `STATE_FRAGMENTS` — so a trace of
+    decision records is evidence about it, and a build that refused to read one reported *not
+    evaluated* while the evidence sat in front of it. That was a defect, not a policy: the label
+    on the fragment was deciding what could be checked, which is the thing fragment classification
+    was introduced to stop. Which engine reads the trace still depends on the shape: a presence
+    conjunction keeps the record engine and its per-signal, per-record diagnostics, and every other
+    state formula is monitored per record by `ObservedEngine`, whose rtamt monitor scores a
+    non-temporal formula pointwise and names the record positions that breached.
+
+    Temporal properties reach only the observed engine, and that ceiling is unchanged. The solver
+    and the replay search both reason about one decision at a time and have nothing to say about a
+    formula quantified over the trace; there is no temporal engine above `observed` in this build,
+    and inventing a rung for one would be the overclaim this package exists to refuse.
+
+    One duty is deliberately given a ladder of **one** rung: a duty gating on
+    `engines.certificate.DELETED_REASON_COUNT` asks whether the reasons a decision states are all
+    the reasons its inference had, and that is measured against the inference artefact or not at
+    all. Every other rung here would answer a weaker question off the system's own log — that the
+    reason field is non-blank, or that the number the system wrote in it is small — and reporting
+    either in place of the measurement is the substitution the certificate engine exists to
+    remove. A system exposing no artefact is therefore reported *unattainable* by that engine
+    rather than falling through to a presence check.
     """
+    from reasonsmith.engines.certificate import DELETED_REASON_COUNT
+
+    if DELETED_REASON_COUNT in req.requires:
+        from reasonsmith.engines.certificate import CertificateEngine
+        return [
+            (
+                Strength.PROBED,
+                lambda: CertificateEngine.evaluate(
+                    req, sut, records if records is not None else resources.trace()
+                ),
+            )
+        ]
+
     ladder: list[tuple[Strength, Any]] = []
 
     if req.formalism in STATE_FRAGMENTS:
@@ -1738,6 +1965,11 @@ def _engine_ladder(
                 )
             )
 
+    # `record` is checked first and keeps the record engine. That is not an ordering detail: the
+    # record engine walks a presence conjunction conjunct by conjunct and names *which* signal was
+    # missing from *which* record, and the rtamt monitor below cannot, because robustness is one
+    # number for the whole formula. Routing presence through the monitor to make the two branches
+    # look alike would trade that diagnostic away for nothing.
     if req.formalism == "record":
         from reasonsmith.engines.record import RecordEngine
         ladder.append(
@@ -1748,7 +1980,7 @@ def _engine_ladder(
                 ),
             )
         )
-    elif req.formalism == "temporal":
+    elif req.formalism in ("temporal", "logical"):
         from reasonsmith.engines.observed import ObservedEngine
         ladder.append(
             (
@@ -1758,12 +1990,6 @@ def _engine_ladder(
                 ),
             )
         )
-    elif not ladder:
-        # A logical duty against a system exposing neither `logic()` nor `decide()`. The proved
-        # engine is the one that can say which interface was missing, so it is reached to report
-        # no evidence rather than left out to produce none.
-        from reasonsmith.engines.proved import ProvedEngine
-        ladder.append((Strength.PROVED, lambda: ProvedEngine.evaluate(req, sut, records)))
 
     return ladder
 
@@ -1773,45 +1999,39 @@ def check_conformance(
     pack: Pack,
     system_name: str = "SUT",
     system_scope: str | None = None,
+    system_domains: Iterable[str] | None = None,
 ) -> ConformanceReport:
     """Check conformance of a SUT against all requirements in a Pack.
 
-    Applicability and unattainability are resolved for every requirement first, and the
-    decision trace is read at most once — and not at all when nothing in the pack is
-    applicable, attainable and checkable here. That keeps "the unattainable analysis does not
-    run the system" a property of the code rather than of the order the requirements happen to
-    appear in.
+    Applicability and unattainability are resolved for a requirement before anything is run for
+    it, and the decision trace is read at most once — and not at all when nothing in the pack is
+    applicable, attainable and checkable here. Both are properties of `evaluate_requirement` and
+    of the shared, lazily read `_EvaluationResources`, so "the unattainable analysis does not run
+    the system" does not depend on the order the requirements happen to appear in.
 
-    A declared class outside `REGULATORY_CLASSES` is refused before any of that, so a
-    misspelling cannot pass for a system that is simply out of scope. A class the vocabulary
-    knows but this pack does not target is not an error: the system is genuinely out of scope
-    for those duties, and they are reported not applicable as a declared mismatch.
+    A declared class outside `REGULATORY_CLASSES`, or a decision domain outside
+    `DECISION_DOMAINS`, is refused before any of that, so a misspelling cannot pass for a system
+    that is simply out of scope. A class or domain the vocabulary knows but this pack does not
+    target is not an error: the system is genuinely outside those duties' reach, and they are
+    reported not applicable as a declared mismatch.
     """
-    if system_scope is None:
-        system_scope = getattr(sut, "system_scope", getattr(sut, "declared_scope", None))
-    sys_norm = normalize_scope(system_scope, "declared system scope")
-    eval_plan = []
-    for req in pack.requirements:
-        req_norm = normalize_scope(req.scope)
-        applicable = not req_norm or (bool(sys_norm) and sys_norm == req_norm)
-        if not applicable:
-            eval_plan.append((req, False, False, ()))
-        else:
-            eval_plan.append((req, True, *analyze_unattainable(req, sut)))
-
+    system_scope = _declared_scope(sut, system_scope)
+    sys_domains = _declared_domains(sut, system_domains)
     resources = _EvaluationResources(sut)
     results = [
         evaluate_requirement(
             req,
             sut,
             system_scope=system_scope,
+            system_domains=sys_domains,
             _resources=resources,
         )
-        for req, _, _, _ in eval_plan
+        for req in pack.requirements
     ]
     return ConformanceReport(
         pack_id=pack.id,
         system_name=system_name,
         system_scope=system_scope,
+        system_domains=sys_domains,
         results=tuple(results),
     )

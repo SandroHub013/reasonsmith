@@ -9,36 +9,12 @@ Each objective gives a **measurable outcome** — a check that fails today and w
 objective is met — and what it **depends on**. Where the honest answer is that an objective is
 blocked, or deliberately not started, that is written down rather than left as an implied "soon".
 
-Current state, for scale: **4 packs, 18 requirements, 4 engines** (`record`, `observed`, `probed`,
-`proved`). `reasonsmith validate-pack ecoa eu_ai_act gdpr table7` prints what each contains.
+Current state, for scale: **4 packs, 19 requirements, 5 engines** (`record`, `observed`, `probed`,
+`certificate` — also at `probed` — and `proved`). `reasonsmith validate-pack ecoa eu_ai_act gdpr table7` prints what each contains.
 
 ---
 
-## 1. A decision-domain gate beside the regulatory class
-
-**The gap.** Nothing in a pack can say *this duty is about consumer credit*. `scope` gates on a
-regulatory class (`high-risk` and the rest of `REGULATORY_CLASSES`), which is not a subject matter,
-and twelve of the eighteen shipped requirements carry `scope = ""` and so reach every system they are
-run against. An adverse-action notice duty under 12 CFR 1002.9 therefore reaches a graph-reachability
-benchmark that issues no credit and notifies nobody, and reports it `satisfied`.
-
-Stated in [`docs/refinement.md`](docs/refinement.md), *The gap that has no partial fix*, and observed
-in [`docs/findings-nesyarena.md`](docs/findings-nesyarena.md), finding 3.
-
-**Measurable outcome.** Re-running `python docs/build_nesyarena_report.py` reports the three ECOA
-requirements `not_applicable` against all five `nesyarena` provenances, on a not-applicable reason
-that names the domain mismatch — where four of the five are `satisfied` on
-`ecoa_reg_b_1002_9_a_2_written_statement` today.
-
-**Depends on.** A domain vocabulary and a way to declare one, both parallel to `REGULATORY_CLASSES`
-and `--system-scope`; a new row in the outcome table of [`docs/semantics.md`](docs/semantics.md) §4,
-since a domain mismatch and a class mismatch are different instructions to a reader; and replacing
-the *gap that has no partial fix* section of `docs/refinement.md` in the same change. A partial
-version of this is worse than none: a gate that catches some domain mismatches makes the rest
-invisible instead of all of them being visible, which is why the gap is currently named rather than
-half-closed.
-
-## 2. A temporal engine above `observed`
+## 1. A temporal engine above `observed`
 
 **The gap.** A temporal duty never rises above `observed`, whatever the system exposes. The solver
 and the replay search both reason about one decision at a time and have nothing to say about a
@@ -54,13 +30,14 @@ Stated in [`docs/semantics.md`](docs/semantics.md) §3.5, and pinned by
 *replaced* by a test pinning the new ceiling rather than deleted — a removed ceiling test is how a
 ceiling stops being checked.
 
-**Depends on.** Nothing structural: the engine ladder (#47) already collects engines from the
+**Depends on.** Nothing structural: the engine ladder
+([#47](https://github.com/eduardstan/reasonsmith/pull/47)) already collects engines from the
 system's exposed surface rather than from the pack, so a new engine is reached the moment it exists.
 What it needs is the reasoning itself — a bounded search over generated traces, or a solver encoding
 of a trace-wide formula — and, before it can ship, its own soundness paragraph in
 `docs/semantics.md` §3 naming the test that fails if the claim becomes false.
 
-## 3. `until` and `since` in the temporal fragment
+## 2. `until` and `since` in the temporal fragment
 
 **The gap.** `TEMPORAL_OPERATORS` holds the prefix call forms a Python parser accepts, so rtamt's
 infix `until` and `since` are not in this property language.
@@ -70,13 +47,13 @@ Stated in [`docs/semantics.md`](docs/semantics.md) §2.
 **Measurable outcome.** A shipped requirement whose `spec` uses one of the two, accepted by
 `load_pack`, monitored by the observed engine, and carrying its own row in `docs/refinement.md`.
 
-**Depends on — and is deliberately blocked by — objective 5.** No shipped duty needs either
+**Depends on — and is deliberately blocked by — objective 4.** No shipped duty needs either
 operator. `docs/semantics.md` §2 says a pack needing one is a finding to record there, not a reason
 to widen the language until it fits, because widening a property language to accommodate one
 stubborn duty is how it becomes an untyped string again. So this objective waits for a real duty
 that cannot be written without it. It is on the roadmap to be found, not to be started.
 
-## 4. A fairness property, anywhere
+## 3. A fairness property, anywhere
 
 **The gap.** No requirement in any shipped pack checks a fairness property. GDPR Recital 71's
 prevention of discriminatory effects on the listed protected grounds — racial or ethnic origin,
@@ -93,12 +70,14 @@ requirement in this repository* removed from that document because it has stoppe
 
 **Depends on.** A design answer before any code: `conformance.stratified()` already computes
 per-group figures, but it does so over reason-deletion certificates and produces statistics, not a
-requirement verdict, and the two paths do not meet. Deciding whether a protected attribute may be a
+requirement verdict, and that path still does not meet a duty. What a single certificate takes to
+become a verdict is now shown by `engines/certificate.py` — one decision at a time, grounding one
+measured signal — and a group statistic is not that. Deciding whether a protected attribute may be a
 signal in a decision record at all — and what it means for a property to read one — is the work.
 It also depends on the four-outcome discipline of `docs/semantics.md` §4 holding: a fairness
 property that cannot be evaluated must report *not evaluated*, never `satisfied`.
 
-## 5. Breadth: more regulations than four
+## 4. Breadth: more regulations than four
 
 **The gap.** Four packs ship — Table 7, EU AI Act, GDPR, ECOA/Reg B — and only three of them quote
 statute at all. Whether a fifth is worth more than depth on the four is a judgement this project has

@@ -51,15 +51,38 @@ rendering instead of being a rendering convention.
 
 Which engine a requirement reaches is decided by what the system exposes — for *every* fragment,
 not just `logical`, since the property-language unification. `rulelang.py` is the one property
-language: every `spec` is a formula in it (presence atoms `present(signal)`, comparisons,
-connectives, temporal operators), `formalism` names which fragment the formula belongs to,
-`load_pack` classifies the spec and refuses a mismatch or prose, and the English lives in the
-required `rationale` field. `report._engine_ladder` then collects every engine the fragment *and*
-the exposed surface allow and takes the strongest evidence produced: `logic()` gets Z3, `decide()`
-gets the replay search, a trace gets the record or observed engine, and temporal never rises above
-`observed` because no engine here reasons over a trace-wide formula. Read `docs/semantics.md` §2
-and §3.5 before editing any of it — they state the rule, the two `present()` encodings, and the one
-case the ladder does not resolve (exposed logic disagreeing with the trace).
+language: every `spec` is a formula in it (presence atoms `present(signal)`, the phrase atom
+`contains(signal, "literal")`, comparisons, connectives, temporal operators), `formalism` names
+which fragment the formula belongs to, `load_pack` classifies the spec and refuses a mismatch or
+prose, and the English lives in the required `rationale` field. `report._engine_ladder` then
+collects every engine the fragment *and* the exposed surface allow and takes the strongest evidence
+produced: `logic()` gets Z3, `decide()` gets the replay search, and a trace gets the record engine
+for a presence conjunction and the observed engine for **every other fragment, `logical`
+included** — a state property is a property of one decision record, so a trace of them is evidence
+about it, and declining to read one was a defect the label caused rather than the evidence. Temporal
+still never rises above `observed`; that is a separate claim and untouched. Two limits of the trace
+rung are stated rather than silent: rtamt cannot render a comparison against a Boolean constant, and
+it reads the `spec` as written, so implication in a pack must be spelled `->` and never
+`Implies(...)`. Read `docs/semantics.md` §2 and §3.5 before editing any of it — they state the rule,
+the atom encodings, and the one case the ladder does not resolve (exposed logic disagreeing with the
+trace).
+
+`contains(signal, "phrase")` is the one atom that reads *what a statement says* rather than whether a
+field is blank, and it exists because a duty settled by `present()` alone accepts a reason of
+`"n/a"`. It must keep agreeing across all three encodings — the rulelang interpreter, the synthetic
+per-record flag fed to rtamt, and the Z3 regular language — which is why the case fold is ASCII-only
+and one-to-one and a non-ASCII phrase is refused; `test_the_solvers_fold_is_the_interpreters_fold`
+is the differential check, the counterpart of the blank-string one for `present()`. Only a clause
+that states its own negative constraint may use it: the shipped example,
+`ecoa_reg_b_1002_9_b_2_specific_reasons`, checks the two statements 12 CFR 1002.9(b)(2) itself calls
+insufficient and decides nothing about whether any other statement is specific. Do not add a phrase
+the regulation does not supply, and never push the judgement into the adapter as a self-declared
+`reason_is_specific` flag — `docs/semantics.md` §3 is why. That duty also carries the clause's
+trigger as an implication, which removed a false violation against a creditor lawfully on the
+(a)(2)(ii) disclosure branch and bought a stated cost: where the antecedent never holds the duty is
+`satisfied` vacuously and no report outcome distinguishes that from a trace that was checked and
+met. `docs/semantics.md` §4 records the gap; `docs/findings-nesyarena.md` shows it landing on a real
+system.
 
 `requires` is a conjunctive gate, so a branch of an either/or clause must not be listed in it: the
 loader (`spec._check_spec`, via `rulelang.unconditional_signal_names`) exempts a signal read only
@@ -72,6 +95,25 @@ it buys: a system declaring neither branch is judged on its trace rather than re
 a typo inside a disjunct is not caught at load time, and the duty leaves the `record` fragment, so
 a log holding a single decision is reported not evaluated on it.
 
+A duty reaches a system through **two** gates, on two axes that are not the same question, and both
+are required fields with no default (`spec.REQUIREMENT_FIELDS`). `scope` is a regulatory class from
+`REGULATORY_CLASSES` — the EU AI Act's own five-member vocabulary. `domains` is the *kind of
+decision* the duty is about, from `DECISION_DOMAINS`, matched by intersection against what a system
+declares (`--system-domain`, or a `system_domains` attribute on an adapter), with `[]` meaning "not
+domain-limited" and reaching every system. `report._inapplicability` is the one place both are
+decided, so `check_conformance`'s plan and `evaluate_requirement` cannot drift apart, and
+`evaluate_requirement` stamps `domains` onto the result once rather than threading it through four
+engines. An undeclared system is `not_applicable`, never `satisfied` — the argument for that over
+`inconclusive` is in `docs/semantics.md` §4, and `tests/test_domain_gate.py` holds all of it.
+The one thing to keep straight before touching any of it: **`DECISION_DOMAINS` is this repository's
+list and no regulation's**, because no statute defines one. A pack limiting a duty to a domain owes
+its description a sentence saying so — `test_every_shipped_pack_classifies_every_requirement`
+enforces it — the same discipline `docs/authoring-packs.md` applies to an invented threshold. What
+the gate buys is exactly one guarantee, and not a taxonomy: a system that has not declared its
+domain is never reported satisfied on a domain-limited duty. It does not model the *trigger* inside
+a decision (12 CFR 1002.9 fires on adverse action, not on being a creditor), and it does not check
+that a system declaring `consumer-credit` issues credit.
+
 `src/reasonsmith/packs/*.toml` are derived, not authored. The EU AI Act, GDPR and ECOA packs quote
 `docs/legal-sources.md`, which is the retrieval record for the official statutory text and the one
 place a quote is checked against the law. The Table 7 pack restates the rows of
@@ -83,9 +125,10 @@ the only thing keeping the pack attached to the paper.
 `docs/refinement.md` is the refinement record: one row per shipped requirement giving the clause,
 the informal duty, the formal property, and what the formalisation deliberately left out. A new
 requirement means a new row in the same commit — `tests/test_docs_refinement.py` reads the packs and
-fails if one gains a requirement the record does not name. It also carries the one gap that has no
-partial fix: nothing in a pack can say which *decision domain* a duty is about, so a duty with
-`scope = ""` reaches every system (finding 3 of `docs/findings-nesyarena.md`).
+fails if one gains a requirement the record does not name. It also carries, once rather than
+eighteen times, what the two applicability gates still do not reach — *Two axes of reach are
+modelled, and the trigger is still not one*, whose largest remaining item is the trigger inside a
+decision that no system-level gate can close.
 
 The first shipped duty whose verdict comes from a value a system declares about its own approximation
 error is `gdpr_recital71_error_risk_minimised`. It compares
@@ -100,14 +143,18 @@ is in `docs/semantics.md` §3; why it exists is finding 1 of `docs/findings-nesy
 block in it and compares stdout byte-for-byte, and cross-checks the header's line count and
 `md5sum` against RESULTS.md. So anything that changes what the demo or the CLI prints — a wording
 tweak included — means regenerating the transcripts and updating both files' headers together.
+The README's own CLI block is derived too and is the one derived transcript **no test pins**:
+regenerate it with `python docs/build_readme_transcripts.py`, which raises rather than writing when
+a command it names matches no block, because the ad-hoc helper it replaced reported success having
+substituted nothing and left the front page showing a verdict the tool no longer prints.
 `docs/report.html` is generated as well, but not by the CLI: `docs/build_example.py` composes it — the
 Table 7 run declared into the high-risk class, beside the demonstration's key finding, which no
 report the CLI writes may carry — and `test_docs_index_html_matches_the_renderer` holds the
 committed page byte-for-byte to that script. Touching the renderer means regenerating the page with
 `python docs/build_example.py`, the command the page names as its own provenance. The website
 (landing, vendored libraries, fonts, assets) lives in the separate private `reasonsmith-site`
-repo and deploys to Vercel — see issue #35; this repo only generates the dossier that gets
-published there as `report.html`.
+repo and deploys to Vercel — see [#35](https://github.com/eduardstan/reasonsmith/pull/35); this
+repo only generates the dossier that gets published there as `report.html`.
 
 `docs/three-systems.md` and the three files in `docs/adapters/` are the answer to "how does any
 model get into this tool?": a neural black box (`JSONLAdapter`, log only), a probabilistic scorer
@@ -126,9 +173,11 @@ byte-for-byte. Anything that moves `render_text`'s wording, the nesyarena versio
 own constants means regenerating with `python docs/build_nesyarena_report.py`. Like
 `docs/index.html`, it names its build command and deliberately carries no commit hash; reproducibility
 is owned by the byte-for-byte builder test, so do not add a hash back. Its adapter declares only
-signals a provenance genuinely emits, so ten pack signals are deliberately undeclared and no
-regulatory class is declared; the resulting unattainable and not-applicable verdicts are the
-finding, not a gap to close.
+signals a provenance genuinely emits, so ten pack signals are deliberately undeclared, and neither a
+regulatory class nor a decision domain is declared — these systems decide graph reachability and
+Sudoku validity, so there is nothing to declare; the resulting unattainable and not-applicable
+verdicts are the finding, not a gap to close, and naming a domain to make the ECOA rows evaluate
+again would put finding 3's false positive back by hand.
 `docs/findings-nesyarena.md` is the written account and is hand-maintained — every number in it
 comes from that report, so regenerating one means rereading the other.
 
@@ -149,13 +198,20 @@ for running the suite from a checkout. The forbidden string appears here deliber
 this paragraph is the statement of the rule, and a rule that cannot name what it forbids
 is not a rule — any repository-wide check for it must exclude this file.
 
+The release discipline lives in `CONTRIBUTING.md`, *Versioning and Releases*, and is enforced by
+`tests/test_release_discipline.py` (the pyproject `version`, the topmost released `CHANGELOG.md`
+heading and `__version__` in `src/reasonsmith/__init__.py` must agree; no tracked markdown may
+carry a bare `#NN` outside code and anchors) and by the tag check in `.github/workflows/publish.yml`
+(a release whose tag is not `v` plus the pyproject version never builds). Bumping the version
+means closing `[Unreleased]` and opening a fresh one in the same change.
+
 ## The front door
 
 Before editing the CLI, read the maintenance contracts in `src/reasonsmith/cli.py`'s module
 docstring. README, "The CLI", owns user-facing usage, and `docs/authoring-packs.md` owns the
 pack-authoring rules.
 
-`ROADMAP.md` is the public backlog and the one document that may state what is *missing*: five
+`ROADMAP.md` is the public backlog and the one document that may state what is *missing*: four
 numbered objectives, each citing the committed document that names the gap, with a measurable
 outcome that fails today and its dependencies. Nothing goes on it that no document already states —
 find the gap in `docs/refinement.md`, `docs/semantics.md` or `docs/findings-nesyarena.md` first, or

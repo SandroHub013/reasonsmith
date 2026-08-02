@@ -44,6 +44,14 @@ What a reader must not break:
     Why this matters: declaring a class that does not fit would be a worse error than reporting
     less, and the not-applicable results are themselves a finding about what the tool can say
     about an unclassified system.
+  - `system_domains` stays `None`, for exactly the same reason and with the same standing. These
+    provenances decide graph reachability and Sudoku validity; they issue no credit, hire nobody
+    and treat no patient, so there is no decision domain to declare and the ECOA duties come back
+    not applicable.
+    Why this matters: this is the run that produced finding 3 of `docs/findings-nesyarena.md` —
+    an adverse-action notice duty reported `satisfied` against a graph-reachability benchmark.
+    Naming a domain here to make those rows evaluate again would put that false positive back by
+    hand. The not-applicable rows *are* the fix working.
 """
 
 from __future__ import annotations
@@ -105,6 +113,13 @@ UNDECLARED_SIGNALS = (
         "disclosure of a right to request reasons. It is one branch of the either/or of 12 CFR "
         "1002.9(a)(2) and no `requires` gates it, so its absence makes no duty unattainable: "
         "that content duty is judged on the other branch, the reason explanation",
+    ),
+    (
+        "artifact_logs_deleted_reason_count",
+        "unlike every other signal here, this one is not something the system emits into a "
+        "record: reasonsmith measures it itself from an inference artefact the system exposes "
+        "through the optional `artifact()` method. None of the five provenances exposes one, so "
+        "there is nothing to measure and no longer trace could ever supply it",
     ),
     (
         "artifact_logs_solely_automated",
@@ -380,6 +395,7 @@ def render() -> str:
                 pack,
                 system_name=f"nesyarena:{sut.name}",
                 system_scope=None,
+                system_domains=None,
             )
             lines.extend(
                 [

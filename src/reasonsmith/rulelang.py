@@ -47,6 +47,25 @@ _IMPLICATION_TOKENS = ("=>", "->", " implies ")
 #: The atom asking whether a decision record carries a value for a signal at all.
 PRESENCE_CALL = "present"
 
+#: The atom asking whether a signal's recorded text carries a given phrase.
+#:
+#: `contains(signal, "phrase")` is the second — and, at the time of writing, only other — atom whose
+#: first argument is a signal *name* rather than an expression, for the same reason `present()` is:
+#: every engine has to bind it to one field of one decision record, and there is no such field
+#: behind a computed value. Its second argument is a string literal and never a name, so the phrase
+#: a duty forbids is fixed by the pack rather than supplied by the system being audited.
+#:
+#: It exists because fifteen of the eighteen shipped duties were conjunctions of `present()`, which
+#: made the strongest claim available about an explanation duty "the field is non-blank" — a reason
+#: string of `"n/a"` satisfies that and violates 12 CFR 1002.9(b)(2). The clause supplies its own
+#: negative constraint, naming the statements that are insufficient, and this atom is the narrowest
+#: thing that expresses one. It deliberately does not model "specific": it answers whether a phrase
+#: occurs, and nothing about what the text means.
+CONTAINS_CALL = "contains"
+
+#: The characters `contains()` folds, and the only ones. See `fold_ascii_case`.
+_ASCII_UPPER = frozenset(chr(code) for code in range(ord("A"), ord("Z") + 1))
+
 #: The numeric comparison that gives a signal the flag role rather than the magnitude role.
 FLAG_THRESHOLD = 0.5
 
@@ -94,8 +113,118 @@ class UnsupportedConstructError(Exception):
     pass
 
 
-def _string_mask(text: str) -> list[bool]:
-    """Mark every character that lies inside a string literal, quotes included."""
+class NotAStatementError(UnsupportedConstructError):
+    """Raised when `contains()` meets a value that is present but is not a statement.
+
+    A subclass, so every engine that already refuses an inexpressible construct keeps refusing
+    this one unchanged. Separate, because the two meanings are not the same thing: an ordinary
+    refusal says the property cannot be read here at all, while this one says one decision carried
+    a kind that is no evidence about what a statement says. `engines/observed.py` reports the
+    second NOT EVALUATED, and `engines/probed.py` must reach the same answer rather than fold it
+    into the errored-input count and go on to report `satisfied` — a stronger rung that is easier
+    to satisfy than a weaker one inverts the lattice. The type is what carries the distinction; a
+    message string is not an interface, and nothing may tell the two apart by reading one.
+    """
+
+    pass
+
+
+def fold_ascii_case(text: str) -> str:
+    """Lowercase the twenty-six ASCII capitals and change nothing else.
+
+    `contains()` is case-insensitive, and this is exactly how far. `str.lower()` would be the
+    obvious choice and is the wrong one: it is not length-preserving over the whole of Unicode —
+    `"İ".lower()` is two characters — and `str.casefold()` is worse. The Z3 encoding in
+    `engines/proved.py` renders each literal character as a regular language matching *one*
+    character, so any fold that is not one-to-one would make the solver and this interpreter
+    disagree about the same string, and a silent divergence between two engines is worse than a
+    narrower predicate. This fold is one-to-one by construction, which is why
+    `contains_literal` refuses a non-ASCII literal rather than folding one it cannot promise
+    agreement on.
+    """
+    return "".join(chr(ord(char) + 32) if char in _ASCII_UPPER else char for char in text)
+
+
+def contains_literal(haystack: Any, needle: str) -> bool:
+    """Whether a recorded value carries `needle`, folding ASCII case on both sides.
+
+    Three cases, and the boundary between them is the point:
+
+    - **A value the record does not carry**, in the `is_present` sense, contains nothing. A duty
+      triggered by what a reason *says* has to be false where no reason was said, so that the
+      implication guarding it can be the thing that decides.
+    - **A string** is searched directly.
+    - **A list or tuple of strings** is a statement given in parts, and contains the phrase when
+      one of its parts does. A decision log recording reasons as `["C02 excessive obligations",
+      "C04 delinquent obligations"]` is recording a statement of reasons, and refusing to read it
+      would report *not evaluated* because of how the log is shaped rather than because of what it
+      says. The parts are searched separately and never joined: joining them would let a phrase
+      match across a boundary between two reasons that never appeared together.
+
+    Anything else present raises `NotAStatementError`, which every engine reading this atom answers
+    NOT EVALUATED. Answering `False` for a value nothing read would report a system
+    satisfied on evidence that was never examined, which is the overclaim this package exists to
+    refuse — and a number or a mapping is not a statement in any case.
+    """
+    if not is_present(haystack):
+        return False
+    folded_needle = fold_ascii_case(needle)
+    if isinstance(haystack, str):
+        return folded_needle in fold_ascii_case(haystack)
+    if isinstance(haystack, (list, tuple)) and all(
+        isinstance(part, str) for part in haystack
+    ):
+        return any(folded_needle in fold_ascii_case(part) for part in haystack)
+    raise NotAStatementError(
+        f"{CONTAINS_CALL}() reads a recorded statement — text, or a list of text given in parts — "
+        f"but this decision carries {type(haystack).__name__} {haystack!r}. A value that is not a "
+        "statement is not evidence about what one says, so it is refused rather than read as "
+        "carrying nothing"
+    )
+
+
+def contains_arguments(node: ast.Call) -> tuple[str, str]:
+    """The signal name and the literal phrase of a `contains()` atom, refusing every other shape.
+
+    One place decides what a well-formed `contains()` is, so the rtamt renderer, the Z3 encoder and
+    the interpreter cannot drift on it.
+    """
+    if len(node.args) != 2:
+        raise UnsupportedConstructError(
+            f"{CONTAINS_CALL}() takes a signal name and a literal phrase: {ast.unparse(node)!r}"
+        )
+    signal, phrase = node.args
+    if not isinstance(signal, ast.Name):
+        raise UnsupportedConstructError(
+            f"{CONTAINS_CALL}() reads one signal of the decision record, so its first argument is "
+            f"a signal name and not an expression: {ast.unparse(node)!r}"
+        )
+    if not isinstance(phrase, ast.Constant) or not isinstance(phrase.value, str):
+        raise UnsupportedConstructError(
+            f"{CONTAINS_CALL}() looks for a phrase the pack fixes, so its second argument is a "
+            f"string literal and never a name: {ast.unparse(node)!r}"
+        )
+    if not phrase.value:
+        raise UnsupportedConstructError(
+            f"{CONTAINS_CALL}({signal.id}, '') is true of every text and false of every absent "
+            "one, which is `present()` written the long way. Write the phrase the duty forbids"
+        )
+    if not phrase.value.isascii():
+        raise UnsupportedConstructError(
+            f"{CONTAINS_CALL}() folds ASCII case only, so a non-ASCII phrase is refused rather "
+            f"than compared under a fold the solver cannot reproduce: {phrase.value!r}. This is a "
+            "limit of the predicate, recorded in docs/semantics.md, not of the clause"
+        )
+    return signal.id, phrase.value
+
+
+def string_literal_mask(text: str) -> list[bool]:
+    """Mark every character that lies inside a string literal, quotes included.
+
+    Public because `engines/observed.py` rewrites atoms textually and must not rewrite one that a
+    `contains()` phrase merely quotes. One implementation of "is this character inside a literal"
+    is the only way the two rewriters agree about it.
+    """
     mask = [False] * len(text)
     quote = ""
     i = 0
@@ -121,7 +250,7 @@ def _string_mask(text: str) -> list[bool]:
 
 def _find_top_level(text: str, token: str, start: int = 0) -> int:
     """Return the index of `token` outside every parenthesis group and string literal, or -1."""
-    in_string = _string_mask(text)
+    in_string = string_literal_mask(text)
     depth = 0
     for i in range(start, len(text)):
         if in_string[i]:
@@ -150,7 +279,7 @@ def _find_first_top_level(text: str, tokens: tuple[str, ...]) -> tuple[int, str]
 
 def _rewrite_groups(text: str) -> str:
     """Rewrite arrows inside each top-level parenthesis group, leaving the rest untouched."""
-    in_string = _string_mask(text)
+    in_string = string_literal_mask(text)
     out: list[str] = []
     i = 0
     while i < len(text):
@@ -316,6 +445,9 @@ def expression_kind(node: ast.AST) -> str:
                 raise UnsupportedConstructError(
                     f"{PRESENCE_CALL}() takes one signal name: {ast.unparse(node)!r}"
                 )
+            return "boolean"
+        if name == CONTAINS_CALL:
+            contains_arguments(node)
             return "boolean"
         if name in TEMPORAL_OPERATORS:
             if len(node.args) != 1:
@@ -542,7 +674,7 @@ def _bare_boolean_parts(node: ast.AST) -> tuple[tuple[str, ...], tuple[bool, ...
             if name in TEMPORAL_OPERATORS or name in ("implies", "Implies"):
                 for argument in current.args:
                     visit(argument, True)
-            elif name != PRESENCE_CALL:
+            elif name not in (PRESENCE_CALL, CONTAINS_CALL):
                 for argument in current.args:
                     visit(argument)
 
@@ -566,7 +698,7 @@ def _value_signal_names(node: ast.AST) -> set[str]:
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id == PRESENCE_CALL
+        and node.func.id in (PRESENCE_CALL, CONTAINS_CALL)
     ):
         return set()
     names: set[str] = set()
@@ -735,6 +867,12 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
                     f"{PRESENCE_CALL}() takes one signal name: {ast.unparse(node)!r}"
                 )
             return is_present(env.get(node.args[0].id))
+        if name == CONTAINS_CALL:
+            # Read the same way `present()` is: the argument names a field of the record, so it is
+            # fetched rather than resolved, and a record that carries no such field is answered
+            # rather than turned into a NameError.
+            signal, phrase = contains_arguments(node)
+            return contains_literal(env.get(signal), phrase)
         args = [eval_expression(arg, env) for arg in node.args]
         if name in ("implies", "Implies"):
             _require_arity(name, args, 2)

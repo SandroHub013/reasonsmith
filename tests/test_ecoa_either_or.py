@@ -38,6 +38,19 @@ EVERY_SIGNAL = frozenset(
 )
 
 
+def creditor(signals) -> BaseSUT:
+    """A system declaring those signals and saying it decides in consumer credit.
+
+    The domain declaration is what puts it within these duties' reach at all: 12 CFR 1002.9 is
+    limited to `consumer-credit`, and a system that declares no domain is reported not applicable
+    rather than judged (`tests/test_domain_gate.py`). Every case below is about *which branch of
+    the clause* a creditor took, so each of them has to be a creditor first.
+    """
+    sut = BaseSUT(signals)
+    sut.system_domains = ("consumer-credit",)
+    return sut
+
+
 def requirement(req_id: str = CONTENT_DUTY):
     return load_pack("ecoa").get_requirement(req_id)
 
@@ -73,7 +86,7 @@ def test_neither_branch_signal_gates_the_content_duty():
 
 def test_a_creditor_giving_the_specific_reasons_is_satisfied():
     """Point (i): the statement of specific reasons itself."""
-    sut = BaseSUT(set(EVERY_SIGNAL))
+    sut = creditor(set(EVERY_SIGNAL))
     records = [
         notification(**{REASONS: "insufficient recent repayment history"}),
         notification(**{REASONS: "outstanding balance above the product limit"}),
@@ -85,7 +98,7 @@ def test_a_creditor_giving_the_specific_reasons_is_satisfied():
 
 def test_a_creditor_disclosing_the_right_to_request_reasons_is_satisfied():
     """Point (ii): the lawful alternative, which this duty used to report as a violation."""
-    sut = BaseSUT(set(EVERY_SIGNAL))
+    sut = creditor(set(EVERY_SIGNAL))
     disclosure = (
         "You may request a statement of specific reasons within 60 days. Adverse Action Desk, "
         "PO Box 118, (555) 0100."
@@ -101,7 +114,7 @@ def test_a_creditor_disclosing_the_right_to_request_reasons_is_satisfied():
 
 def test_a_creditor_giving_neither_branch_is_violated():
     """An either/or is not satisfied by neither. The disjunction must still be able to fail."""
-    sut = BaseSUT(set(EVERY_SIGNAL))
+    sut = creditor(set(EVERY_SIGNAL))
     records = [notification(), notification()]
     result = evaluate_requirement(requirement(), sut, records)
     assert result.verdict == Verdict.VIOLATED
@@ -110,7 +123,7 @@ def test_a_creditor_giving_neither_branch_is_violated():
 
 def test_one_notification_missing_both_branches_violates_the_whole_trace():
     """The duty is per notification, so a single record carrying neither content breaks it."""
-    sut = BaseSUT(set(EVERY_SIGNAL))
+    sut = creditor(set(EVERY_SIGNAL))
     records = [
         notification(**{REASONS: "insufficient recent repayment history"}),
         notification(),
@@ -123,7 +136,7 @@ def test_one_notification_missing_both_branches_violates_the_whole_trace():
 
 def test_a_missing_shared_content_signal_is_unattainable_not_violated():
     """What the clause demands of every branch still gates: silence there is not a breach."""
-    sut = BaseSUT(set(EVERY_SIGNAL) - {"provenance_model_version"})
+    sut = creditor(set(EVERY_SIGNAL) - {"provenance_model_version"})
     result = evaluate_requirement(requirement(), sut, [notification(), notification()])
     assert result.verdict == Verdict.INCONCLUSIVE
     assert result.strength == Strength.UNATTAINABLE
@@ -136,8 +149,20 @@ def test_the_content_duty_and_the_specificity_duty_can_come_apart():
     A creditor capable of stating reasons that instead disclosed the right to request them
     discharges the content duty and leaves the specificity duty with nothing to bite on. Before the
     either/or was formalised the two properties differed by one signal and could not separate.
+
+    What changed, and why: this used to assert the specificity duty came back `violated` here, which
+    was the residual false violation left over after the either/or repair. 12 CFR 1002.9(b)(2)
+    governs, by its own words, "the statement of reasons required by paragraph (a)(2)(i)" — so a
+    creditor that lawfully took the (a)(2)(ii) disclosure branch has no such statement yet and the
+    clause does not reach them. The trigger is now in the property as an implication, and both
+    duties come back satisfied on the same lawful notification.
+
+    What `satisfied` does and does not mean here is stated in `docs/semantics.md` §4 and pinned by
+    `test_a_duty_whose_trigger_never_fires_is_satisfied_vacuously_and_the_report_cannot_say_so`:
+    the duty imposed nothing on these records, which is not the same as having been checked and
+    found clean, and the four report outcomes cannot tell a reader which of the two it was.
     """
-    sut = BaseSUT(set(EVERY_SIGNAL) | {"scope_statements_local_vs_global"})
+    sut = creditor(set(EVERY_SIGNAL) | {"scope_statements_local_vs_global"})
     disclosure = "You may request a statement of specific reasons within 60 days."
     records = [
         notification(**{DISCLOSURE: disclosure, "scope_statements_local_vs_global": "local"}),
@@ -146,7 +171,8 @@ def test_the_content_duty_and_the_specificity_duty_can_come_apart():
     content = evaluate_requirement(requirement(), sut, records)
     specificity = evaluate_requirement(requirement(SPECIFICITY_DUTY), sut, records)
     assert content.verdict == Verdict.SATISFIED
-    assert specificity.verdict == Verdict.VIOLATED
+    assert specificity.verdict == Verdict.SATISFIED
+    assert specificity.strength == Strength.OBSERVED
 
 
 def test_a_single_decision_trace_is_not_evaluated_never_satisfied():
@@ -157,7 +183,7 @@ def test_a_single_decision_trace_is_not_evaluated_never_satisfied():
     `record` duty before the clause's `either` was formalised, and one record was enough then.
     Reporting such a log satisfied would be the overclaim: nothing was monitored.
     """
-    sut = BaseSUT(set(EVERY_SIGNAL))
+    sut = creditor(set(EVERY_SIGNAL))
     records = [notification(**{REASONS: "insufficient recent repayment history"})]
     result = evaluate_requirement(requirement(), sut, records)
     assert result.verdict == Verdict.INCONCLUSIVE
