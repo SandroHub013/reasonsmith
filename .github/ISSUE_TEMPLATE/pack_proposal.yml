@@ -1,5 +1,6 @@
 name: Pack proposal
 description: Propose a new regulation pack — which regulation, which official source, which duty.
+labels: [pack]
 body:
   - type: markdown
     attributes:
