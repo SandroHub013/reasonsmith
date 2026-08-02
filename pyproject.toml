@@ -53,11 +53,22 @@ Issues = "https://github.com/eduardstan/reasonsmith/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-reasonsmith = ["table7.toml", "packs/*.toml"]
+# `examples/sample_decisions.jsonl` is here for the same reason as the packs: a documented command
+# names it, so it has to be in the wheel. The example systems beside it are `.py` modules and are
+# packaged as modules. `tests/test_packaged_examples.py` fails if either stops shipping.
+reasonsmith = ["table7.toml", "packs/*.toml", "examples/*.jsonl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.coverage.run]
+# The example systems under `reasonsmith.examples` are executed as subprocesses by
+# `tests/test_docs_three_systems.py` and `tests/test_docs_language_model.py`, which hold their
+# stdout byte-for-byte — a stricter check than a line count, and one the coverage process cannot
+# see. They ship in the wheel so the documented commands run, not because the library imports
+# them, so leaving them in would measure the demonstration and report it as library coverage.
+omit = ["*/reasonsmith/examples/*"]
 
 [tool.ruff]
 line-length = 100
