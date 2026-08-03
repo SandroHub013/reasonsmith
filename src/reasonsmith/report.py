@@ -37,7 +37,13 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any, cast
 
-from reasonsmith.rulelang import STATE_FRAGMENTS, is_present
+from reasonsmith.rulelang import (
+    STATE_FRAGMENTS,
+    UnsupportedConstructError,
+    counterfactual_atom,
+    is_present,
+    parse_property,
+)
 from reasonsmith.spec import Pack, Requirement, normalize_domains, normalize_scope
 from reasonsmith.sut import SystemUnderTest, _validate_capability_collection
 from reasonsmith.verdict import Strength, Verdict
@@ -62,7 +68,7 @@ LIMITS = (
 )
 
 #: Formalisms this build can actually evaluate.
-SUPPORTED_FORMALISMS = ("record", "temporal", "logical")
+SUPPORTED_FORMALISMS = ("record", "temporal", "logical", "counterfactual")
 
 #: Where a probed result carries the search that produced it, and the fields that search must
 #: name. A probed verdict is a statement about a bounded search — how many inputs were replayed,
@@ -597,14 +603,36 @@ def analyze_unattainable(req: Requirement, sut: SystemUnderTest) -> tuple[bool, 
     adapter is weaker: its result is limited to that supplied trace rather than stated as a
     property of the system as built.
 
+    One name is exempt from the subtraction, and only one: the *protected* argument of a
+    `counterfactually_invariant(outcome, protected)` duty. `capabilities()` is what a system can
+    emit into a decision record, and that is the opposite direction from what this duty needs —
+    what the decision procedure *accepts*. Both of its engines read the protected variable's values
+    from the system's declared `constraints` and never from a record, so gating on the capability
+    would report a creditor whose procedure accepts a prohibited basis and whose log deliberately
+    carries it for nobody `unattainable`, and tell that adopter to start logging a prohibited basis
+    per decision. The name stays in the requirement's `requires` because it is the one the
+    counterfactual engine names as missing when the system's declared logic has no notion of it —
+    an unattainable result may not name a signal the requirement never required.
+
     Returns:
         (is_unattainable, missing_signals) — missing_signals is sorted and never empty when
         is_unattainable is True.
     """
     declared = sut.capabilities()
     _validate_capability_collection(declared, f"{type(sut).__name__}.capabilities() must return")
-    missing = tuple(sorted(set(req.requires) - set(declared)))
+    missing = tuple(sorted(set(req.requires) - set(declared) - _input_only_signals(req)))
     return bool(missing), missing
+
+
+def _input_only_signals(req: Requirement) -> set[str]:
+    """The names a duty reads as declared inputs rather than as fields of a decision record."""
+    if req.formalism != "counterfactual":
+        return set()
+    try:
+        atom = counterfactual_atom(parse_property(req.spec))
+    except UnsupportedConstructError:
+        return set()
+    return {atom[1]} if atom is not None else set()
 
 
 def _read_trace(sut: SystemUnderTest) -> list[dict[str, Any]]:
@@ -994,6 +1022,18 @@ def _engine_ladder(
     appending a rung that will always report not-evaluated would make every non-`always` temporal
     duty pay for a solver call that cannot answer it.
 
+    **The `counterfactual` fragment has no trace rung, and returns before every other rung is
+    considered.** `counterfactually_invariant(outcome, protected)` is a property of a *pair* of
+    executions: hold every input fixed, move one named variable, and the decision must not move. A
+    trace holds what the system decided and a counterfactual asks what it would have decided, so no
+    length of decision log establishes one — reading the atom off a record is refused by
+    `rulelang.eval_expression` itself, which is why this is a fact about the code rather than a
+    convention this function is trusted to keep. Two rungs remain, both of which *run* the system:
+    the solver encoding the declared rules twice, and the paired replay running `decide()` on a
+    recorded decision and on its twin. Neither is appended alongside a plug-in rung, for the reason
+    the certificate duty below returns early: an installed package this repository never audited
+    must not be able to answer a counterfactual duty off a log either.
+
     One duty is deliberately given a ladder of **one** rung: a duty gating on
     `engines.certificate.DELETED_REASON_COUNT` asks whether the reasons a decision states are all
     the reasons its inference had, and that is measured against the inference artefact or not at
@@ -1022,6 +1062,35 @@ def _engine_ladder(
                 ),
             )
         ]
+
+    if req.formalism == "counterfactual":
+        from reasonsmith.engines.counterfactual import (
+            CounterfactualProofEngine,
+            PairedReplayEngine,
+        )
+
+        counterfactual: list[tuple[Strength, Any]] = []
+        if callable(getattr(sut, "logic", None)):
+            counterfactual.append(
+                (
+                    Strength.PROVED,
+                    lambda: _run_proof_rung(
+                        req, sut, records, resources, engine=CounterfactualProofEngine
+                    ),
+                )
+            )
+        counterfactual.append(
+            (
+                Strength.PROBED,
+                lambda: PairedReplayEngine.evaluate(
+                    req,
+                    sut,
+                    records,
+                    trace_provider=resources.trace if records is None else None,
+                ),
+            )
+        )
+        return counterfactual
 
     ladder: list[tuple[Strength, Any]] = []
 

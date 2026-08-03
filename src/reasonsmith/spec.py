@@ -54,7 +54,7 @@ from reasonsmith.rulelang import (
     unconditional_signal_names,
 )
 
-VALID_FORMALISMS = ("record", "temporal", "logical")
+VALID_FORMALISMS = ("record", "temporal", "logical", "counterfactual")
 PACKS_DIR = Path(__file__).parent / "packs"
 
 #: Exactly the fields a [[requirement]] block carries. A pack that omits one is
@@ -268,7 +268,7 @@ class Requirement:
     article_clause: str
     verbatim_text: str
     stakeholder: str
-    formalism: Literal["record", "temporal", "logical"]
+    formalism: Literal["record", "temporal", "logical", "counterfactual"]
     spec: str
     rationale: str
     requires: tuple[str, ...]
@@ -391,7 +391,9 @@ def _check_spec(req: Requirement, where: str) -> None:
             f"{where}: declares formalism {req.formalism!r} but its spec is a {found!r} property. "
             f"Either declare {found!r}, or write a {req.formalism!r} property. The fragments are: "
             "'record' — a conjunction of present(signal) atoms; 'temporal' — anything using a "
-            "temporal operator; 'logical' — any other property of a single decision record."
+            "temporal operator; 'counterfactual' — a lone counterfactually_invariant(outcome, "
+            "protected) atom, which is a property of a pair of executions and may be the whole of "
+            "a spec or no part of one; 'logical' — any other property of a single decision record."
         )
 
     unrequired = sorted(set(unconditional_signal_names(node)) - set(req.requires))

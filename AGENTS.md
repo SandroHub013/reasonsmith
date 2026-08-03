@@ -72,6 +72,37 @@ it reads the `spec` as written, so implication in a pack must be spelled `->` an
 the atom encodings, and the one case the ladder does not resolve (exposed logic disagreeing with the
 trace).
 
+`counterfactual` is the fourth fragment and the only **relational** one — a property of a *pair* of
+executions. `counterfactually_invariant(outcome, protected)` is its single atom, it is the whole of
+a `spec` or no part of one, and `engines/counterfactual.py` is the whole of its ladder: Z3
+self-composition at `proved` (the rules encoded twice under `_Scope` namespaces, every free input
+held equal but the protected one), paired replay at `probed`, and **no trace rung, ever**. The
+refusal lives in `rulelang.eval_expression`, not in `_engine_ladder`, because every trace-reading
+engine evaluates through that interpreter — move it and the guarantee becomes a convention. Two
+cases must never merge, and telling them apart is the only reason `computes` is consulted here: a
+system that accepts the protected variable and provably ignores it is `satisfied`; a system with no
+notion of it is `unattainable`. Without the declaration both encode identically and both come back
+`unsat`, which would certify an unaware system as provably fair. Two further `unsat`s mean *no pair
+exists* rather than *no pair disagrees*, and the proof rung refuses both before it reads the
+negation: a declaration that pins the protected variable (the replay rung already refused that
+system, so the ladder was publishing the engine that asked less), and rules that assign the
+protected name while `computes` omits it — checked on the encoding (`is_definitely_assigned`,
+`scope.inputs`), because that route is invisible to the declaration. `TREATMENT_LIMIT` rides on every
+result because the duty cannot see a proxy or a disparate impact, and neither rung ever takes the
+protected value from the trace — a decision record holding a fact about a natural person is a
+collection cost this repository does not create, which is also why no shipped example system
+declares one. For the same reason the protected argument is the one name
+`report.analyze_unattainable` does not subtract from `capabilities()`: that set is what a system can
+*emit* into a record, this duty needs what its procedure *accepts*, and gating on it would report a
+creditor whose log carries a prohibited basis for nobody unattainable and tell it to start logging
+one per decision. The name stays in `requires` because it is what the engine names as missing when a
+system's declared logic has no notion of it.
+`applicant_prohibited_basis` is the first shipped signal outside the paper's four Section 6.3
+categories; `test_exactly_one_shipped_signal_is_outside_the_paper_s_taxonomy` keeps it the only one.
+Read `docs/semantics.md` §3 (*counterfactual*) and the `docs/refinement.md` row before touching any
+of it. Group-statistical fairness — parity, equalised odds, calibration — is unreachable on this
+evidence model and is documented as a hazard in `docs/authoring-packs.md`; do not build one.
+
 The proof rung refuses a property built out of names the declared rules never assign, on the ground
 that such a name is a free constant of the encoding — for `present()`, for `contains()`, and (since
 the temporal reduction made it reachable) for a comparison of magnitudes. The third refusal is the
@@ -223,9 +254,10 @@ gallery published there as `audiences.html`. Both files travel through the same 
 
 `docs/audiences.html` is the second generated page and the only one that publishes more than one
 rendering of a run: `docs/build_audiences.py` runs the shipped `symbolic_rules` system against the
-`ecoa` pack — the one run where all three evidence rungs and an unattainable duty stand together,
-so each projection has something to withhold — and embeds all five `--audience` renderings
-verbatim as `srcdoc` frames inside a sixth, full `render_html` page. That shell is not decoration:
+`ecoa` pack — the run that mixes verdicts and strengths most, two duties `proved`, one `observed`
+and two `unattainable` (no `probed` rung), so each projection has something to withhold — and
+embeds all five `--audience` renderings verbatim as `srcdoc` frames inside a sixth, full
+`render_html` page. That shell is not decoration:
 the design tokens live inside `render_html`'s stylesheet and are not exported, so being a report
 page is the only way the gallery can style itself without a second palette.
 `tests/test_docs_audiences.py` holds the page byte-for-byte to the builder and fails if the
@@ -318,7 +350,8 @@ byte-for-byte. Anything that moves `render_text`'s wording, the nesyarena versio
 own constants means regenerating with `python docs/build_nesyarena_report.py`. Like
 `docs/report.html`, it names its build command and deliberately carries no commit hash; reproducibility
 is owned by the byte-for-byte builder test, so do not add a hash back. Its adapter declares only
-signals a provenance genuinely emits, so eleven pack signals are deliberately undeclared, and
+signals a provenance genuinely emits, so a set of pack signals is deliberately undeclared — the
+census and the count live in `docs/findings-nesyarena.md`, which pins them — and
 neither a regulatory class nor a decision domain is declared — these systems decide graph
 reachability and Sudoku validity, so there is nothing to declare; the resulting unattainable and
 not-applicable verdicts are the finding, not a gap to close, and naming a domain to make the ECOA

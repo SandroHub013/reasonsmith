@@ -75,7 +75,7 @@ system: TruncatingCreditSystem
 declared scope: undeclared
 declared domains: consumer-credit
 pack: ecoa
-headline: 4 requirements · 4 binding: 3 observed, 1 violated
+headline: 5 requirements · 5 binding: 3 observed, 1 violated, 1 not evaluated
 
 REQUIREMENT FINDINGS:
   [OBSERVED] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): satisfied
@@ -96,6 +96,10 @@ REQUIREMENT FINDINGS:
     summary: Violated on 1 of 2 certified decision(s): the stated reasons are not all the reasons. On decision #1 exact inference found 5 reason(s) and the deletion probe showed the system's answer does not depend on 4 of them — C05 — Insufficient number of credit references provided; C03 — Delinquent past or present credit obligations; C04 — Too many recent inquiries on credit bureau report; C02 — Length of time credit has been established is too short. Attribution: The deleted reasons are exactly the 4 lowest-scoring of the 5, and the engine kept the top 1. This is the signature of top-k proof truncation at k=1: top-k works by discarding proofs, so the dropped reasons are lost by configuration, not by error. The missing probability mass is 0.225799. Measured against the inference artefact the system exposed, not read from its decision log.
     offending record: decision APP-1042 (step 1)
     probe budget: 8 input(s) replayed, seed none — the proof enumeration and the deletion probes are deterministic, input space: decisions certified (2 values), reasons switched off (6 values). Strategy: for each decision the system exposed an inference artefact for, its reasons are enumerated exactly by bounded proof enumeration over the ground program and scored by exact weighted model counting; each reason holding a fact no other reason uses is then switched off alone and the system's own engine re-run on the perturbed interpretation. A reason whose deletion moves exact inference but leaves the engine unchanged is a reason the engine's answer does not depend on, and is counted here
+  [NOT EVALUATED] ecoa_reg_b_1002_4_a_no_disparate_treatment (ECOA / Regulation B (12 CFR 1002.4) 12 CFR 1002.4(a)): inconclusive
+    requires: artifact_logs_decision_record, applicant_prohibited_basis
+    domain limit: consumer-credit
+    summary: Not evaluated: the system exposes no decide(), so there is no twin decision to run. A counterfactual is what the system would have decided, and a decision log records only what it did — no trace, however long, establishes one. Limit of this duty: it is invariance under one named variable holding all others fixed, so it is a property of treatment and says nothing about effects. A proxy is invisible to it — a rule set that never reads the protected variable and decides by postcode is satisfied here — and a disparate impact is not a thing it can find. It also reaches exactly one variable: a system answerable on several prohibited bases is answered here about the one this duty names.
 
 LIMITS OF THIS REPORT
   This report is not a compliance guarantee and is not legal advice. It assesses system capability information and trace evidence against formal specifications. Whether these findings discharge legal duties remains a determination this tool does not make and cannot make. A requirement reported without a strength was not evaluated or is not applicable, and no verdict on it should be read from this report. Recital and guidance items inform how statutory duties are interpreted but create no obligation of their own; interpretive requirements are evaluated and reported separately, and are never folded into the binding headline counts. A requirement reported not applicable was excluded on one of two independent gates. Either no regulatory class was declared for the system at all, or the class that was declared is not the one the requirement is limited to; or no decision domain was declared for the system at all, or none of the domains that were declared is one the requirement is about. This tool infers neither the class nor the domain, so an undeclared system is neither placed in scope nor cleared of the duty: read the declared scope and domain lines before reading a not-applicable result. The decision-domain vocabulary is written by the pack author and by no regulation, and a duty declaring no domain reaches every system it is run against.
@@ -113,7 +117,7 @@ produced. No reader is shown a verdict another reader is not shown, no reader lo
 section, and dropping the flag renders the full report — which is the auditor's view, by identity,
 so the transcript above is already one of the five.
 
-Here is that run for a **regulator**. Same four verdicts, same strengths, different content: every
+Here is that run for a **regulator**. Same five verdicts, same strengths, different content: every
 `requires:` line is gone, and the `domain limit:` line that decides whether the duty reaches this
 system at all stays. A regulator's question is how far a claim reaches, so the probe budget stays
 too; the internal signal names and — on a run that produces them — the trace witnesses holding real
@@ -129,7 +133,7 @@ system: TruncatingCreditSystem
 declared scope: undeclared
 declared domains: consumer-credit
 pack: ecoa
-headline: 4 requirements · 4 binding: 3 observed, 1 violated
+headline: 5 requirements · 5 binding: 3 observed, 1 violated, 1 not evaluated
 
 REQUIREMENT FINDINGS:
   [OBSERVED] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): satisfied
@@ -145,6 +149,9 @@ REQUIREMENT FINDINGS:
     domain limit: consumer-credit
     summary: Violated on 1 of 2 certified decision(s): the stated reasons are not all the reasons. On decision #1 exact inference found 5 reason(s) and the deletion probe showed the system's answer does not depend on 4 of them — C05 — Insufficient number of credit references provided; C03 — Delinquent past or present credit obligations; C04 — Too many recent inquiries on credit bureau report; C02 — Length of time credit has been established is too short. Attribution: The deleted reasons are exactly the 4 lowest-scoring of the 5, and the engine kept the top 1. This is the signature of top-k proof truncation at k=1: top-k works by discarding proofs, so the dropped reasons are lost by configuration, not by error. The missing probability mass is 0.225799. Measured against the inference artefact the system exposed, not read from its decision log.
     probe budget: 8 input(s) replayed, seed none — the proof enumeration and the deletion probes are deterministic, input space: decisions certified (2 values), reasons switched off (6 values). Strategy: for each decision the system exposed an inference artefact for, its reasons are enumerated exactly by bounded proof enumeration over the ground program and scored by exact weighted model counting; each reason holding a fact no other reason uses is then switched off alone and the system's own engine re-run on the perturbed interpretation. A reason whose deletion moves exact inference but leaves the engine unchanged is a reason the engine's answer does not depend on, and is counted here
+  [NOT EVALUATED] ecoa_reg_b_1002_4_a_no_disparate_treatment (ECOA / Regulation B (12 CFR 1002.4) 12 CFR 1002.4(a)): inconclusive
+    domain limit: consumer-credit
+    summary: Not evaluated: the system exposes no decide(), so there is no twin decision to run. A counterfactual is what the system would have decided, and a decision log records only what it did — no trace, however long, establishes one. Limit of this duty: it is invariance under one named variable holding all others fixed, so it is a property of treatment and says nothing about effects. A proxy is invisible to it — a rule set that never reads the protected variable and decides by postcode is satisfied here — and a disparate impact is not a thing it can find. It also reaches exactly one variable: a system answerable on several prohibited bases is answered here about the one this duty names.
 
 LIMITS OF THIS REPORT
   This report is not a compliance guarantee and is not legal advice. It assesses system capability information and trace evidence against formal specifications. Whether these findings discharge legal duties remains a determination this tool does not make and cannot make. A requirement reported without a strength was not evaluated or is not applicable, and no verdict on it should be read from this report. Recital and guidance items inform how statutory duties are interpreted but create no obligation of their own; interpretive requirements are evaluated and reported separately, and are never folded into the binding headline counts. A requirement reported not applicable was excluded on one of two independent gates. Either no regulatory class was declared for the system at all, or the class that was declared is not the one the requirement is limited to; or no decision domain was declared for the system at all, or none of the domains that were declared is one the requirement is about. This tool infers neither the class nor the domain, so an undeclared system is neither placed in scope nor cleared of the duty: read the declared scope and domain lines before reading a not-applicable result. The decision-domain vocabulary is written by the pack author and by no regulation, and a duty declaring no domain reaches every system it is run against.
@@ -180,11 +187,15 @@ WHETHER THOSE WERE ALL THE REASONS
     "C04 — Too many recent inquiries on credit bureau report"
     "C02 — Length of time credit has been established is too short"
 
+WHAT THIS REPORT COULD NOT CHECK
+    1 duty: no check in this report could settle it, so it was left open rather than answered.
+
 REQUIREMENT FINDINGS:
   ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): satisfied
   ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): satisfied
   ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): satisfied
   ecoa_reg_b_1002_9_b_2_principal_reasons_complete (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): violated
+  ecoa_reg_b_1002_4_a_no_disparate_treatment (ECOA / Regulation B (12 CFR 1002.4) 12 CFR 1002.4(a)): inconclusive
 
 LIMITS OF THIS REPORT
   This report is not a compliance guarantee and is not legal advice. It assesses system capability information and trace evidence against formal specifications. Whether these findings discharge legal duties remains a determination this tool does not make and cannot make. A requirement reported without a strength was not evaluated or is not applicable, and no verdict on it should be read from this report. Recital and guidance items inform how statutory duties are interpreted but create no obligation of their own; interpretive requirements are evaluated and reported separately, and are never folded into the binding headline counts. A requirement reported not applicable was excluded on one of two independent gates. Either no regulatory class was declared for the system at all, or the class that was declared is not the one the requirement is limited to; or no decision domain was declared for the system at all, or none of the domains that were declared is one the requirement is about. This tool infers neither the class nor the domain, so an undeclared system is neither placed in scope nor cleared of the duty: read the declared scope and domain lines before reading a not-applicable result. The decision-domain vocabulary is written by the pack author and by no regulation, and a duty declaring no domain reaches every system it is run against.
@@ -219,11 +230,11 @@ Every evaluated result records its evidence strength, on one lattice:
 
 Combining zero verdicts is `inconclusive`, never vacuously `satisfied`. A requirement no engine here can evaluate is reported with no strength, rather than judged by a weaker check. What each verdict means — and does not mean — is stated one engine at a time in [`docs/semantics.md`](docs/semantics.md); every soundness claim there names the test that fails if the claim becomes false.
 
-How each shipped requirement got from a clause of law to a formula — and, in a fourth column, what that refinement deliberately did not capture — is recorded in [`docs/refinement.md`](docs/refinement.md), one row per requirement across all four packs.
+How each shipped requirement got from a clause of law to a formula — and, in a fourth column, what that refinement deliberately did not capture — is recorded in [`docs/refinement.md`](docs/refinement.md), one row per requirement across all five packs.
 
 ## Can it use a different formalism? Engines and packs install
 
-Four engines ship here, but the set is not closed. An engine is discovered through the
+Seven engines ship here, but the set is not closed. An engine is discovered through the
 `reasonsmith.engines` entry-point group and a pack through `reasonsmith.packs`, so a Prolog, ASP or
 other-solver engine — and a regulation pack this repository does not carry — ships as *your* pip
 package and joins the run the moment it is installed, with no pull request here. The property
@@ -250,7 +261,7 @@ system: CreditScoringPipeline
 declared scope: undeclared
 declared domains: consumer-credit
 pack: ecoa
-headline: 4 requirements · 4 binding: 3 observed, 1 unattainable
+headline: 5 requirements · 5 binding: 3 observed, 1 not evaluated, 1 unattainable
 
 REQUIREMENT FINDINGS:
   [OBSERVED] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): satisfied
@@ -270,6 +281,10 @@ REQUIREMENT FINDINGS:
     domain limit: consumer-credit
     MISSING SIGNALS: artifact_logs_deleted_reason_count
     summary: Unattainable on the evidence supplied: no record in the supplied decision trace carries a value for artifact_logs_deleted_reason_count, and the system declared no capabilities, so nothing here can discharge this requirement. Read from that trace alone; a longer trace could show the system emitting these signals.
+  [NOT EVALUATED] ecoa_reg_b_1002_4_a_no_disparate_treatment (ECOA / Regulation B (12 CFR 1002.4) 12 CFR 1002.4(a)): inconclusive
+    requires: artifact_logs_decision_record, applicant_prohibited_basis
+    domain limit: consumer-credit
+    summary: Not evaluated: the system exposes no decide(), so there is no twin decision to run. A counterfactual is what the system would have decided, and a decision log records only what it did — no trace, however long, establishes one. Limit of this duty: it is invariance under one named variable holding all others fixed, so it is a property of treatment and says nothing about effects. A proxy is invisible to it — a rule set that never reads the protected variable and decides by postcode is satisfied here — and a disparate impact is not a thing it can find. It also reaches exactly one variable: a system answerable on several prohibited bases is answered here about the one this duty names.
 
 LIMITS OF THIS REPORT
   This report is not a compliance guarantee and is not legal advice. It assesses system capability information and trace evidence against formal specifications. Whether these findings discharge legal duties remains a determination this tool does not make and cannot make. A requirement reported without a strength was not evaluated or is not applicable, and no verdict on it should be read from this report. Recital and guidance items inform how statutory duties are interpreted but create no obligation of their own; interpretive requirements are evaluated and reported separately, and are never folded into the binding headline counts. A requirement reported not applicable was excluded on one of two independent gates. Either no regulatory class was declared for the system at all, or the class that was declared is not the one the requirement is limited to; or no decision domain was declared for the system at all, or none of the domains that were declared is one the requirement is about. This tool infers neither the class nor the domain, so an undeclared system is neither placed in scope nor cleared of the duty: read the declared scope and domain lines before reading a not-applicable result. The decision-domain vocabulary is written by the pack author and by no regulation, and a duty declaring no domain reaches every system it is run against.
@@ -299,7 +314,7 @@ The demonstration runs on frozen synthetic data included in the package. It need
 reasonsmith check --system /path/to/your-decisions.jsonl --pack gdpr --html report.html
 ```
 
-`check` runs one of the four shipped packs (Table 7, EU AI Act, GDPR, ECOA/Reg B) against your JSONL decision log, printing the report as text, JSON (`--json`), or a self-contained HTML report (`--html FILE`). It exits 2 when a requirement is violated, 1 on a usage or input error, and 0 otherwise.
+`check` runs one of the five shipped packs (Table 7, EU AI Act (Art. 12 & 13), GPAI (EU AI Act Art. 53 & 55), GDPR, ECOA/Reg B) against your JSONL decision log, printing the report as text, JSON (`--json`), or a self-contained HTML report (`--html FILE`). It exits 2 when a requirement is violated, 1 on a usage or input error, and 0 otherwise.
 
 A decision log exposes neither `decide()` nor `logic()`, so a `--system` run cannot rise above `observed`. To check the system itself, name an adapter instead:
 
@@ -352,27 +367,27 @@ Table 7 is transcribed verbatim into `src/reasonsmith/table7.toml`. That file is
 | `src/reasonsmith/plugins.py` | Discovery of engines and packs installed as separate pip packages, through the `reasonsmith.engines` and `reasonsmith.packs` entry-point groups ([`docs/authoring-engines.md`](docs/authoring-engines.md)) |
 | `src/reasonsmith/rulelang.py` | The whitelisted mini-language rule and specification text is parsed and executed in, shared by the rule adapter and the proved engine |
 | `src/reasonsmith/adapters/` | SUT protocol adapters for JSONL decision logs, Python callables, and rule-based systems that expose their decision logic |
-| `src/reasonsmith/engines/` | Verification engines: `record` completeness check, `observed` rtamt monitor over a trace (temporal formulas and per-record state properties), `probed` perturb-and-replay search, `proved` Z3 solver, and `temporal` — the same solver, over an `always(f)` reduced to a property of one decision |
+| `src/reasonsmith/engines/` | Verification engines: `record` completeness check, `observed` rtamt monitor over a trace (temporal formulas and per-record state properties), `probed` perturb-and-replay search, `proved` Z3 solver, `temporal` — the same solver, over an `always(f)` reduced to a property of one decision — and `counterfactual`, the one engine over a *pair* of executions: Z3 self-composition at `proved`, paired replay at `probed`, and no trace rung |
 | `src/reasonsmith/examples/` | The four runnable example systems and `sample_decisions.jsonl`, shipped in the wheel so every documented command runs after `pip install`; `python -m reasonsmith.examples` prints the directory they installed into |
 | `src/reasonsmith/cli.py` | Command-line interface (`reasonsmith` / `python -m reasonsmith.cli`): `check --system /path/to/your-decisions.jsonl --pack gdpr --capabilities /path/to/capabilities.txt` and `validate-pack gdpr` |
 | `src/reasonsmith/drift.py` | Statute drift check (`python -m reasonsmith.drift`): re-fetches the official legal sources and re-verifies every pack quote, reporting `match` / `differ` / `could-not-verify` without ever editing a pack |
 | `src/reasonsmith/packs/table7.toml` | Table 7 rows restated as a formal requirement pack |
-| `src/reasonsmith/packs/{eu_ai_act,gdpr,ecoa}.toml` | Statutory requirement packs with verbatim quotes from [`docs/legal-sources.md`](docs/legal-sources.md) |
+| `src/reasonsmith/packs/{eu_ai_act,gpai,gdpr,ecoa}.toml` | Statutory requirement packs with verbatim quotes from [`docs/legal-sources.md`](docs/legal-sources.md) |
 
 ### Core Components
 
 - **The Emitter (`evidence.py`):** `emit(duty_id, decision_id, fields)` returns a record that is either `COMPLETE` or `INCOMPLETE`. An `INCOMPLETE` record explicitly names the fields it lacks. Nothing is defaulted, inferred, or silently dropped. Keys outside the duty's Table 7 row are rejected, and non-Table 7 data is isolated in `attachments`.
 - **The Reason-Deletion Certificate (`certificate.py`):** Compares the reasons an engine actually used against exact inference ground truth (enumerated via WMC in `nesyarena`). Using deletion probes, it tests whether disabling isolated facts changes engine output. Two independent checks must pass: the deletion probe (every reason live) and the value check against the exact oracle. Reasons that cannot be probed in isolation are reported as uncertified (`INCONCLUSIVE`). It is reachable from a conformance run: **the Certificate Engine (`engines/certificate.py`)** runs it over the inference artefact a system exposes through the optional `artifact(decision)` hook, measures the deleted-reason count itself rather than reading one the system logged, and discharges `ecoa_reg_b_1002_9_b_2_principal_reasons_complete` at strength `probed` — a system exposing no artefact is reported `unattainable` on that duty and never downgraded to the presence check on the reason field. See [`docs/semantics.md`](docs/semantics.md) §3, *certificate*.
-- **The Conformance Core (`verdict.py`, `report.py`):** Every evaluated result records its evidence strength: `unattainable < observed < probed < proved`. `unattainable` is a set difference over SUT capabilities computed without running the system: with declared capabilities it describes the system, while with trace-derived capabilities it describes only the supplied records; either way, the missing signals are named. `observed` evaluates passive decision traces. `probed` actively replays perturbed inputs. `proved` is a solver result. A requirement no engine here can evaluate is reported as not evaluated — no strength and no satisfied-or-violated conclusion — rather than judged by a weaker check. Combining zero verdicts is `inconclusive`, never vacuously `satisfied`. Every requirement's `spec` is a formula in one property language (`rulelang.py`), and `formalism` names which fragment it belongs to: `record` (a conjunction of `present(signal)` atoms), `temporal` (a formula using a temporal operator), `logical` (any other property of one decision record). The fragment says what the property *is*; **what discharges it is a fact about the system**, not about the pack — the same presence property is `observed` against a trace, `probed` against a system exposing `decide()`, and `proved` against one exposing `logic()`. See `docs/semantics.md` §3.5.
+- **The Conformance Core (`verdict.py`, `report.py`):** Every evaluated result records its evidence strength: `unattainable < observed < probed < proved`. `unattainable` is a set difference over SUT capabilities computed without running the system: with declared capabilities it describes the system, while with trace-derived capabilities it describes only the supplied records; either way, the missing signals are named. `observed` evaluates passive decision traces. `probed` actively replays perturbed inputs. `proved` is a solver result. A requirement no engine here can evaluate is reported as not evaluated — no strength and no satisfied-or-violated conclusion — rather than judged by a weaker check. Combining zero verdicts is `inconclusive`, never vacuously `satisfied`. Every requirement's `spec` is a formula in one property language (`rulelang.py`), and `formalism` names which fragment it belongs to: `record` (a conjunction of `present(signal)` atoms), `temporal` (a formula using a temporal operator), `logical` (any other property of one decision record), and `counterfactual` (the one relational atom, a property of a *pair* of executions, which is the whole of a spec or no part of one). The fragment says what the property *is*; **what discharges it is a fact about the system**, not about the pack — the same presence property is `observed` against a trace, `probed` against a system exposing `decide()`, and `proved` against one exposing `logic()`. See `docs/semantics.md` §3.5.
 - **The Proved Engine (`engines/proved.py`):** `logical` requirements are discharged by Z3 against the decision logic a system exposes through `sut.logic()` — its variables, its rules, the constraints its inputs are known to obey, and which of those variables it *computes*. That last declaration is what separates an input the decision situation supplies from an output the system produces, and a property naming something in neither — a name the system has no notion of — is refused a proof rather than answered from a constant the solver invented. Rules are encoded in static single assignment form, so a rule that reassigns a name means what it means when executed. Three things are refused rather than reported: logic or a property using a construct the encoding does not model, a solver result of `unknown` or a timeout, and premises no input can satisfy — an over-constrained model makes `unsat` prove every property alike, so it counts as no evidence, not as proof. When the solver finds a counterexample, that input is executed before anything is reported: `VIOLATED` at strength `proved` is only claimed once the violation reproduces, and the evidence summary names what it reproduced against, since a system exposing only `logic()` can be replayed only through its declared logic and not through itself. The GDPR pack ships the first `logical` requirement proved against real statute: `gdpr_art22_1_no_prohibited_decision_for_any_input` asks Z3 whether the exposed rules admit any input on which a decision is solely automated and significantly affecting while no Article 22(2) basis applies and the Article 22(3) route to human intervention is closed. That duty is universal, so a record check over a supplied trace cannot express it; a `proved` verdict here is a statement about the exposed rules over every input the declared constraints admit, and the pack's description says so in full — it is not a determination that the controller has discharged Article 22.
 - **The Probed Engine (`engines/probed.py`):** The rung for a system whose decision logic cannot be inspected. A `logical` requirement against a system that exposes `decide()` but no `logic()` is searched rather than proved: the engine takes the decisions the system has already made, perturbs their fields — over the values the trace shows, the property's own numeric thresholds and their neighbours — and replays each generated input through the system itself. A counterexample is replayed a second time before it is reported, and one that does not reproduce is a defect in the search, so it is reported not evaluated rather than as a violation. No counterexample within the budget is `probed`, never `proved`: the verdict carries what was searched — how many inputs were replayed, the strategy, the seed, and the fields the search could vary — and `RequirementResult` refuses to be constructed without it, so no rendering can drop it. The same seed replays the same inputs in the same order, so a reported budget can be re-derived. Defaults are 200 replayed inputs at seed 0, both configurable.
 - **Binding vs interpretive duties, regulatory scope and decision domain:** Each requirement records whether it is a legally binding duty or an interpretive recital/guidance item, any regulatory class it is limited to, and the kinds of decision it is about. The headline names both halves — `6 requirements · 4 binding: 2 observed, 2 unattainable · 2 interpretive: 2 observed` — so an interpretive item is reported without being counted as compliance evidence. A class-limited requirement is checked only against a system declared to be in that class via `--system-scope`; the class is never inferred, so an undeclared system has those requirements reported not applicable. Classes come from one fixed vocabulary — `prohibited`, `high-risk`, `limited-risk`, `minimal-risk`, `general-purpose` — which both a pack's `scope` and a declared `--system-scope` are checked against, after trimming whitespace and lowercasing and with nothing else guessed. A value outside it is a usage error naming what would have been accepted, so a misspelling on either side cannot become a duty that quietly never matches. A class the vocabulary knows but the chosen pack does not target is not an error: those duties are reported not applicable as a declared mismatch. `domains` is a second gate on a different axis, working the same way through `--system-domain` (repeat it for a system that makes more than one kind of decision) and matched by intersection, so one shared domain is enough; a duty declaring no domain reaches every system. One difference matters more than the mechanism: `REGULATORY_CLASSES` is the EU AI Act's own vocabulary, but no statute defines a list of decision domains, so `DECISION_DOMAINS` is written in this repository. A pack limiting a duty to a domain must say so in its description, and a not-applicable verdict on that gate reports a classification a pack author made rather than a finding about a statute's reach ([`docs/authoring-packs.md`](docs/authoring-packs.md), *the decision-domain vocabulary is yours, not the regulation's*).
-- **The CLI (`cli.py`):** Four packs ship — Table 7, EU AI Act, GDPR, ECOA/Reg B — and the CLI runs one against a JSONL decision log. It is installed as the `reasonsmith` command (`pip install reasonsmith`) and stays runnable as `python -m reasonsmith.cli`:
+- **The CLI (`cli.py`):** Five packs ship — Table 7, EU AI Act (Art. 12 & 13), GPAI (EU AI Act Art. 53 & 55), GDPR, ECOA/Reg B — and the CLI runs one against a JSONL decision log. It is installed as the `reasonsmith` command (`pip install reasonsmith`) and stays runnable as `python -m reasonsmith.cli`:
 
   ```sh
   reasonsmith check --system /path/to/your-decisions.jsonl --pack ecoa --system-domain consumer-credit
   reasonsmith check --system /path/to/your-decisions.jsonl --pack eu_ai_act --system-scope high-risk --html report.html
-  reasonsmith validate-pack ecoa eu_ai_act gdpr table7
+  reasonsmith validate-pack ecoa eu_ai_act gpai gdpr table7
   reasonsmith --version
   ```
 
@@ -429,8 +444,11 @@ one supplied run wherever that escape does not reach. Also missing:
 any defence against the insured. The one duty that reads an approximation error reads a number the
 system declares about itself, which nothing verifies — it rewards the measurement, not the accuracy,
 and a system that under-reports passes ([`docs/findings-nesyarena.md`](docs/findings-nesyarena.md),
-finding 1). And no requirement in any shipped pack checks a fairness property (`ROADMAP.md` §3),
-which is where a large share of the liability actually sits.
+finding 1). And the one fairness property that now ships is invariance under a single named
+protected variable — a duty about *treatment*, blind to a proxy and blind to a disparate impact,
+which is where a large share of the liability actually sits and which no criterion on this evidence
+model can reach (`ROADMAP.md` §3; [`docs/refinement.md`](docs/refinement.md),
+`ecoa_reg_b_1002_4_a_no_disparate_treatment`).
 
 **Regulators** wanting a report to stand as supervisory evidence. Missing: authority over the
 vocabulary a duty's reach is written in. A duty now names the decision domains it is about, and a
@@ -470,8 +488,8 @@ unattested.
 for: [`docs/findings-nesyarena.md`](docs/findings-nesyarena.md) is a real run against five
 `nesyarena` provenances, and `docs/nesyarena-conformance-report.md` is its regenerable evidence.
 Missing: properties worth differentiating a system on, and the fifth pack moved this the wrong way.
-Twenty-two of the twenty-seven shipped requirements are now presence checks, up from fourteen of
-nineteen, against three `logical` and two `temporal` ones — so a battery of engines mostly agrees by
+Twenty-two of the twenty-eight shipped requirements are now presence checks, up from fourteen of
+nineteen, against three `logical`, two `temporal` and one `counterfactual` one — so a battery of engines mostly agrees by
 construction, and more so than before `packs/gpai.toml` shipped. That pack's eight Article 53 and 55
 duties are document-production duties, for which presence is the correct refinement and no stronger
 property exists to write; the breadth is real and it is not depth
