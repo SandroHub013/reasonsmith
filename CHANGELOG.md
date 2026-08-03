@@ -8,6 +8,55 @@ releases before it predate the file and are not reconstructed here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** **An adapter declares which variables the system computes, and the proof engine
+  uses that instead of guessing** ([#92](https://github.com/eduardstan/reasonsmith/pull/92)).
+  `sut.logic()` may now carry `computes` beside `variables`, `rules` and `constraints`: the names
+  the system *produces*, as against the ones its decision situation supplies. It is breaking
+  because it widens what an adapter exposing logic is expected to say about itself, and because a
+  system that declares it computes a name its exposed rules never settle now loses a proof it
+  previously got.
+
+  The gap it closes is in `_Scope.read`, which declares a free Z3 constant for any name it meets
+  and keeps no record of where the name came from. It runs while encoding the *property*, so a duty
+  that merely mentions a name manufactured an input out of nothing and everything downstream
+  reasoned about a constant nobody computed. That is how
+  `gdpr_recital71_error_risk_minimised` came to be reported `violated` at `proved` — the one
+  verdict that exits non-zero — against a system whose rules never touch the two magnitudes it
+  compares. Neither existing declaration could carry the fix: `variables` is a type table holding
+  computed names beside free ones, and `declared_capabilities` is what a system can *emit* into a
+  decision record, which is the opposite direction.
+
+  `variables` and `computes` together split every name into three states, and
+  `engines/proved.py`'s `_check_declared_directions` reads them: a name in `computes` is an output,
+  a name in `variables` but not in `computes` is an input, and a name in neither is one the system
+  has **no notion of**. A property reading a name in that third state is refused, and so is one
+  reading a declared output the exposed rules do not settle on every path. A declared *input* is
+  quantified over where the property also reads a name the rules settle, or reads its free names as
+  flags rather than magnitudes — the fix below narrows that to what it always should have been —
+  which is what keeps `income >= 30000 implies approved` and
+  `gdpr_art22_1_no_prohibited_decision_for_any_input` provable, the latter's whole purpose being to
+  range over flags no rule assigns.
+
+  `RulesAdapter` derives `computes` from its own rules' assignment targets unless the caller
+  overrides it, so no adapter in this repository is undeclared: the premise of that adapter is that
+  its rules *are* the decision procedure, under which the names they assign are exactly the names
+  the system computes. A declared name outside `variables` is refused at construction. Nothing
+  second-guesses a declaration beyond that — an adapter calling an output an input is answered
+  about the system it described, the same trust `system_domains` is given.
+
+  0.5.1's sort heuristic, `_check_magnitudes_are_computed`, is **kept** rather than removed. It
+  cuts along the wrong joint and its own docstring said so, but every alternative is worse:
+  reading `variables` as "every variable is an input" hands back exactly the `violated`-at-`proved`
+  verdict it was written to stop, and refusing every proof to logic predating the declaration would
+  withdraw verdicts for a reason having nothing to do with the system. It runs **beside** the
+  declaration guard rather than being scoped to logic that declares none — see the fix below, which
+  corrects that in the same release.
+
+  `docs/semantics.md` §3.5, *When the magnitudes are not the system's own*, is rewritten around the
+  declaration and names the test behind every claim.
+
 ### Fixed
 
 - **A decision whose reasons bounded proof enumeration never found buys no verdict, and never
@@ -43,54 +92,35 @@ releases before it predate the file and are not reconstructed here.
   enumeration found *at least one* reason on *every* decision the verdict covers, and states the
   asymmetry in the same words.
 
-### Changed
+- **A declaration of what a system computes can no longer widen what it can be proved about**
+  ([#95](https://github.com/eduardstan/reasonsmith/pull/95)). `_check_declared_directions` ran
+  *instead of* `_check_magnitudes_are_computed` wherever `sut.logic()` declared `computes`, and it
+  asked only whether a name was in `variables ∪ computes`. But `variables` is a **type table**: a
+  caller listing a signal its system merely *logs* is naming a sort, not declaring an input the
+  decision situation supplies, and the three declared states have no seat for that name. Read as an
+  input, it made both `proved` verdicts a function of the caller's type table. A scorer deciding on
+  a score alone, whose table names the two Recital 71 magnitudes, was reported `violated` at
+  `proved` on the solver's own choice of `deviation = 1, margin = 0`; add one constraint restating
+  the duty and the same system was reported `satisfied` at `proved`, on the strength of an
+  assertion about itself that no rendering names — the self-declaration `docs/semantics.md` §3
+  refuses everywhere else, arriving at the top rung. Stripping only the `computes` key from either
+  system returned `inconclusive`, so both were new.
 
-- **Breaking:** **An adapter declares which variables the system computes, and the proof engine
-  uses that instead of guessing** ([#92](https://github.com/eduardstan/reasonsmith/pull/92)).
-  `sut.logic()` may now carry `computes` beside `variables`, `rules` and `constraints`: the names
-  the system *produces*, as against the ones its decision situation supplies. It is breaking
-  because it widens what an adapter exposing logic is expected to say about itself, and because a
-  system that declares it computes a name its exposed rules never settle now loses a proof it
-  previously got.
+  Both guards now run wherever directions are declared: the declaration **narrows** what reaches
+  the solver and can no longer widen it. That is the additional-filter route rather than a wider
+  first refusal, because refusing a name the rules and constraints never read answers the first
+  construction and not the second — a constraint restating the duty *does* read both magnitudes,
+  and the false `satisfied` would have survived it. The sort heuristic answers both by asking what
+  the property reads, and both refusals now fire after the property is encoded, so `present()`'s
+  and `contains()`'s more specific messages still win.
 
-  The gap it closes is in `_Scope.read`, which declares a free Z3 constant for any name it meets
-  and keeps no record of where the name came from. It runs while encoding the *property*, so a duty
-  that merely mentions a name manufactured an input out of nothing and everything downstream
-  reasoned about a constant nobody computed. That is how
-  `gdpr_recital71_error_risk_minimised` came to be reported `violated` at `proved` — the one
-  verdict that exits non-zero — against a system whose rules never touch the two magnitudes it
-  compares. Neither existing declaration could carry the fix: `variables` is a type table holding
-  computed names beside free ones, and `declared_capabilities` is what a system can *emit* into a
-  decision record, which is the opposite direction.
-
-  `variables` and `computes` together split every name into three states, and
-  `engines/proved.py`'s `_check_declared_directions` reads them: a name in `computes` is an output,
-  a name in `variables` but not in `computes` is an input, and a name in neither is one the system
-  has **no notion of**. A property reading a name in that third state is refused, and so is one
-  reading a declared output the exposed rules do not settle on every path. A declared *input* is
-  quantified over as it always was, flags and magnitudes alike, which is what keeps
-  `income >= 30000 implies approved` and `gdpr_art22_1_no_prohibited_decision_for_any_input`
-  provable — the latter's whole purpose being to range over flags no rule assigns.
-
-  `RulesAdapter` derives `computes` from its own rules' assignment targets unless the caller
-  overrides it, so no adapter in this repository is undeclared: the premise of that adapter is that
-  its rules *are* the decision procedure, under which the names they assign are exactly the names
-  the system computes. A declared name outside `variables` is refused at construction. Nothing
-  second-guesses a declaration beyond that — an adapter calling an output an input is answered
-  about the system it described, the same trust `system_domains` is given.
-
-  0.5.1's sort heuristic, `_check_magnitudes_are_computed`, is **kept and scoped** to logic that
-  declares no directions, rather than removed. It cuts along the wrong joint and its own docstring
-  said so, but the alternative for undeclared logic is worse in both directions: reading it as
-  "every variable is an input" hands back exactly the `violated`-at-`proved` verdict it was written
-  to stop, and refusing every proof to logic predating the declaration would withdraw verdicts for
-  a reason having nothing to do with the system. So undeclared logic gets the answer it has today
-  and never a wider one.
-
-  `docs/semantics.md` §3.5, *When the magnitudes are not the system's own*, is rewritten around the
-  declaration and names the test behind every claim.
-
-### Fixed
+  What does not change: a system whose rules genuinely compute a magnitude is still `violated` at
+  `proved` where its declared deviation can exceed its own margin;
+  `gdpr_art22_1_no_prohibited_decision_for_any_input` still quantifies over the Article 22 flags no
+  rule assigns; a system with no notion of the magnitudes is still `inconclusive`; and a malformed
+  `computes` is still refused before any solver call. The stated cost is in `docs/semantics.md`
+  §3.5: a duty comparing declared-input magnitudes alone, reading no name the rules assign, cannot
+  be `proved` even where the declaration is exact.
 
 - **The README's conformance-check block is held to its builder** ([#93](https://github.com/eduardstan/reasonsmith/pull/93)).
   It was the one derived transcript byte-for-byte pins did not hold, and it went stale once already
