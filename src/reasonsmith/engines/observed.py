@@ -19,6 +19,15 @@ What a reader must not break:
     `NOT EVALUATED` (`verdict=INCONCLUSIVE`, `strength=None`), NEVER `satisfied`.
     Why this matters: STL monitors require sufficient trace points to establish time bounds; an
     unsupported formula or insufficient trace length cannot prove a temporal property.
+  - Where the property is an implication whose antecedent scored below zero at every position,
+    report `NOT EVALUATED`, never `satisfied`.
+    Why this matters: an implication holds at every step its trigger does not fire, so such a
+    trace scores non-negative for every system alike and the monitor learned nothing about this
+    one. This engine used to report it `satisfied` and the solver used to report the same formula
+    `proved` — two rungs agreeing about the formula and disagreeing about the evidence. The rule
+    is written once: `rulelang.implication_antecedent` names the subtree,
+    `report.not_evaluated_for_unreachable_trigger` words the refusal, and every rung asks it of
+    the domain it quantifies over.
   - Flag and magnitude roles must be read from the formula itself, never from what the trace
     happened to contain. Asking `var >= 0.5` (or `0.5 <= var`) is the one way a pack asks for a
     flag rather than a measured magnitude. A bare Boolean atom is a third role: the formula places
@@ -58,7 +67,7 @@ if "typing.io" not in sys.modules and not hasattr(typing, "io"):
 
 import rtamt
 
-from reasonsmith.report import RequirementResult
+from reasonsmith.report import RequirementResult, not_evaluated_for_unreachable_trigger
 from reasonsmith.rulelang import (
     CONTAINS_CALL,
     FLAG_THRESHOLD,
@@ -66,6 +75,7 @@ from reasonsmith.rulelang import (
     UnsupportedConstructError,
     bare_boolean_names,
     contains_literal,
+    implication_antecedent,
     is_present,
     parse_property,
     string_literal_mask,
@@ -297,17 +307,33 @@ class ObservedEngine:
             req.spec, set(req.requires)
         )
 
+        # The property's antecedent, rendered for the same monitor. It is a sub-formula of the
+        # spec, so it introduces no signal the trace was not already read for; what it needs is
+        # synthetic flags of its own, which is why the names already taken are reserved. Rendered
+        # here rather than after the monitor runs, so its flags are populated by the one pass that
+        # builds the time series. See the module docstring for what it is for.
+        antecedent_node = implication_antecedent(property_node)
+        antecedent_stl: str | None = None
+        if antecedent_node is not None:
+            antecedent_stl, extra_presence, extra_contains = _render_stl(
+                ast.unparse(antecedent_node),
+                set(req.requires) | set(presence_signals) | set(contains_signals),
+            )
+            presence_signals.update(extra_presence)
+            contains_signals.update(extra_contains)
+
         # Extract variable names from formula or req.requires
         var_names = set(req.requires)
         # Also extract identifiers from spec formula
-        found_vars = set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", stl_text))
+        monitored_text = stl_text if antecedent_stl is None else f"{stl_text} {antecedent_stl}"
+        found_vars = set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", monitored_text))
         keywords = {
             "always", "eventually", "until", "then", "implies", "and", "or", "not",
             "true", "false", "historically", "once", "since", "rise", "fall", "prev"
         }
         formula_vars = found_vars - keywords
         spec_vars = formula_vars | var_names
-        magnitude_vars = _magnitude_vars(stl_text)
+        magnitude_vars = _magnitude_vars(monitored_text)
         magnitude_vars.difference_update(presence_signals)
         magnitude_vars.difference_update(contains_signals)
 
@@ -442,8 +468,8 @@ class ObservedEngine:
             )
 
         # Construct rtamt STL specification
+        spec_name = f"spec_{req.id.replace('-', '_')}"
         try:
-            spec_name = f"spec_{req.id.replace('-', '_')}"
             res = _monitor(stl_text, spec_name, spec_vars, time_series)
             always_body = _always_body(stl_text)
             violation_res = (
@@ -494,6 +520,45 @@ class ObservedEngine:
                 binding=req.binding,
                 scope=req.scope,
             )
+
+        # No step breached the duty — but a duty triggered nowhere is not breached by any trace,
+        # and the monitor scoring every step non-negative is then a fact about the antecedent.
+        # The antecedent is read at the same threshold satisfaction is: robustness below zero is
+        # the trigger not firing, exactly as it is the formula not holding.
+        #
+        # Monitored here, after the violation check and in a try of its own, so that an
+        # antecedent rtamt cannot parse can only ever withhold a satisfied verdict. Sharing the
+        # try above would let a sub-formula the monitor chokes on suppress a breach the monitor
+        # had already scored.
+        if antecedent_stl is not None:
+            try:
+                antecedent_res = _monitor(
+                    antecedent_stl, f"{spec_name}_antecedent", spec_vars, time_series
+                )
+            except Exception as exc:
+                return RequirementResult(
+                    requirement_id=req.id,
+                    source_clause=clause,
+                    verdict=Verdict.INCONCLUSIVE,
+                    strength=None,
+                    signals_required=tuple(req.requires),
+                    evidence_summary=(
+                        f"Not evaluated: no decision breached {req.spec!r}, but rtamt cannot "
+                        f"express or parse its antecedent {ast.unparse(antecedent_node)!r}: "
+                        f"{exc}. A duty whose trigger cannot be read is reported as no evidence "
+                        "rather than as a clean verdict."
+                    ),
+                    details={"error": str(exc), "records_observed": len(records)},
+                    binding=req.binding,
+                    scope=req.scope,
+                )
+            if all(rob < 0 for _t, rob in antecedent_res):
+                return not_evaluated_for_unreachable_trigger(
+                    req,
+                    ast.unparse(antecedent_node),
+                    f"the {len(records)} decision(s) of this trace",
+                    {"records_observed": len(records), "antecedent_scores": antecedent_res},
+                )
 
         return RequirementResult(
             requirement_id=req.id,

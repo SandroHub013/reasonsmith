@@ -72,6 +72,26 @@ it reads the `spec` as written, so implication in a pack must be spelled `->` an
 the atom encodings, and the one case the ladder does not resolve (exposed logic disagreeing with the
 trace).
 
+One rule cuts across every rung and is deliberately written **outside** all of them: an implication
+whose antecedent nothing in an engine's evidence domain satisfies is *not evaluated*, `strength=None`,
+naming the antecedent and the domain. It is a fact about the **formula**, which is why seven local
+domain guards never found it and why the fix is not an eighth: `rulelang.implication_antecedent`
+names the subtree (stripping a top-level `always`, never an `eventually`) and
+`report.not_evaluated_for_unreachable_trigger` words the refusal once against the result model. Each
+rung then answers it with what it already holds — `proved` checks premises ∧ antecedent satisfiable
+(the premise check one quantifier deeper), `temporal` inherits it through the reduction, `observed`
+monitors the antecedent per position, `probed` counts the replays that reached it, and
+`certificate` counts the certified decisions that reached it in the walk that already decides the
+property against the measured count — and `probed` is
+in that list because the ladder falls to it, so guarding the proof rung alone only moves a vacuous
+`satisfied` down a rung, while `certificate` is in it for the opposite reason: the ladder gives
+`ecoa_reg_b_1002_9_b_2_principal_reasons_complete` that rung and no other, so nothing beneath it
+could catch the same empty claim. Every rung asks it on the *satisfied* path alone: a violation names a
+witness whose antecedent fired. What this cost is stated in `docs/semantics.md` §4 and must not be
+quietly undone: a creditor lawfully on the 12 CFR 1002.9(a)(2)(ii) disclosure branch is now neither
+accused nor cleared, because `not applicable` per decision is the honest verdict and the result model
+has no per-record applicability.
+
 `counterfactual` is the fourth fragment and the only **relational** one — a property of a *pair* of
 executions. `counterfactually_invariant(outcome, protected)` is its single atom, it is the whole of
 a `spec` or no part of one, and `engines/counterfactual.py` is the whole of its ladder: Z3
@@ -138,10 +158,9 @@ insufficient and decides nothing about whether any other statement is specific. 
 the regulation does not supply, and never push the judgement into the adapter as a self-declared
 `reason_is_specific` flag — `docs/semantics.md` §3 is why. That duty also carries the clause's
 trigger as an implication, which removed a false violation against a creditor lawfully on the
-(a)(2)(ii) disclosure branch and bought a stated cost: where the antecedent never holds the duty is
-`satisfied` vacuously and no report outcome distinguishes that from a trace that was checked and
-met. `docs/semantics.md` §4 records the gap; `docs/findings-nesyarena.md` shows it landing on a real
-system.
+(a)(2)(ii) disclosure branch; where that antecedent fires nowhere the duty is *not evaluated*, under
+the cross-cutting rule stated above and in `docs/semantics.md` §4.
+`docs/findings-nesyarena.md` shows those ECOA duties landing on a real system.
 
 `requires` is a conjunctive gate, so a branch of an either/or clause must not be listed in it: the
 loader (`spec._check_spec`, via `rulelang.unconditional_signal_names`) exempts a signal read only
