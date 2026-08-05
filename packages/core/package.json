@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "@types/bun": "catalog:"
   }
 }
