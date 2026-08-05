@@ -46,8 +46,8 @@ and individually removable each leave the engine's answer where it was, so both 
 `deleted` and the tool accused a system of omitting reasons its inference demonstrably used. The
 definition is Ignatiev/Narodytska/Marques-Silva's abductive explanation and its contrastive dual,
 specialised to the deletions `artifacts.InferenceArtifact` admits, resting on Reiter's minimal-
-hitting-set duality; published sources only, listed in §9. `explanations.contrastive_sets` measures
-it with the MARCO seed/shrink/grow loop, Z3 as the oracle over the subset lattice and the system's
+hitting-set duality; published sources only, registered in `docs/formal.md`'s bibliography.
+`explanations.contrastive_sets` measures it with the MARCO seed/shrink/grow loop, Z3 as the oracle over the subset lattice and the system's
 own engine as the membership oracle. Four things must not be undone: the monotonicity declaration is
 what every lemma rests on, so this is one premise with the artefact protocol and not two; `live` is
 existential and one contrastive set establishes it while `deleted` is universal and needs the
@@ -550,6 +550,22 @@ count fails the build until the prose is re-derived. Two sharp edges: the pack l
 census or the document, never from a duty reclassification; and historical claims (the first
 run's 11 requirements and 8 signals, the pre-domain-gate ECOA column of 8 satisfied / 2 violated
 / 5 unattainable) are not derivable and are verified against git history instead.
+
+`docs/formal.md` is the mathematics stated **once, in one notation**, and it is the one place the
+repository has a **bibliography**. Two things to know before editing it or adding a citation
+anywhere. A citation is a backticked pandoc key — `` `[@hajek-1998]` `` — and
+`tests/test_docs_formal.py` enforces it as a *registry*: every key used in `docs/*.md` or
+`src/reasonsmith/**/*.py` resolves to an entry, every entry is cited by a claim, and a paragraph
+naming a publication venue (`VENUE_MARKERS`) with no key **fails the build**, which is what stops
+references drifting back into docstrings the way twelve of them had into `verdict.py`. And the
+document does not replace `semantics.md`, `language.md` or `sufficient-reasons.md`: those keep
+their own operational phrasing, and the anti-drift mechanism is that **every definition the code
+also defines is generated from the code in each document that states it** — the chain from
+`Strength`, the rung table from `BASIS_RUNGS`, the fragments from `rulelang.FRAGMENTS`, the
+algebras from `manyvalued.ALGEBRAS` — so documents held to the code cannot disagree with each
+other. `sufficient-reasons.md` §9 no longer carries its own reference list; it points at the
+registry. Widening the scanned corpus is a one-line change to `SCANNED_EXCLUSIONS`; the venue-marker
+check is a heuristic and the document says so rather than being trusted further than it is.
 
 `docs/semantics.md` states what each verdict means and what it does not, and every claim in it names
 the test that fails if the claim becomes false. `tests/test_docs_semantics.py` checks that mapping,

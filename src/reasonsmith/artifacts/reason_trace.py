@@ -21,9 +21,10 @@ What this module is for:
       inference used, and no probe *of the rationale* can tell the two apart.
 
   That is the faithfulness question as the literature poses it — a self-explanation may be plausible
-  and unfaithful (A. Jacovi, Y. Goldberg, ACL 2020, 4198–4205; M. Turpin, J. Michael, E. Perez,
-  S. R. Bowman, NeurIPS 2023) — measured the way that literature measures it, by erasure
-  (J. DeYoung et al., *ERASER*, ACL 2020, 4443–4458). `docs/semantics.md` §3 is the contract.
+  and unfaithful (A. Jacovi, Y. Goldberg, ACL 2020, 4198–4205 — `[@jacovi-2020]`; M. Turpin,
+  J. Michael, E. Perez, S. R. Bowman, NeurIPS 2023 — `[@turpin-2023]`) — measured the way that
+  literature measures it, by erasure (J. DeYoung et al., *ERASER*, ACL 2020, 4443–4458 —
+  `[@deyoung-2020]`). `docs/semantics.md` §3 is the contract.
 
 What a reader must not break:
   - **`answer` re-runs the system and is never read off the trace.** A system that cannot be re-run

@@ -21,6 +21,10 @@ Where this document and the code disagree, the code is right and this document h
 one exception, §4, which records three places where the code disagrees *with itself* and says which
 side this document takes.
 
+[`formal.md`](formal.md) §2 states this document's §2 in the notation the rest of the repository's
+mathematics is written in, and carries the **bibliography** every citation here resolves to. The
+grammar, the refusals and the four divergences of §4 live here and nowhere else.
+
 ---
 
 ## 1. The grammar
@@ -306,7 +310,7 @@ Three parameters, each a decision recorded in
   strength lattice are different instantiations of this one denotation and not two denotations
   joined by a bridge theorem.
 - **`𝒫(Trace_M)`, sets of traces**, uniformly — Clarkson & Schneider's hyperproperties
-  (*Hyperproperties*, CSF 2008 / JCS 2010). This is how the counterfactual atom is typed: it is a
+  (*Hyperproperties*, CSF 2008 / JCS 2010 — `[@clarkson-2010]`). This is how the counterfactual atom is typed: it is a
   2-safety property and therefore not a property of any single execution. It is heavier than three
   quarters of the language needs, and §2.9 states the cost and the theorem that discharges it. The
   uniformity is the decision: a semantics that typed one fragment differently because it was
@@ -349,7 +353,7 @@ Two instantiations ship.
   but `graded` is read here.
 - **`[0,1]` under a declared t-norm** — `manyvalued.ALGEBRAS`: Łukasiewicz, Gödel and product, the
   three fundamental continuous t-norms from which every continuous t-norm is an ordinal sum (Hájek,
-  *Metamathematics of Fuzzy Logic*, 1998). Each stores its residuum rather than deriving one, and
+  *Metamathematics of Fuzzy Logic*, 1998 — `[@hajek-1998]`). Each stores its residuum rather than deriving one, and
   `¬` and the biresiduum are derived from it, so a member is internally consistent by construction
   (`test_each_algebra_is_a_residuated_lattice_on_the_grid`). Which one is a **declared parameter of
   the pack** (`[grading] algebra`) and never a default: a conjunction of two halves is `0` under
@@ -475,8 +479,8 @@ presented as the regulation's (`test_a_graded_comparison_the_author_wrote_is_sti
 
 For a trace σ of length `n > 0` and a position `i < n`, `⟦φ⟧^pos(σ, i) ∈ 𝔹` is the standard
 finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and
-linear dynamic logic on finite traces* (IJCAI 2013) — with the past operators read as their usual
-mirror images over the prefix.
+linear dynamic logic on finite traces* (IJCAI 2013 — `[@degiacomo-2013]`) — with the past operators
+read as their usual mirror images over the prefix.
 
 **This package implements none of it, and this document defines none of it.** The clauses are
 named, not restated, and the reason is a rule in the tree: rtamt owns the temporal semantics at the

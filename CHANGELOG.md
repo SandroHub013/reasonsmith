@@ -10,6 +10,27 @@ releases before it predate the file and are not reconstructed here.
 
 ### Added
 
+- **The mathematics is stated once, and the repository has a bibliography that the build enforces.**
+  [`docs/formal.md`](docs/formal.md) gathers what was scattered across four documents and a dozen
+  module docstrings into one notation: the objects, the denotation `⟦·⟧_{M,A}`, the sufficient-reason
+  definitions and the deletion certificate, the strength chain beside the evidence basis, the
+  residuated lattices and the three t-norms, and one soundness statement per engine. It introduces no
+  construct, engine, rung, basis or verdict, and every claim in it names the test that falsifies it.
+  It also carries the repository's first **bibliography** — 26 entries, every one of them a work the
+  tree already relied on, the densest concentration of which was inside `src/reasonsmith/verdict.py`
+  where nobody looking for references would find them. The bibliography is a **registry**, not a
+  list: a citation is a backticked pandoc key (`` `[@hajek-1998]` ``), and
+  `tests/test_docs_formal.py` fails the build when a key resolves to no entry, when an entry is
+  cited by no claim, or when a paragraph anywhere in `docs/` or `src/reasonsmith/` names a
+  publication venue and carries no key. Every existing citation site was keyed in the same change,
+  and `docs/sufficient-reasons.md` §9 — the one reference list the repository had — now points at
+  the registry instead of carrying its own. The anti-drift mechanism for the definitions is the
+  same one the other documents already use and is why a fourth document is safe: every definition
+  the code also defines is generated from the code in each document that states it, so
+  `formal.md`, `semantics.md` and `language.md` cannot disagree with each other about the chain
+  (`Strength`), the rung table (`BASIS_RUNGS`), the fragments (`rulelang.FRAGMENTS`) or the algebras
+  (`manyvalued.ALGEBRAS`). No verdict, engine, duty, pack or parser changed.
+
 - **The strength lattice gains a rung, and the inference-artefact protocol gains a second family.**
   `Strength.RECOUNTED` sits between `observed` and `probed` and is the rung a reason-adequacy verdict
   reaches when the reason set the deletion probe ran over is one the *system recounted about its own

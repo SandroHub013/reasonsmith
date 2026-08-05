@@ -8,6 +8,13 @@ exist in the suite fails the build.
 
 Where this document and the code disagree, the code is right and this document has a defect.
 
+[`formal.md`](formal.md) states the same mathematics once and in one notation — the objects, the
+denotation, the reason definitions, the two coordinates of §4 and §10, the graded readings, and one
+soundness statement per engine — and carries the repository's **bibliography**. This document keeps
+its own operational phrasing on purpose: it is written for a reader of a report and that one for a
+reader checking the mathematics. They cannot drift apart, because every definition the code also
+defines is generated from the code in both.
+
 ---
 
 ## 1. The objects
@@ -99,8 +106,8 @@ A trace is a sample of behaviour chosen by whoever produced it. Nothing in reaso
 that it is representative, complete, or unfiltered.
 
 **Verdict and strength** — `verdict.py`. A `Verdict` is one of `satisfied`, `violated`,
-`inconclusive`, `not_applicable`. A `Strength` is one of `unattainable`, `observed`, `probed`,
-`proved`, ordered strictly in that order (§4). `strength=None` is not a rung: it means no engine
+`inconclusive`, `not_applicable`. A `Strength` is one of `unattainable`, `observed`, `recounted`,
+`probed`, `proved`, ordered strictly in that order (§4). `strength=None` is not a rung: it means no engine
 here evaluated this requirement.
 
 **Result** — `report.py`, `RequirementResult`. One requirement's outcome. Its `__post_init__` is the
@@ -745,7 +752,8 @@ system of omitting two reasons its inference demonstrably used. That is unsoundn
 that matters: a false accusation, from an instrument whose purpose is to make one only on measured
 evidence. So the definition of a reason the answer depends on is now written down —
 [`sufficient-reasons.md`](sufficient-reasons.md), which specialises Ignatiev, Narodytska and
-Marques-Silva's abductive explanation and its contrastive dual to the deletions the artefact admits
+Marques-Silva's abductive explanation (`[@ignatiev-2019]`) and its contrastive dual to the
+deletions the artefact admits
 — and measured. A **contrastive set** is a subset-minimal set of facts whose *joint* deletion moves
 the engine; a fact is **relevant** iff it lies in one; a reason is `live` where a fact private to it
 is relevant, and `deleted` only where **no** fact of it is
@@ -915,12 +923,12 @@ model encoding. The probe is the same probe: every reason's private facts are sw
 and the system's own answer re-run. What differs is the reference set, and the difference is exactly
 the one the literature calls **faithfulness**: a self-explanation may be plausible and yet not
 describe the computation that produced the decision (A. Jacovi, Y. Goldberg, *Towards Faithfully
-Interpretable NLP Systems: How Should We Define and Evaluate Faithfulness?*, ACL 2020, 4198–4205;
-measured, as here, by erasure — J. DeYoung, S. Jain, N. F. Rajani, E. Lehman, C. Xiong, R. Socher,
-B. C. Wallace, *ERASER: A Benchmark to Evaluate Rationalized NLP Models*, ACL 2020, 4443–4458; and
-demonstrably failing on decoders — M. Turpin, J. Michael, E. Perez, S. R. Bowman, *Language Models
+Interpretable NLP Systems: How Should We Define and Evaluate Faithfulness?*, ACL 2020, 4198–4205 —
+`[@jacovi-2020]`; measured, as here, by erasure — J. DeYoung, S. Jain, N. F. Rajani, E. Lehman, C. Xiong, R. Socher,
+B. C. Wallace, *ERASER: A Benchmark to Evaluate Rationalized NLP Models*, ACL 2020, 4443–4458 —
+`[@deyoung-2020]`; and demonstrably failing on decoders — M. Turpin, J. Michael, E. Perez, S. R. Bowman, *Language Models
 Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting*, NeurIPS
-2023). A probe over a recounted set can show that the answer does not depend on a reason the system
+2023 — `[@turpin-2023]`). A probe over a recounted set can show that the answer does not depend on a reason the system
 recounted; it can never show that the set is all of them, which is what the `probed` rung's
 enumeration establishes and is why that rung is above this one.
 
@@ -2043,7 +2051,8 @@ passes forever.
   (`test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared`).
 
 **No three-valued verdict is computed here, and that is a decision.** The runtime-verification
-literature (Bauer, Leucker and Schallhart) distinguishes *satisfied on this finite prefix* from
+literature (Bauer, Leucker and Schallhart — `[@bauer-2011]`) distinguishes *satisfied on this
+finite prefix* from
 *satisfied on every extension of it*, and that distinction is real for this package: a decision log
 is a finite trace and §2 already says the trace is a sample. The installed procedure exposes an
 automaton and no monitor construction over it, so the distinction is **not available from the tool**
@@ -2059,8 +2068,8 @@ wearing the same words (`test_the_analysis_says_so_when_the_extra_is_absent`).
 
 ### Vacuity, defined for this evidence model
 
-Kupferman and Vardi define vacuity against model checking a transition system, and Beer et al. gave
-the subformula-replacement formulation this uses. Over a finite trace plus this repository's Z3
+Kupferman and Vardi (`[@kupferman-2003]`) define vacuity against model checking a transition
+system, and Beer et al. (`[@beer-2001]`) gave the subformula-replacement formulation this uses. Over a finite trace plus this repository's Z3
 encoding it needs its own statement, because a loose one produces false alarms and an analysis that
 cries wolf is an analysis nobody reads. The definition, restricted to the fragments this repository
 ships:
@@ -2138,16 +2147,17 @@ None of the four is invented here, and naming the sources is also how a reader c
 definitions were not bent to fit the code.
 
 - **Vacuity.** O. Kupferman and M. Y. Vardi, *Vacuity detection in temporal model checking*
-  (STTT 4(2), 2003; first at CHARME 1999) give the formulation used above — a subformula does not
+  (STTT 4(2), 2003; first at CHARME 1999 — `[@kupferman-2003]`) give the formulation used above — a subformula does not
   affect a property when replacing it changes nothing — and I. Beer, S. Ben-David, C. Eisner and
   Y. Rodeh, *Efficient detection of vacuity in temporal model checking* (Formal Methods in System
-  Design 18(2), 2001) give the single-occurrence replacement check that makes it decidable in
+  Design 18(2), 2001 — `[@beer-2001]`) give the single-occurrence replacement check that makes it decidable in
   practice. §8 restricts both to the fragments of `rulelang.py`, over a finite trace and this
   repository's Z3 encoding, because the original setting is model checking a transition system and
   a definition carried across unexamined would report vacuity where there is none.
 - **Satisfiability and subsumption of a rule set** are the oldest questions asked of a formalised
   regulation, and the framing this repository works in is T. J. M. Bench-Capon and F. P. Coenen,
-  *Isomorphism and legal knowledge based systems* (Artificial Intelligence and Law 1(1), 1992):
+  *Isomorphism and legal knowledge based systems* (Artificial Intelligence and Law 1(1), 1992 —
+  `[@benchcapon-1992]`):
   a legal knowledge base should stay *isomorphic* to its source — one rule per provision, in the
   source's own structure, so that a change in the law is a local change in the model and a lawyer
   can check one against the other. That is what `verbatim_text` and `drift.py` are for. Every
@@ -2378,10 +2388,10 @@ the same object, less deeply, is a rung. That is the test to apply to the next c
 
 | Basis | What the evidence is about | Rungs it admits | Named after |
 |---|---|---|---|
-| `behavioural` | the system's own executions, one at a time | `unattainable`, `observed`, `probed`, `proved` | a **trace property** — Alpern & Schneider, *Defining Liveness*, IPL 21(4), 1985 |
-| `relational` | a *pair* of executions | `unattainable`, `probed`, `proved` | a **2-safety property** — Terauchi & Aiken, SAS 2005; a hyperproperty rather than a trace property — Clarkson & Schneider, JCS 18(6), 2010; self-composition as the proof method — Barthe, D'Argenio & Rezk, CSFW 2004; the duty itself — Kusner, Loftus, Russell & Silva, *Counterfactual Fairness*, NeurIPS 2017 |
-| `artifact` | the inference *behind* a decision, not what was decided | `unattainable`, `recounted`, `probed` | the **abductive explanation** — Ignatiev, Narodytska & Marques-Silva, AAAI 2019 (`docs/sufficient-reasons.md` §9 for the rest); the model-precise rather than behaviour-sampled side of formal XAI — Marques-Silva & Ignatiev, AAAI 2022; and, for the `recounted` rung, the **faithfulness** of a self-reported rationale — Jacovi & Goldberg, ACL 2020; erasure as its measurement — DeYoung et al., ACL 2020; the failure it measures — Turpin, Michael, Perez & Bowman, NeurIPS 2023 |
-| `assessment` | how an open-textured predicate applies, per a named authority | `unattainable` alone | a **truth degree over a residuated lattice** — Hájek, *Metamathematics of Fuzzy Logic*, 1998; degree of truth is not degree of belief — Dubois & Prade, AMAI 32, 2001 |
+| `behavioural` | the system's own executions, one at a time | `unattainable`, `observed`, `probed`, `proved` | a **trace property** — Alpern & Schneider, *Defining Liveness*, IPL 21(4), 1985 (`[@alpern-1985]`) |
+| `relational` | a *pair* of executions | `unattainable`, `probed`, `proved` | a **2-safety property** — Terauchi & Aiken, SAS 2005 (`[@terauchi-2005]`); a hyperproperty rather than a trace property — Clarkson & Schneider, JCS 18(6), 2010 (`[@clarkson-2010]`); self-composition as the proof method — Barthe, D'Argenio & Rezk, CSFW 2004 (`[@barthe-2004]`); the duty itself — Kusner, Loftus, Russell & Silva, *Counterfactual Fairness*, NeurIPS 2017 (`[@kusner-2017]`) |
+| `artifact` | the inference *behind* a decision, not what was decided | `unattainable`, `recounted`, `probed` | the **abductive explanation** — Ignatiev, Narodytska & Marques-Silva, AAAI 2019 (`[@ignatiev-2019]`; `docs/formal.md` §3 for the rest); the model-precise rather than behaviour-sampled side of formal XAI — Marques-Silva & Ignatiev, AAAI 2022 (`[@marques-silva-2022]`); and, for the `recounted` rung, the **faithfulness** of a self-reported rationale — Jacovi & Goldberg, ACL 2020 (`[@jacovi-2020]`); erasure as its measurement — DeYoung et al., ACL 2020 (`[@deyoung-2020]`); the failure it measures — Turpin, Michael, Perez & Bowman, NeurIPS 2023 (`[@turpin-2023]`) |
+| `assessment` | how an open-textured predicate applies, per a named authority | `unattainable` alone | a **truth degree over a residuated lattice** — Hájek, *Metamathematics of Fuzzy Logic*, 1998 (`[@hajek-1998]`); degree of truth is not degree of belief — Dubois & Prade, AMAI 32, 2001 (`[@dubois-2001]`) |
 
 Every row's rung list is read off what an engine can actually reach, and the two are held together
 in both directions: no ladder may offer a rung its duty's basis refuses, and no basis may advertise

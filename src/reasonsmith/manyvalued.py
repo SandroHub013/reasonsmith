@@ -77,10 +77,10 @@ class Algebra:
     """One reading of the connectives over [0, 1]: a t-norm and the operations it determines.
 
     The three shipped members are the three fundamental continuous t-norms — Łukasiewicz, Gödel and
-    product — from which every continuous t-norm is built as an ordinal sum (Hájek, *Metamathematics
-    of Fuzzy Logic*, 1998). Each is stored with its residuum rather than deriving one, because the
-    residuum is what an implication means and a reader checking this file against a textbook should
-    find it written down.
+    product — from which every continuous t-norm is built as an ordinal sum (Hájek,
+    *Metamathematics of Fuzzy Logic*, Kluwer, 1998 — `[@hajek-1998]`). Each is stored with its
+    residuum rather than deriving one, because the residuum is what an implication means and a
+    reader checking this file against a textbook should find it written down.
 
     `disjunction` is the dual t-conorm and `negation` is the one the residuum induces
     (`residuum(x, 0)`), so a member is internally consistent by construction rather than by three
