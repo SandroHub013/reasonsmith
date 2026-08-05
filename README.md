@@ -546,7 +546,7 @@ needs a pack set whose fourth column someone other than its author has reviewed
 
 ## Roadmap
 
-[**`ROADMAP.md`**](ROADMAP.md) is the public backlog: five numbered objectives, each with the gap
+[**`ROADMAP.md`**](ROADMAP.md) is the public backlog: six numbered objectives, each with the gap
 it closes, a measurable outcome that fails today, and what it depends on — including the one that
 is deliberately blocked and why. It also lists what is deliberately *not* planned, so a proposal
 for one of those gets an answer rather than silence.
