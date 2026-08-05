@@ -54,9 +54,14 @@ README = ROOT / "README.md"
 SAMPLE_LOG_SUBSTITUTION = ("$(python -m reasonsmith.examples)", str(EXAMPLES_DIR))
 
 #: Every README command whose stdout is committed beneath it, spelled as the README spells it.
+#:
+#: The full report of the unprojected run is deliberately not here any more: it is forty lines
+#: with a paragraph-long limits block, it was the first thing a reader met, and it now lives in
+#: `docs/example-output.md` §3, where the transcripts live and where
+#: `tests/test_docs_example_output.py` re-runs it. What the README keeps are the two *projections*
+#: of that run, which are the point being made where they stand — the same run rendered for two
+#: different readers — and the decision-log run further down the page.
 TRANSCRIPTS = (
-    "reasonsmith check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa "
-    "--system-name TruncatingCreditSystem",
     "reasonsmith check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa "
     "--system-name TruncatingCreditSystem --audience regulator",
     "reasonsmith check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa "

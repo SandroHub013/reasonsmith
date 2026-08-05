@@ -260,6 +260,24 @@ releases before it predate the file and are not reconstructed here.
 
 ### Changed
 
+- **The README leads with its own result, and the result ships as two generated artefacts.**
+  `docs/build_showcase.py` writes three files from one run — a figure putting what the applicant was
+  told beside what the decision's own inference used, with the four reasons the answer did not depend
+  on struck; an animated terminal recording of two commands and the violation appearing; and
+  `docs/showcase.html`, a page carrying both above the conformance report they came from. Every
+  number on both is read off `demo.key_finding_report()`, the run
+  [`docs/build_example.py`](docs/build_example.py) already composes the committed dossier's key
+  finding from, and `tests/test_docs_showcase.py` holds all three byte-for-byte and asserts that no
+  reason label appears in the builder's own source. The cast's timings are synthesised from the row
+  index, which is what lets a terminal recording be pinned at all; it is a deliberate placeholder for
+  the interactive explorer proposed in
+  [#120](https://github.com/eduardstan/reasonsmith/pull/120). The README's first screen is now the
+  figure, the result, `pip install` plus one command and that recording. Nothing was deleted: the
+  forty-line transcript that used to sit there is [`docs/example-output.md`](docs/example-output.md)
+  §3, where the transcripts live and where the suite re-runs them, and everything else moved down the
+  page or one link away. No behaviour changed — no engine, duty, pack, verdict, rung, basis or
+  parser.
+
 - **`uncertified` was one bucket doing three jobs.** `Certificate.unseparable`,
   `.inconclusive` and `.undetermined` report apart — a reason with no fact of its own, a probe that
   carried no exact signal, and a reason the joint search left open — and `uncertified` stays their
