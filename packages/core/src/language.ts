@@ -388,8 +388,11 @@ class Parser {
     if (t.type === "name") {
       const name = t.value
       this.advance()
-      if (name === "true") return { kind: "bool", value: true }
-      if (name === "false") return { kind: "bool", value: false }
+      // `True`/`False` in the Python spelling as well as the lowercase one: a spec is written in a
+      // Python-flavoured syntax, and a pack author who typed `True` must meet the refusal for a
+      // bare Boolean constant rather than have it read as a signal named "True".
+      if (name === "true" || name === "True") return { kind: "bool", value: true }
+      if (name === "false" || name === "False") return { kind: "bool", value: false }
       if (name === "None" || name === "null") return { kind: "none" }
       if (this.isOp("(")) {
         this.advance()
@@ -412,8 +415,34 @@ class Parser {
   }
 }
 
-export function parseProperty(text: string): Expr {
+/**
+ * Parse text as an expression, and nothing more. Answers only whether this grammar could read it.
+ *
+ * `parseProperty` is the gate a requirement passes; this is the escape hatch for a caller that
+ * genuinely wants the syntax without the side conditions. There is exactly one such caller in the
+ * Python and there should not be a second here.
+ */
+export function parseExpression(text: string): Expr {
   return new Parser(tokenize(preprocessSpec(text))).parse()
+}
+
+/**
+ * Parse a requirement `spec` and refuse every construct outside this language.
+ *
+ * **The refusals are part of parsing, not a separate step a caller may forget.** `parseExpression`
+ * answers only whether the grammar could read the text; this is the gate, and it refuses prose, a
+ * `present()` given anything but a signal name, a `degree()` under a temporal operator, the
+ * relational atom anywhere but as the whole spec, and every other side condition — naming what it
+ * found. A `spec` that is prose can no longer sit in a field that means something executable.
+ *
+ * Splitting the two was a defect, not a design: the callers that reach for the AST outside the pack
+ * loader (the counterfactual atom, the open-texture atoms) would each have had to remember to
+ * validate, and one that forgot would read a shape the language refuses.
+ */
+export function parseProperty(text: string): Expr {
+  const node = parseExpression(text)
+  validateProperty(node)
+  return node
 }
 
 /** Normalise arrow spellings; for the TS parser the arrows are handled inline, so this is thin. */
@@ -655,6 +684,50 @@ export function validateProperty(node: Expr): void {
         `spec or no part of one; a spec combining it with anything else is refused`,
     )
   }
+  // `contains()` is the one atom that reads *what a statement says* rather than whether a field is
+  // blank, and it must keep agreeing across every encoding of the language. That is why the case
+  // fold is ASCII-only and one-to-one, and why a non-ASCII phrase is refused rather than folded by
+  // a rule the other encodings do not share. An empty phrase is refused because every statement
+  // contains it, so the atom would decide nothing.
+  for (const call of atomCalls(node, CONTAINS_CALL)) {
+    if (call.kind !== "call") continue
+    if (call.args.length !== 2) {
+      throw new UnsupportedConstructError(
+        `${CONTAINS_CALL}() takes a signal name and a phrase; unexpected arity`,
+      )
+    }
+    const [haystack, phrase] = call.args
+    if (haystack.kind !== "name") {
+      throw new UnsupportedConstructError(
+        `${CONTAINS_CALL}()'s first argument must be a signal name, not a computed expression`,
+      )
+    }
+    if (phrase.kind !== "string") {
+      throw new UnsupportedConstructError(
+        `${CONTAINS_CALL}()'s phrase is fixed by the pack and must be a string literal, not a name`,
+      )
+    }
+    if (!phrase.value.trim()) {
+      throw new UnsupportedConstructError(
+        `${CONTAINS_CALL}() given the empty phrase decides nothing: every statement contains it`,
+      )
+    }
+    // eslint-disable-next-line no-control-regex
+    if (/[^\x00-\x7F]/.test(phrase.value)) {
+      throw new UnsupportedConstructError(
+        `${CONTAINS_CALL}()'s phrase ${JSON.stringify(phrase.value)} is not ASCII. The case fold ` +
+          "must agree across every encoding of this language, and only the ASCII fold is " +
+          "one-to-one, so a non-ASCII phrase is refused rather than folded by a rule the other " +
+          "encodings do not share",
+      )
+    }
+  }
+
+  // The two open-texture atoms: their literals are fixed by the pack, so a computed or blank one is
+  // refused. `literalArgs` is the shared check, asked here so it runs at parse time.
+  for (const call of atomCalls(node, UNDETERMINED_CALL)) literalArgs(call, ["predicate", "authority"])
+  for (const call of atomCalls(node, DEGREE_CALL)) literalArgs(call, ["predicate"])
+
   if (hasUndeterminedAtom(node) && hasDegreeAtom(node)) {
     throw new UnsupportedConstructError(
       `a spec uses both undetermined() and degree(); a duty is one or the other`,
@@ -668,9 +741,56 @@ export function validateProperty(node: Expr): void {
       )
     }
   }
+  // A graded atom under a comparison is a *compliance threshold*, and no statute states one. Under
+  // arithmetic it is worse: a degree is a truth value on a residuated lattice, not a magnitude to
+  // add. Both are load errors rather than something to compute.
+  for (const parent of walk(node)) {
+    if (parent.kind !== "compare" && parent.kind !== "binary" && parent.kind !== "unary") continue
+    const operands =
+      parent.kind === "unary" ? [parent.operand] : [parent.left, parent.right]
+    for (const operand of operands) {
+      if (hasDegreeAtom(operand)) {
+        throw new UnsupportedConstructError(
+          "degree() under a comparison or arithmetic is a compliance threshold, and no clause " +
+            "states one; this tool does not invent a cut-off, so the shape is refused at load",
+        )
+      }
+    }
+  }
+
+  // `True` or `False` standing as a Boolean atom is a constant property: it reports every system
+  // alike and says nothing about any of them.
+  for (const parent of walk(node)) {
+    const operands =
+      parent.kind === "and" || parent.kind === "or"
+        ? parent.values
+        : parent.kind === "not"
+          ? [parent.operand]
+          : parent.kind === "call" && (VALUE_CALLS[parent.name] !== undefined || TEMPORAL_OPERATORS.includes(parent.name))
+            ? parent.args
+            : []
+    for (const operand of operands) {
+      if (operand.kind === "bool") {
+        throw new UnsupportedConstructError(
+          `${operand.value ? "True" : "False"} standing as a Boolean atom is a constant property: ` +
+            "it reports every system alike and says nothing about any of them",
+        )
+      }
+    }
+  }
+  if (node.kind === "bool") {
+    throw new UnsupportedConstructError(
+      `a spec that is the bare constant ${node.value ? "True" : "False"} is not a property of any ` +
+        "system",
+    )
+  }
+
   kindCheck(node)
-  if (kindCheckKind(node) === "number") {
-    throw new UnsupportedConstructError(`Requirement spec is not a Boolean property`)
+  const kind = kindCheckKind(node)
+  if (kind === "number" || kind === "string" || kind === "none") {
+    throw new UnsupportedConstructError(
+      `Requirement spec has type ${kind}, expected a Boolean property`,
+    )
   }
 }
 

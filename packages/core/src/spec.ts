@@ -220,8 +220,9 @@ export class Requirement {
     // Parse and classify the spec; the fragment must match exactly.
     let node: Expr
     try {
+      // `parseProperty` refuses every construct outside the language; the side conditions are part
+      // of it, so there is no second call to forget.
       node = parseProperty(this.spec)
-      validateProperty(node)
     } catch (err) {
       if (err instanceof Error && "kind" in (err as object)) {
         throw new Error(
