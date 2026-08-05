@@ -214,7 +214,7 @@ a subset, which can refute a universal claim and cannot establish one
 Write `↑` for *undefined*. Four things make a formula undefined at a point, and each is *not
 evaluated* rather than a verdict: a name the structure does not interpret; a value of the wrong sort
 for the operation asked of it; an atom no supplied evidence scores; and `undetermined(...)`, which
-is `↑` by construction at every structure and every algebra (§2.7).
+is `↑` by construction at every structure and every algebra (§2.8).
 
 Undefinedness does not simply propagate. The rule is **insensitivity**:
 
@@ -1062,9 +1062,12 @@ addition rather than a rewrite.
 - **`[@flloat]`** M. Favorito, R. Cipollone. *flloat*, a pure-Python LTLf/LDLf-to-DFA library,
   https://github.com/whitemech/flloat — the temporal decision procedure behind the
   `ltlf` extra (§2.9, §6.10). Cited as software: it publishes no paper, which is why the key
-  convention admits a second shape. Its licence is inconsistent at the source: the repository and
-  the copy the installed package ships both read GPL-3.0, while the PyPI metadata reads
-  Apache-2.0; this entry takes GPL-3.0, the licence the distributed code actually carries.
+  convention admits a second shape. Its licence is inconsistent at the source, and this entry
+  records three claims rather than one: the PyPI metadata's licence field reads Apache-2.0; the
+  LICENSE file the installed wheel ships reads GPL-3.0; and the project's own prose in that same
+  wheel's metadata — the upstream README's licence section — reads LGPLv3+. This entry adjudicates
+  none of the three: it records the conflict and does not settle which licence governs a reader's
+  use of the dependency.
 
 ### Explanation, and the reasons behind a decision
 

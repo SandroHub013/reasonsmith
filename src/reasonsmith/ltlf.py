@@ -11,8 +11,9 @@ What this module is for:
   This module answers those questions for the whole fragment by handing the formula to a published
   LTLf decision procedure. It is **a syntax mapping and an emptiness question, and nothing else** —
   the same discipline `engines/observed.to_stl` observes for rtamt. `flloat` (Favorito &
-  Cipollone; the repository and the licence the package ships say GPL-3.0, the PyPI metadata
-  Apache-2.0, a conflict `[@flloat]` records) compiles an LTLf formula to a DFA over its
+  Cipollone; the PyPI metadata's licence field says Apache-2.0, the licence file the package
+  ships says GPL-3.0, and the project's own prose in that metadata says LGPLv3+, a conflict
+  `[@flloat]` records) compiles an LTLf formula to a DFA over its
   propositional atoms; a formula is
   satisfiable exactly when that automaton's language is non-empty (`[@flloat]`, over the
   finite-trace semantics of `[@degiacomo-2013]`), entailment is

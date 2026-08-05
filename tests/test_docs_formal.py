@@ -185,6 +185,27 @@ def test_the_formal_doc_states_the_chain_the_code_defines():
     )
 
 
+def test_the_authoring_docs_state_the_chain_the_code_defines():
+    """The authoring documents' parenthetical enumerations of `Strength` members are
+    generated from `sorted(Strength)`, so a rung added later cannot leave them behind.
+
+    `recounted` once went missing from the `max_strength` field's parenthetical in
+    `docs/authoring-engines.md`, and nothing in this generated-from-code family read the
+    authoring documents at all.
+    """
+    chain = ", ".join(s.value for s in sorted(Strength))
+    members = {s.value for s in Strength}
+    for doc in (DOCS_DIR / "authoring-engines.md", DOCS_DIR / "authoring-packs.md"):
+        for parenthetical in re.findall(r"\(([^()]*)\)", doc.read_text(encoding="utf-8")):
+            names = [re.sub(r"[`\s]", "", n) for n in parenthetical.split(",")]
+            names = [n for n in names if n]
+            if len(names) > 1 and set(names) <= members:
+                assert ", ".join(names) == chain, (
+                    f"{doc.name} enumerates Strength members ({', '.join(names)}) but "
+                    f"the lattice is {chain}"
+                )
+
+
 def test_the_formal_doc_states_the_requirement_field_count_the_code_defines():
     """§1.4's count sentence is generated from `Requirement`, not written from memory.
 

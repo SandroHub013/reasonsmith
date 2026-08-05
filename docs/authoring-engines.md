@@ -34,8 +34,8 @@ class PrologEngine:
         ...
 ```
 
-- **`max_strength`** — a member of the strength lattice (`unattainable`, `observed`, `probed`,
-  `proved`), naming the strongest evidence this engine can produce. It is both the rung the engine
+- **`max_strength`** — a member of the strength lattice (`unattainable`, `observed`, `recounted`,
+  `probed`, `proved`), naming the strongest evidence this engine can produce. It is both the rung the engine
   occupies on the ladder and the ceiling on what it may report.
 - **`evaluate(req, sut, records)`** — the same signature the built-in engines have
   (`src/reasonsmith/engines/record.py` is the shortest one to read). `records` is the system's
@@ -70,10 +70,11 @@ in the evidence summary, and the built-in ladder answers the duty as though the 
 installed.
 
 **A plug-in cannot take a built-in's name.** An entry point named `record`, `observed`, `probed`,
-`proved`, `certificate` or `temporal` is refused with a warning and the built-in stands. It is not
+`proved`, `certificate`, `temporal` or `counterfactual` is refused with a warning and the built-in
+stands. It is not
 namespaced into `mypackage.proved` either, because namespacing would leave the shadowing engine
 running under a decorated name — the same engine answering the same duty, with only the collision
-hidden. These six names are what this repository's tests are about, and an installed package that
+hidden. These seven names are what this repository's tests are about, and an installed package that
 could rebind one would change what a published verdict means while every test here still passed.
 
 **There is no time limit.** reasonsmith does not bound how long your `evaluate` runs: a plug-in
