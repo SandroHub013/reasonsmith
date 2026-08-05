@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@reasonsmith/engines",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Reasonsmith engines: the observed (temporal record), probed (perturb-and-replay), proved (rule logic) and certificate (artifact reason-fidelity) rungs.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src/**/*.test.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./ladder": "./src/ladder.ts",
+    "./observed": "./src/observed.ts",
+    "./probed": "./src/probed.ts",
+    "./proved": "./src/proved.ts",
+    "./certificate": "./src/certificate.ts"
+  },
+  "dependencies": {
+    "@reasonsmith/core": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}
