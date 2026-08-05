@@ -200,6 +200,9 @@ def test_the_readme_opens_with_both_artefacts():
     readme = README.read_text(encoding="utf-8")
 
     for path in (build_showcase.SHOWCASE_FIGURE, build_showcase.SHOWCASE_CAST):
-        reference = str(path.relative_to(REPO_ROOT))
+        # `as_posix()` and never `str()`: a markdown reference is forward-slashed on every
+        # platform, and `str()` on a Windows `Path` is backslashed, so this assertion held the
+        # README to a path no markdown file can carry and failed the whole Windows matrix.
+        reference = path.relative_to(REPO_ROOT).as_posix()
         assert reference in readme, f"README.md no longer embeds {reference}"
     assert "docs/build_showcase.py" in readme
