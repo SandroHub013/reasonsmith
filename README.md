@@ -212,9 +212,12 @@ with — is in [`docs/semantics.md`](docs/semantics.md) §7.
 `--audience` projects the text and HTML renderings only. `--json` stays the complete machine
 record, so a pipeline never loses fields to a display flag — and so `--audience
 affected-individual --json` is not a redaction. Redaction is a security property; this is a
-presentation one. The decision accounts the lay view quotes are the one thing not in it, for the
-opposite reason: the JSON is the findings record, and what the system logged is an input the run
-read rather than a finding it made.
+presentation one. The record does not silently omit what a projection hides: its `audience`
+block *names* the projection it was asked for (`null` when none was), carrying every field of
+that projection alongside the full record, so a consumer can tell the record it was given from
+the display flag it was built under. The decision accounts the lay view quotes are the one thing
+not in it, for the opposite reason: the JSON is the findings record, and what the system logged
+is an input the run read rather than a finding it made.
 
 ## Any model in: one duty, three systems, three rungs
 
@@ -447,8 +450,10 @@ Table 7 is transcribed verbatim into `src/reasonsmith/table7.toml`. That file is
 
   `check` exits 2 when a requirement is violated, 1 on a usage or input error, and 0 otherwise. Unattainable, not applicable and not evaluated are findings to read in the report, not breaches, so none of them changes the exit code. Reports render to plain text, structured JSON (`--json`), or a self-contained offline HTML report (`--html FILE`). By default the CLI reads capabilities from the supplied log, and a result resting on that says so rather than speaking for the system; pass `--capabilities /path/to/capabilities.txt` to instead have the system's maintainers declare what it can emit. The file has one signal name per line; blank lines and whole-line comments whose first nonblank character is `#` are ignored. The report then says the capabilities were declared. An empty declaration file declares nothing, which is a distinct claim from having no declaration at all, and a malformed line is refused naming the file and the line. `--audience {developer,deployer,auditor,regulator,affected-individual}` projects the text and HTML
 renderings for one reader, changing what is shown and never what is claimed; omitted, the full
-report is printed. `--json` is deliberately not projected, and its envelope carries a
-`schema_version` integer — `1` today — so a consumer can tell one release's shape from another's.
+report is printed. `--json` is not projected and never loses a field to a display flag; its
+envelope *names* the projection it was asked for in an `audience` block (`null` when none was),
+beside the full record, and carries a `schema_version` integer — `2` today — so a consumer can
+tell one release's shape from another's.
 It is not the package version: it increments when a key is removed, renamed, or changes type or
 meaning, and stays put when a key is merely added, so a parser reading the keys it knows is never
 broken by a version it has not seen. `validate-pack` validates one or more

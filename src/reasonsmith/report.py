@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import Any, cast
 
 from reasonsmith.artifacts import RECOUNTED_REASONS
@@ -1082,7 +1082,7 @@ class ConformanceReport:
         )
 
 
-    def to_dict(self) -> dict:
+    def to_dict(self, audience: str | None = None) -> dict:
         return {
             "schema_version": JSON_SCHEMA_VERSION,
             "system_name": self.system_name,
@@ -1094,11 +1094,45 @@ class ConformanceReport:
             "results": [r.to_dict() for r in self.results],
             "limits": self.limits,
             "time_domain": self.time_domain,
+            "audience": _audience_block(audience),
         }
 
-    def to_json(self, indent: int | None = None) -> str:
-        """JSON representation following house pattern."""
-        return json.dumps(self.to_dict(), indent=indent, default=str)
+    def to_json(self, indent: int | None = None, audience: str | None = None) -> str:
+        """JSON representation following house pattern.
+
+        `audience` travels onto the record as a declaration of the projection it was asked for,
+        never as a filter: the complete machine record is emitted regardless, and the envelope's
+        `audience` block names the projection (or `null` when none was asked for) beside every
+        field it would have filtered. A consumer can therefore tell the record it was given from
+        the projection the caller requested, and nothing is hidden from a machine consumer by a
+        display flag.
+        """
+        return json.dumps(self.to_dict(audience=audience), indent=indent, default=str)
+
+
+def _audience_block(audience: str | None) -> dict[str, Any]:
+    """The `audience` block of the machine record: the projection asked for, declared not applied.
+
+    `--json` is the complete machine record and no projection filters it, but a record must be
+    able to say *which* projection it was asked for — otherwise a consumer cannot tell `absent
+    because the audience is not shown it` from `absent because the run never established it`. The
+    block carries the name (`null` when no audience was given, matching the text renderer's
+    `audience=None` full report) and every flag of the resolved `AudienceProjection`.
+
+    The flags are derived, one field per `AudienceProjection` dataclass field, by iterating
+    `dataclasses.fields` — never by hand-listing the names. A hand-written list is a second copy
+    of the authored `AUDIENCES` table, and it would drift the first time a flag is added; this
+    derivation makes the block a projection of the projection, with no second copy to keep in
+    step. The unknown-audience refusal is the renderer's own `_projection` refusal, so the JSON
+    path and the text path reject the same name with the same words.
+    """
+    from reasonsmith.render import AudienceProjection, _projection
+
+    projection = _projection(audience)
+    return {
+        "name": audience,
+        **{f.name: getattr(projection, f.name) for f in fields(AudienceProjection)},
+    }
 
 
 def evidence_basis(req: Requirement) -> EvidenceBasis:

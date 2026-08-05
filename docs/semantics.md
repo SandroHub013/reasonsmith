@@ -1934,16 +1934,21 @@ the reader would like:
   (`test_the_lay_page_does_not_let_the_disclaimer_dominate`). The text rendering keeps them last
   and whole, where they are still the longest single block — the console has no fold, and
   shortening them is not on offer.
-- **`--json` is not projected.** It stays the complete machine record, so a pipeline parsing it
-  never loses fields to a display flag — and so `--audience affected-individual --json` is not a
-  redaction. Redaction is a security property; this is a presentation one, and the two must not
-  be confused. `ConformanceReport.decisions` is not in it either, for the opposite reason: the
-  JSON is the findings record, and the decisions are an input the run read, not a finding it
-  made. The envelope carries its own shape version, `schema_version`, so a consumer can tell one
-  release's shape from another's without inferring it from the package version. It increments
-  when a key is removed, renamed, or changes type or meaning, and not when one is added;
-  `test_version_2_is_this_shape` pins the key set at each level to the current number, so a
-  shape change made without moving it fails the suite.
+- **`--json` is not projected, and it says which projection it was asked for.** It stays the
+  complete machine record, so a pipeline parsing it never loses fields to a display flag — and
+  so `--audience affected-individual --json` is not a redaction. Redaction is a security
+  property; this is a presentation one, and the two must not be confused. The record does not
+  silently omit what a projection hides: its top-level `audience` block *names* the projection
+  it was asked for (`null` when none was), carrying every field of that resolved
+  `AudienceProjection` beside the full record, so a machine consumer can tell the record it was
+  given from the display flag it was built under
+  (`test_every_audience_leaves_results_byte_identical`). `ConformanceReport.decisions` is not
+  in it either, for the opposite reason: the JSON is the findings record, and the decisions are
+  an input the run read, not a finding it made. The envelope carries its own shape version,
+  `schema_version`, so a consumer can tell one release's shape from another's without inferring
+  it from the package version. It increments when a key is removed, renamed, or changes type or
+  meaning, and not when one is added; `test_version_2_is_this_shape` pins the key set at each
+  level to the current number, so a shape change made without moving it fails the suite.
 
 ---
 

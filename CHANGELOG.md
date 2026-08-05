@@ -10,6 +10,23 @@ releases before it predate the file and are not reconstructed here.
 
 ### Added
 
+- **The `--json` envelope declares the projection it was asked for, and never applies one.**
+  `--audience <reader> --json` still emits the complete machine record with every field — a
+  display flag hides nothing from a consumer — but the envelope now carries a top-level
+  `audience` block naming the requested audience and every flag of its resolved
+  `AudienceProjection`, exactly the way the text renderer already names a projection with
+  `audience=None`. `--audience` omitted emits `name: null` with the full projection; an unknown
+  name fails through the renderer's own `_projection` refusal, not a new error path. The flags
+  are derived from `dataclasses.fields(AudienceProjection)` — one field per dataclass field,
+  never a hand-listed second copy of the authored `AUDIENCES` table that would drift when a flag
+  is added. `results` stay byte-identical across every audience (the property that makes the
+  declaration safe), it is additive only, so `JSON_SCHEMA_VERSION` stays at 2 unchanged (the
+  decision was made in `tests/test_json_schema_version.py` rather than skipped, and
+  `tests/test_json_audience.py` pins the block field-by-field against the dataclass rather than
+  against literals). Nothing is filtered from the JSON for any audience; no verdict, rung,
+  basis, engine, duty, pack or parser behaviour changes; no byte-pinned document moved — none
+  of them embeds the `audience` block.
+
 - **The `--json` machine record is complete: every result carries its `verbatim_text` and the
   deletion certificate's reason identities.** Two keys added, purely additive, so
   `JSON_SCHEMA_VERSION` stays at 2 unchanged (addition is not a shape change; the decision was

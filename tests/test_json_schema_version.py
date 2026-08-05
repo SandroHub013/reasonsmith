@@ -42,6 +42,12 @@ _TOP_LEVEL_KEYS = {
     "results",
     "limits",
     "time_domain",
+    # Added, not renamed or retyped, so the convention says this is not a version bump — the
+    # decision was made here rather than skipped. `audience` is the projection the record was
+    # asked for, declared rather than applied: it carries the resolved `AudienceProjection`
+    # flags beside the name (`null` when none was asked for), and no field is ever filtered
+    # from the JSON for any audience. A consumer reading the keys it knows is unaffected.
+    "audience",
 }
 
 #: Every key `RequirementResult.to_dict()` emits, at version 2. The results list is part of the
