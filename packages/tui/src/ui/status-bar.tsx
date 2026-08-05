@@ -3,7 +3,7 @@
  */
 
 import { For, Show } from "solid-js"
-import { CATEGORY_LABELS } from "@reasonsmith/core"
+import { CATEGORY_LABELS } from "../types/audiences.ts"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
@@ -109,19 +109,29 @@ export function StatusBar() {
 }
 
 function matchesCategory(
-  result: { verdict: string; strength: string | null; evaluated: boolean; basis: string },
+  result: { verdict: string; strength: string | null; basis: string },
   key: string,
 ): boolean {
   if (key === "violated") return result.verdict === "violated"
   if (key === "not_applicable") return result.verdict === "not_applicable"
   if (key === "unattainable") return result.strength === "unattainable"
   if (key === "not_evaluated")
-    return !result.evaluated && result.verdict !== "not_applicable" && result.basis !== "assessment"
+    return (
+      result.strength === null &&
+      result.verdict !== "not_applicable" &&
+      result.basis !== "assessment"
+    )
   if (key === "on_an_assessment")
-    return !result.evaluated && result.verdict !== "not_applicable" && result.basis === "assessment"
+    return (
+      result.strength === null &&
+      result.verdict !== "not_applicable" &&
+      result.basis === "assessment"
+    )
   if (key === "inconclusive")
     return (
-      result.verdict === "inconclusive" && result.evaluated && result.strength !== "unattainable"
+      result.verdict === "inconclusive" &&
+      result.strength !== null &&
+      result.strength !== "unattainable"
     )
   if (key === "proved" || key === "probed" || key === "recounted" || key === "observed")
     return result.verdict === "satisfied" && result.strength === key

@@ -2,7 +2,7 @@
  * The top bar — the masthead, in nikcli's tab-bar shape.
  *
  * Two rows in a single dark band:
- *   1. The brand mark + a row of tabs (Findings, Packs, Systems, Limits, Settings) — each tab is a
+ *   1. The brand mark + a row of tabs (Findings, Limits, Settings) — each tab is a
  *      `div` with `onMouseOver`/`onMouseUp` so the reader can browse the surface with the mouse.
  *   2. The breadcrumb: the system name + pack id + the active audience + a hairline.
  *
@@ -21,12 +21,10 @@ import { useKeybind } from "../context/keybind.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { wrap } from "../theme.ts"
 import { Clickable } from "./clickable.tsx"
+import { undeclaredDomainNotice } from "../types/schema.ts"
 
 const TABS = [
   { type: "findings", label: "Findings" },
-  { type: "detail", label: "Detail" },
-  { type: "packs", label: "Packs" },
-  { type: "systems", label: "Systems" },
   { type: "limits", label: "Limits" },
   { type: "settings", label: "Settings" },
 ] as const
@@ -36,7 +34,7 @@ export function ReportHeader() {
   const route = useRoute()
   const report = useReport()
   const keybind = useKeybind()
-  const notice = () => report.report.undeclaredDomainNotice
+  const notice = () => undeclaredDomainNotice(report.report)
   const [hovered, setHovered] = createSignal<string | null>(null)
 
   return (

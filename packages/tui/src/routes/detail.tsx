@@ -1,7 +1,7 @@
 /**
  * The detail route: one result, as much of it as this audience is shown.
  *
- * Every block is gated by a flag from `PROJECTIONS[audience]` in `@reasonsmith/core`, and **the
+ * Every block is gated by a flag from `PROJECTIONS[audience]` in `types/audiences.ts`, and **the
  * gating here mirrors `render.renderResult`'s, flag for flag**. That is the point of the module:
  * the projection changes what is shown and never what is claimed, so a reader who runs
  * `reasonsmith check --audience deployer` and a reader who presses `a` until the footer says
@@ -19,8 +19,8 @@
  *     missing capability says the system cannot emit a signal at all; a signal absent from the trace
  *     says this log did not. The deployer sees the first and not the second, which is the whole
  *     reason they are separate rows.
- *   - **`basisSentence` is core's and is not reworded here.** It is the one place any rendering words
- *     a basis, so a ceiling reads as the *duty's* rather than as an exposure the system withheld.
+ *   - **`basisSentence` is the only place any rendering words a basis**, so a ceiling reads as the
+ *     *duty's* rather than as an exposure the system withheld.
  *   - **The certificate block is where the finding lives.** `missing_reasons` names the reasons the
  *     decision's own inference used and its notice did not state — measured against the inference
  *     artefact, never read from the log. It is the sharpest thing this tool produces, so it is
@@ -32,12 +32,16 @@ import { For, Show } from "solid-js"
 import { SyntaxStyle } from "@opentui/core"
 import {
   CERTIFICATES_KEY,
+  COUNTEREXAMPLE_KEY,
+  OFFENDING_TRACE_SEGMENT_KEY,
   PROBE_BUDGET_KEY,
-  type RequirementResult,
+  SIGNALS_ABSENT_FROM_TRACE_KEY,
   TRUTH_DEGREE_KEY,
   VACUOUS_TRIGGER_KEY,
-  basisSentence,
-} from "@reasonsmith/core"
+  VIOLATION_STEP_INDICES_KEY,
+} from "../types/detail-keys.ts"
+import type { RequirementResult } from "../types/schema.ts"
+import { basisSentence } from "../types/render.ts"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
@@ -121,7 +125,7 @@ function Body(props: { result: RequirementResult }) {
       .join(" · ")
 
   const absentFromTrace = () => {
-    const absent = props.result.details.signals_absent_from_trace
+    const absent = props.result.details[SIGNALS_ABSENT_FROM_TRACE_KEY]
     return Array.isArray(absent) ? absent.map(String) : []
   }
 
@@ -252,7 +256,7 @@ function MarkdownField(props: { label: string; text: string }) {
 function Witnesses(props: { result: RequirementResult }) {
   const t = useTheme()
   const segment = () => {
-    const raw = props.result.details.offending_trace_segment
+    const raw = props.result.details[OFFENDING_TRACE_SEGMENT_KEY]
     return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
   }
   const offending = () => {
@@ -260,12 +264,12 @@ function Witnesses(props: { result: RequirementResult }) {
     if (first === undefined) return null
     const id = first.decision_id ?? first.artifact_logs_decision_record
     if (typeof id === "string" && id.trim()) return id.trim()
-    const indices = props.result.details.violation_step_indices
+    const indices = props.result.details[VIOLATION_STEP_INDICES_KEY]
     if (Array.isArray(indices) && indices.length > 0) return `decision #${String(indices[0])}`
     return "decision #0"
   }
   const counterexample = () => {
-    const raw = props.result.details.counterexample
+    const raw = props.result.details[COUNTEREXAMPLE_KEY]
     return raw && typeof raw === "object" ? JSON.stringify(raw) : null
   }
 
@@ -473,41 +477,30 @@ function LayAccount() {
 
   return (
     <box flexDirection="column" marginTop={1}>
+      {/*
+        The Python JSON does not carry the per-decision account — `ConformanceReport.decisions` is
+        deliberately absent from `to_dict()` to keep the JSON a *findings* record, not a
+        re-publication of the source log. The TUI therefore prints the same wording the affected-
+        individual text rendering prints when it has no log to quote, and the lay view is honest
+        about that. The reasons section below *is* reachable from the JSON, because the certificate
+        engine's measurement of which reasons were struck travels in `details["certificates"]`.
+      */}
       <text
         fg={t.color.text}
         attributes={t.attr.bold}
         wrapMode="none"
         content="WHAT THE SYSTEM RECORDED ABOUT THE DECISIONS"
       />
-      <Show
-        when={report.report.decisions.length > 0}
-        fallback={
-          <For
-            each={wrap(
-              "This run read no decision log, so there is nothing here to quote. That is not a " +
-                "finding that the decisions were sound; it is this report having seen none of them.",
-              WIDTH,
-            )}
-          >
-            {(line) => <text fg={t.color.textMuted} wrapMode="none" content={line} />}
-          </For>
-        }
+      <For
+        each={wrap(
+          "This tool's JSON record does not carry the source log; it carries the findings of " +
+            "the run that read it. The same wording appears in `reasonsmith check --audience " +
+            "affected-individual`, where the source log is in hand and is quoted in full.",
+          WIDTH,
+        )}
       >
-        <For each={report.report.decisions}>
-          {(account) => (
-            <box flexDirection="column" marginTop={1}>
-              <Show when={account.decision}>
-                <text fg={t.color.text} wrapMode="none" content={`Decision: ${account.decision}`} />
-              </Show>
-              <Show when={account.reason}>
-                <For each={wrap(`Reason given: ${account.reason}`, WIDTH)}>
-                  {(line) => <text fg={t.color.text} wrapMode="none" content={line} />}
-                </For>
-              </Show>
-            </box>
-          )}
-        </For>
-      </Show>
+        {(line) => <text fg={t.color.textMuted} wrapMode="none" content={line} />}
+      </For>
 
       {/*
         Printed whatever the answer — including when nothing measured it. Silence under this heading

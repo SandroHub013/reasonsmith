@@ -4,7 +4,7 @@
 
 import { For, Show, createMemo } from "solid-js"
 import { TextAttributes } from "@opentui/core"
-import type { Audience } from "@reasonsmith/core"
+import type { Audience } from "../types/audiences.ts"
 import { useDialog } from "./dialog.tsx"
 import { useKeybind } from "../context/keybind.tsx"
 import { useReport } from "../context/report.tsx"
@@ -52,7 +52,7 @@ export function DialogHelp() {
             )}
           </For>
           <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="Leader (ctrl+x)" />
-          <text fg={t.color.textMuted} wrapMode="none" content="h help · t theme · a audience · l limits · p packs · s systems · q quit" />
+          <text fg={t.color.textMuted} wrapMode="none" content="h help · t theme · a audience · l limits · q quit" />
         </box>
 
         <box flexDirection="column" gap={1} flexGrow={1}>

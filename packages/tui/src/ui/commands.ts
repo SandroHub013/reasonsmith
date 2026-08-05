@@ -2,7 +2,7 @@
  * Command registry — every action the command palette and leader key can dispatch.
  */
 
-import type { Audience } from "@reasonsmith/core"
+import type { Audience } from "../types/audiences.ts"
 import { AUDIENCE_LABELS } from "./audiences.ts"
 import type { PaletteId } from "../theme/palettes.ts"
 import { PALETTE_IDS, getPalette } from "../theme/palettes.ts"
@@ -19,7 +19,7 @@ export interface Command {
 }
 
 export interface CommandContext {
-  navigate: (route: "findings" | "detail" | "limits" | "packs" | "systems" | "settings") => void
+  navigate: (route: "findings" | "detail" | "limits" | "settings") => void
   cycleAudience: () => void
   setAudience: (audience: Audience) => void
   cyclePalette: () => void
@@ -36,8 +36,6 @@ const ROUTES = [
   { id: "go-findings", route: "findings" as const, label: "Go to Findings", keys: "esc" },
   { id: "go-detail", route: "detail" as const, label: "Go to Detail", keys: "enter" },
   { id: "go-limits", route: "limits" as const, label: "Go to Limits", keys: "L" },
-  { id: "go-packs", route: "packs" as const, label: "Go to Packs", keys: "p" },
-  { id: "go-systems", route: "systems" as const, label: "Go to Systems", keys: "s" },
   { id: "go-settings", route: "settings" as const, label: "Go to Settings", keys: "ctrl+x , settings" },
 ]
 
@@ -138,7 +136,7 @@ export function buildCommands(ctx: CommandContext): readonly Command[] {
 
 export function runCommand(id: string, ctx: CommandContext): boolean {
   if (id.startsWith("go-")) {
-    const route = id.slice(3) as "findings" | "detail" | "limits" | "packs" | "systems" | "settings"
+    const route = id.slice(3) as "findings" | "detail" | "limits" | "settings"
     ctx.navigate(route)
     return true
   }

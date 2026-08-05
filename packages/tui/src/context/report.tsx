@@ -9,25 +9,24 @@
  *
  * What a reader must not break:
  *
- *   - **`AUDIENCES` and `PROJECTIONS` come from `@reasonsmith/core` and are never re-declared here.**
- *     A second copy of that table in the TUI is a second place for the lay projection's rules to
- *     drift out of step with the text renderer's, and the flags are load-bearing: `strength: false`
- *     on `affected-individual` is what withholds both the rung and the evidence basis from the
- *     reader who is least able to interpret either.
- *   - **The selected index is clamped, never wrapped past the ends by accident.** `selectNext` at the
- *     last row stays on the last row rather than silently returning to the top, so a reader scanning
- *     downward can tell they have reached the end of the findings.
+ *   - **`AUDIENCES` and `PROJECTIONS` are declared in `types/audiences.ts` and are never
+ *     re-declared here.** A second copy of that table in the TUI would be a second place for the
+ *     lay projection's rules to drift out of step with the text renderer's, and the flags are
+ *     load-bearing: `strength: false` on `affected-individual` is what withholds both the rung and
+ *     the evidence basis from the reader who is least able to interpret either.
+ *   - **The selected index is clamped, never wrapped past the ends by accident.** `selectNext` at
+ *     the last row stays on the last row rather than silently returning to the top, so a reader
+ *     scanning downward can tell they have reached the end of the findings.
  */
 
 import { createMemo, createSignal } from "solid-js"
 import {
   AUDIENCES,
+  PROJECTIONS,
   type Audience,
   type AudienceProjection,
-  type ConformanceReport,
-  PROJECTIONS,
-  type RequirementResult,
-} from "@reasonsmith/core"
+} from "../types/audiences.ts"
+import type { ConformanceReport, RequirementResult } from "../types/schema.ts"
 import { createSimpleContext } from "./helper.tsx"
 
 export const { use: useReport, provider: ReportProvider } = createSimpleContext({
@@ -51,7 +50,7 @@ export const { use: useReport, provider: ReportProvider } = createSimpleContext(
       report,
       results,
       audience,
-      /** The projection flags for the current audience. Read from core; never re-derived here. */
+      /** The projection flags for the current audience. Read from types; never re-derived here. */
       view,
       selected,
       current: (): RequirementResult | null => results()[selected()] ?? null,

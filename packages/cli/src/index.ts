@@ -1,85 +1,84 @@
 /**
- * The `reasonsmith` front door.
+ * The `reasonsmith` TypeScript CLI — a thin launcher for the OpenTUI renderer.
  *
- * Wired like nikcli's: yargs over `hideBin(process.argv)`, one module per command under
- * `src/cli/cmd/`, `.strict()` so an unknown flag is a usage error rather than a silently ignored
- * one, and a `.fail()` handler that keeps every usage failure on exit code 1.
+ * The TypeScript CLI's job is **only to start the TUI**. The conformance run, every verdict, every
+ * strength and basis, every evidence summary is the Python `reasonsmith` package's work
+ * (`src/reasonsmith/`); this launcher hands arguments through to the TUI binary, which spawns the
+ * Python subprocess and parses its JSON.
+ *
+ * Why the TUI gets its own binary: `bun build --compile` produces a single executable that embeds
+ * the Bun runtime and the OpenTUI native libraries (`bun:ffi`, `.so`/`.dylib`/`.dll`), and `--target`
+ * cross-compiles. So an auditor downloads one file per platform — no Bun, no Node, no
+ * `--experimental-ffi` — and the launcher's whole job is to start it.
  *
  * What a reader must not break:
- *   - **The exit code contract, which lives in `cli/run.ts` and is stated in `check --help`:
- *     2 when at least one requirement is VIOLATED, 1 on a usage or input error, 0 otherwise.**
- *     Automation relies on 2 to distinguish a breach from a clean run and from a syntax error. This
- *     file's job is to make sure nothing on the error path can turn a breach into a 1 or a syntax
- *     error into a 2.
- *   - Only a violation is a breach, so only a violation is non-zero. Unattainable, not applicable
- *     and not evaluated are findings to read in the report, not verdicts against the system, and
- *     none of them fails the caller's build.
- *   - `process.exitCode` rather than `process.exit()` on the ordinary paths, so buffered stdout is
- *     flushed before the process leaves. A `serve` run never reaches the end of `parse()` at all —
- *     it is handed to the Effect runtime and stays there.
- *   - Nothing here imports an engine or a system. The command modules do, so `--help` costs nothing
- *     and one command's dependencies are not every command's.
+ *
+ *   - **No command other than `tui` ships from the TypeScript CLI.** The Python CLI carries the
+ *     authoritative command surface (`check`, `validate-pack`, `list-packs`, `serve`). Duplicating
+ *     any of those here would be a second copy of a thing the Python owns; the TUI consumes the
+ *     Python's JSON and that is the whole contract.
+ *   - **The launcher is one function, `main()`.** yargs is the wrong shape for a single-command
+ *     surface, and the argument grammar is the TUI's, not this file's. `--help` is the only flag
+ *     the launcher parses; everything else is forwarded verbatim.
+ *   - **The exit code is the TUI's.** A `2` means a violated requirement; `0` means the run
+ *     finished without a violation; `1` means the TUI could not start. None of this code reports
+ *     a finding as an error — only a violation is one.
  */
 
-import yargs from "yargs"
-import { hideBin } from "yargs/helpers"
+import { spawn } from "bun"
+import { fileURLToPath } from "node:url"
+import { dirname, resolve } from "node:path"
 
-import { CheckCommand } from "./cli/cmd/check.ts"
-import { ListPacksCommand } from "./cli/cmd/list-packs.ts"
-import { ServeCommand } from "./cli/cmd/serve.ts"
-import { TuiCommand } from "./cli/cmd/tui.ts"
-import { ValidatePackCommand } from "./cli/cmd/validate-pack.ts"
-import { UsageError } from "./cli/system.ts"
+const HERE = dirname(fileURLToPath(import.meta.url))
 
-const VERSION = "0.1.0"
-
-const cli = yargs(hideBin(process.argv))
-  .parserConfiguration({ "populate--": true })
-  .scriptName("reasonsmith")
-  .wrap(100)
-  .help("help", "show help")
-  .alias("help", "h")
-  .version("version", "show version number", VERSION)
-  .alias("version", "v")
-  .usage(
-    "\nreasonsmith — assess a system against a regulation pack, and report what the evidence\n" +
-      "actually supports. A verdict carries the strength of the evidence behind it, and a result\n" +
-      "that claims more than it has is refused rather than rendered.\n",
-  )
-  .command(CheckCommand)
-  .command(ListPacksCommand)
-  .command(ValidatePackCommand)
-  .command(ServeCommand)
-  .command(TuiCommand)
-  .demandCommand(1, "no command given — try `reasonsmith check --help`")
-  .epilogue(
-    "This is not a compliance guarantee and is not legal advice. A requirement reported without\n" +
-      "a strength was not evaluated or is not applicable, and no verdict on it should be read\n" +
-      "from a report.",
-  )
-  .fail((message, error) => {
-    // A usage failure is exit 1, always. Only a violated requirement reaches exit 2, and it does
-    // that from the check handler and never from here.
-    if (error) throw error
-    if (message) {
-      process.stderr.write(`${message}\n\n`)
-      cli.showHelp("error")
-    }
-    process.exit(1)
-  })
-  .strict()
-
-try {
-  await cli.parse()
-} catch (error) {
-  // A usage error is the caller's mistake and is reported as one sentence; anything else is this
-  // tool's and gets its stack, because a stranger cannot act on a bare message.
-  if (error instanceof UsageError) {
-    process.stderr.write(`reasonsmith: ${error.message}\n`)
-  } else {
-    process.stderr.write(
-      `${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
-    )
+/**
+ * The compiled TUI binary lives next to this file when the CLI is shipped. `bin/reasonsmith-tui`
+ * is the entry the monorepo's `bun build --compile` produces; in a source checkout the launcher
+ * falls back to `bun run` against the TUI package's source.
+ */
+function findTuiCommand(): { cmd: readonly string[] } {
+  const compiled = resolve(HERE, "..", "bin", "reasonsmith-tui")
+  if (Bun.file(compiled).size > 0) {
+    return { cmd: [compiled] }
   }
-  process.exitCode = 1
+  return { cmd: ["bun", "run", resolve(HERE, "..", "..", "tui", "src", "index.tsx")] }
+}
+
+const HELP = [
+  "reasonsmith-tui-launcher — starts the OpenTUI renderer.",
+  "",
+  "usage: reasonsmith [tui] --system <decisions.jsonl|module:attr> --pack <pack> [options]",
+  "",
+  "This launcher has no commands other than the default. The Python reasonsmith CLI (`pip install",
+  "reasonsmith`) carries the full command surface (`check`, `validate-pack`, `list-packs`,",
+  "`serve`); the TypeScript side is a thin launcher for the TUI over the JSON output those emit.",
+  "",
+  "All arguments are forwarded to the TUI binary. Run `reasonsmith-tui --help` for the full",
+  "argument grammar.",
+].join("\n")
+
+export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<number> {
+  const args = [...argv]
+  // `reasonsmith tui --pack ecoa ...` and `reasonsmith --pack ecoa ...` are both accepted. The
+  // first argument is the literal "tui" — drop it; anything else is forwarded unchanged.
+  if (args[0] === "tui") args.shift()
+  if (args.includes("-h") || args.includes("--help")) {
+    process.stdout.write(`${HELP}\n`)
+    return 0
+  }
+
+  const { cmd } = findTuiCommand()
+  const proc = spawn({
+    cmd: [...cmd, ...args],
+    stdout: "inherit",
+    stderr: "inherit",
+    stdin: "inherit",
+    env: process.env,
+  })
+
+  return (await proc.exited) as number
+}
+
+if (import.meta.main) {
+  process.exitCode = await main()
 }

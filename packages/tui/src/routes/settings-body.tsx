@@ -10,13 +10,11 @@ import { AUDIENCE_HELP, AUDIENCE_LABELS } from "../ui/audiences.ts"
 import { Clickable } from "../ui/clickable.tsx"
 import { useKeybind } from "../context/keybind.tsx"
 import { useReport } from "../context/report.tsx"
-import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
 
 export function SettingsBody(props: { compact?: boolean }) {
   const theme = useTheme()
   const report = useReport()
-  const route = useRoute()
   const keybind = useKeybind()
   const dialog = useDialog()
 
@@ -24,8 +22,6 @@ export function SettingsBody(props: { compact?: boolean }) {
   const audienceRole = () => AUDIENCE_HELP[report.audience()] ?? ""
 
   const audienceKey = () => keybind.printFor("audience")
-  const packsKey = () => keybind.printFor("packs")
-  const systemsKey = () => keybind.printFor("systems")
   const helpKey = () => keybind.printFor("help")
   const paletteKey = () => keybind.printFor("theme")
 
@@ -38,8 +34,6 @@ export function SettingsBody(props: { compact?: boolean }) {
     return parts.length > 0 ? parts.join("  ·  ") : "undeclared"
   }
 
-  const openPacks = () => route.navigate({ type: "packs" })
-  const openSystems = () => route.navigate({ type: "systems" })
   const openHelp = () => dialog.push(() => <DialogHelp />, { size: "large" })
 
   return (
@@ -53,29 +47,30 @@ export function SettingsBody(props: { compact?: boolean }) {
           onClick={() => dialog.push(() => <DialogTheme />)}
         />
         <Row label="audience" value={audienceName()} onClick={() => report.cycleAudience()} />
-        <Row label={`cycle  (${audienceKey()})`} value="next audience" onClick={() => report.cycleAudience()} />
+        <Row
+          label={`cycle  (${audienceKey()})`}
+          value="next audience"
+          onClick={() => report.cycleAudience()}
+        />
         <ShowRow when={!props.compact} label="role" value={audienceRole()} />
       </Section>
 
       <Section heading="Leader key">
         <Row label="activate" value="ctrl+x" />
         <Row label="palette" value="ctrl+p" />
-        <Row label="shortcuts" value="h help · t theme · a audience · L limits · p packs · s systems · q quit" />
+        <Row label="shortcuts" value="h help · t theme · a audience · L limits · q quit" />
       </Section>
 
-      <Section heading="Packs">
+      <Section heading="Run">
         <Row label="active pack" value={report.report.pack_id} />
-        <Row label="system declaration" value={scopeDomains()} />
-        <Row label={`open  (${packsKey()})`} value="open pack picker" onClick={openPacks} />
-      </Section>
-
-      <Section heading="Systems">
         <Row label="active system" value={report.report.system_name} />
-        <Row label={`open  (${systemsKey()})`} value="open system picker" onClick={openSystems} />
+        <Row label="system declaration" value={scopeDomains()} />
       </Section>
 
       <Section heading="Navigation">
-        <For each={keybind.bindings}>{(binding) => <Row label={binding.keys} value={binding.label} />}</For>
+        <For each={keybind.bindings}>
+          {(binding) => <Row label={binding.keys} value={binding.label} />}
+        </For>
       </Section>
 
       <Section heading="Help">
@@ -107,7 +102,14 @@ function Row(props: { label: string; value: string; onClick?: () => void }) {
   const t = useTheme()
   if (props.onClick) {
     return (
-      <Clickable cursor="pointer" flexDirection="row" gap={1} height={1} width="100%" onClick={props.onClick}>
+      <Clickable
+        cursor="pointer"
+        flexDirection="row"
+        gap={1}
+        height={1}
+        width="100%"
+        onClick={props.onClick}
+      >
         <text fg={t.color.text} attributes={t.attr.bold} wrapMode="none" width={20} content={props.label} />
         <text
           fg={t.color.info}

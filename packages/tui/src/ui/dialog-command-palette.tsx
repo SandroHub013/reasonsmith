@@ -34,8 +34,7 @@ export function DialogCommandPalette() {
   const [selected, setSelected] = createSignal(0)
 
   const ctx = () => ({
-    navigate: (type: "findings" | "detail" | "limits" | "packs" | "systems" | "settings") =>
-      route.navigate({ type }),
+    navigate: (type: "findings" | "detail" | "limits" | "settings") => route.navigate({ type }),
     cycleAudience: report.cycleAudience,
     setAudience: report.setAudience,
     cyclePalette: theme.cyclePalette,

@@ -19,23 +19,21 @@ import { Keybind } from "../util/keybind.ts"
 export interface Binding {
   readonly keys: string
   readonly label: string
-  readonly on: ReadonlyArray<"findings" | "detail" | "limits" | "packs" | "systems" | "settings">
+  readonly on: ReadonlyArray<"findings" | "detail" | "limits" | "settings">
   readonly leader?: boolean
 }
 
 export const BINDINGS: readonly Binding[] = [
-  { keys: "ctrl+p", label: "commands", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
+  { keys: "ctrl+p", label: "commands", on: ["findings", "detail", "limits", "settings"] },
   { keys: "j/k ↑↓", label: "move", on: ["findings"] },
   { keys: "enter", label: "open", on: ["findings"] },
-  { keys: "esc", label: "back", on: ["detail", "limits", "packs", "systems", "settings"] },
-  { keys: "a", label: "audience", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
-  { keys: "L", label: "limits", on: ["findings", "detail", "packs", "systems", "settings"] },
-  { keys: "p", label: "packs", on: ["findings"] },
-  { keys: "s", label: "systems", on: ["findings"] },
-  { keys: "t", label: "theme", on: ["findings", "detail", "limits", "packs", "systems", "settings"], leader: true },
-  { keys: "h", label: "help", on: ["findings", "detail", "limits", "packs", "systems", "settings"], leader: true },
-  { keys: "q", label: "quit", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
-  { keys: "?", label: "help", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
+  { keys: "esc", label: "back", on: ["detail", "limits", "settings"] },
+  { keys: "a", label: "audience", on: ["findings", "detail", "limits", "settings"] },
+  { keys: "L", label: "limits", on: ["findings", "detail", "settings"] },
+  { keys: "t", label: "theme", on: ["findings", "detail", "limits", "settings"], leader: true },
+  { keys: "h", label: "help", on: ["findings", "detail", "limits", "settings"], leader: true },
+  { keys: "q", label: "quit", on: ["findings", "detail", "limits", "settings"] },
+  { keys: "?", label: "help", on: ["findings", "detail", "limits", "settings"] },
 ]
 
 export const { use: useKeybind, provider: KeybindProvider } = createSimpleContext({
@@ -83,12 +81,6 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
           return
         case "l":
           route.navigate({ type: "limits" })
-          return
-        case "p":
-          route.navigate({ type: "packs" })
-          return
-        case "s":
-          route.navigate({ type: "systems" })
           return
         case "q":
           quit()
@@ -157,12 +149,6 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         case "l":
           if (event.shift) route.navigate({ type: "limits" })
           return
-        case "p":
-          route.navigate({ type: "packs" })
-          return
-        case "s":
-          route.navigate({ type: "systems" })
-          return
       }
 
       if (route.route().type !== "findings") return
@@ -215,12 +201,6 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
           return
         case "limits":
           route.navigate({ type: "limits" })
-          return
-        case "packs":
-          route.navigate({ type: "packs" })
-          return
-        case "systems":
-          route.navigate({ type: "systems" })
           return
         case "open":
           route.navigate({ type: "detail" })

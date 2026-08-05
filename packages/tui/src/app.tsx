@@ -7,7 +7,7 @@
  *     ThemeProvider       — design tokens, result tone (one palette, not six)
  *     ExitProvider        — single exit() authority; restores terminal, runs onExit hooks
  *     ReportProvider      — the run + the selected row + the audience (the report's authority)
- *     RouteProvider       — which route is showing (findings/detail/limits/packs/systems)
+ *     RouteProvider       — which route is showing (findings/detail/limits/settings)
  *     DialogProvider      — overlay stack (help, alerts); mounts the overlay over the panel
  *     KeybindProvider     — owns the keyboard; reaches for the four above
  *     App                 — Masthead + Switch(route) + FooterHints
@@ -20,7 +20,7 @@
 import { type CliRendererConfig, createCliRenderer } from "@opentui/core"
 import { render } from "@opentui/solid"
 import { ErrorBoundary, Match, Switch } from "solid-js"
-import type { ConformanceReport } from "@reasonsmith/core"
+import type { ConformanceReport } from "./types/schema.ts"
 import { DialogProviderWithOverlay } from "./ui/dialog.tsx"
 import { ExitProvider } from "./context/exit.tsx"
 import { KeybindProvider } from "./context/keybind.tsx"
@@ -30,9 +30,7 @@ import { ThemeProvider, useTheme } from "./context/theme.tsx"
 import { Detail } from "./routes/detail.tsx"
 import { Findings } from "./routes/findings.tsx"
 import { Limits } from "./routes/limits.tsx"
-import { Packs } from "./routes/packs.tsx"
 import { Settings } from "./routes/settings.tsx"
-import { Systems } from "./routes/systems.tsx"
 import { FooterHints } from "./ui/footer-hints.tsx"
 import { ReportHeader } from "./ui/header.tsx"
 import { StatusBar } from "./ui/status-bar.tsx"
@@ -115,12 +113,6 @@ function App() {
           </Match>
           <Match when={route.route().type === "limits"}>
             <Limits />
-          </Match>
-          <Match when={route.route().type === "packs"}>
-            <Packs />
-          </Match>
-          <Match when={route.route().type === "systems"}>
-            <Systems />
           </Match>
           <Match when={route.route().type === "settings"}>
             <Settings />

@@ -18,7 +18,7 @@
  */
 
 import { For, Show, createMemo, createSignal } from "solid-js"
-import type { RequirementResult } from "@reasonsmith/core"
+import type { RequirementResult } from "../types/schema.ts"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
@@ -34,11 +34,19 @@ function matchesCategoryFilter(
   if (key === "not_applicable") return result.verdict === "not_applicable"
   if (key === "unattainable") return result.strength === "unattainable"
   if (key === "not_evaluated")
-    return !result.evaluated && result.verdict !== "not_applicable" && result.basis !== "assessment"
+    return (
+      result.strength === null && result.verdict !== "not_applicable" && result.basis !== "assessment"
+    )
   if (key === "on_an_assessment")
-    return !result.evaluated && result.verdict !== "not_applicable" && result.basis === "assessment"
+    return (
+      result.strength === null && result.verdict !== "not_applicable" && result.basis === "assessment"
+    )
   if (key === "inconclusive")
-    return result.verdict === "inconclusive" && result.evaluated && result.strength !== "unattainable"
+    return (
+      result.verdict === "inconclusive" &&
+      result.strength !== null &&
+      result.strength !== "unattainable"
+    )
   if (key === "proved" || key === "probed" || key === "recounted" || key === "observed")
     return result.verdict === "satisfied" && result.strength === key
   return true
