@@ -118,7 +118,7 @@ monotonicity `monotone` declares.
 
 ### 1.4 Requirements, and the two gates
 
-A **requirement** (`spec.Requirement`) carries exactly twelve fields. Four are mathematical and the
+A **requirement** (`spec.Requirement`) carries exactly fifteen fields. Five are mathematical and the
 rest are provenance:
 
 - `spec` — the property, a formula of the language of §2;
@@ -1059,10 +1059,12 @@ addition rather than a rewrite.
 - **`[@geatti-2019]`** L. Geatti, N. Gigante, A. Montanari. *A SAT-based encoding of the one-pass and
   tree-shaped tableau system for LTL.* TABLEAUX 2019, LNCS 11714, 3–20. — the procedure behind
   BLACK, priced against `flloat` and not chosen (§6.10).
-- **`[@flloat]`** M. Favorito, F. Fuggitti. *flloat*, a pure-Python LTLf/LDLf-to-DFA library,
-  Apache-2.0. https://github.com/whitemech/flloat — the temporal decision procedure behind the
+- **`[@flloat]`** M. Favorito, R. Cipollone. *flloat*, a pure-Python LTLf/LDLf-to-DFA library,
+  https://github.com/whitemech/flloat — the temporal decision procedure behind the
   `ltlf` extra (§2.9, §6.10). Cited as software: it publishes no paper, which is why the key
-  convention admits a second shape.
+  convention admits a second shape. Its licence is inconsistent at the source: the repository and
+  the copy the installed package ships both read GPL-3.0, while the PyPI metadata reads
+  Apache-2.0; this entry takes GPL-3.0, the licence the distributed code actually carries.
 
 ### Explanation, and the reasons behind a decision
 

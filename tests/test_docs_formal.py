@@ -30,11 +30,13 @@ What a reader must not break:
 from __future__ import annotations
 
 import ast
+import dataclasses
 import re
 from pathlib import Path
 
 from reasonsmith.manyvalued import ALGEBRAS
 from reasonsmith.rulelang import FRAGMENTS
+from reasonsmith.spec import Requirement
 from reasonsmith.verdict import BASIS_RUNGS, Strength
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -91,6 +93,13 @@ VENUE_MARKERS = (
     "Trends in Logic",
     "Software Tools for Technology Transfer",
     "Transactions on Software Engineering and Methodology",
+)
+
+#: Cardinal numbers as the document writes them (prose, not numerals).
+_NUMBER_WORDS = (
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+    "seventeen", "eighteen", "nineteen", "twenty",
 )
 
 
@@ -173,6 +182,20 @@ def test_the_formal_doc_states_the_chain_the_code_defines():
     assert chain == "unattainable < observed < recounted < probed < proved"
     assert chain in _document(), (
         "docs/formal.md §4.1 does not state the chain `Strength` defines; it must read: " + chain
+    )
+
+
+def test_the_formal_doc_states_the_requirement_field_count_the_code_defines():
+    """§1.4's count sentence is generated from `Requirement`, not written from memory.
+
+    The sentence once read twelve against the class's fifteen fields, and a prose number is
+    exactly what this family exists to generate.
+    """
+    count = len(dataclasses.fields(Requirement))
+    word = _NUMBER_WORDS[count]
+    assert f"carries exactly {word} fields" in _document(), (
+        "docs/formal.md §1.4 does not state the field count `Requirement` defines; "
+        f"it must read: carries exactly {word} fields"
     )
 
 
