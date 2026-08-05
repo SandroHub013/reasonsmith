@@ -142,6 +142,14 @@ ENGINE_PLUGIN_KEY = "engine_plugin"
 #: not all the reasons" is being shown this measurement and nothing else.
 CERTIFICATES_KEY = "certificates"
 
+#: Where the certificate engine records the full machine record of each certificate it produced —
+#: one entry per certified decision, each carrying the per-reason verdicts the summary under
+#: `CERTIFICATES_KEY` collapses to counts and names. Absent on a result the certificate engine
+#: did not settle, so `in` rather than a value read means "a certificate exists here". The two
+#: keys are a deliberate pair: `CERTIFICATES_KEY` is the summary a rendering already reads, and
+#: this is the full record that summary was condensed from.
+CERTIFICATE_KEY = "certificate"
+
 #: Where a result measured against an inference artefact records whether the reason set it was
 #: measured against was *enumerated* from a model encoding or *recounted* by the system. False caps
 #: the result at `Strength.RECOUNTED`, and `__post_init__` refuses one that claims higher — the
@@ -165,6 +173,11 @@ EXACT_REASON_SET_KEY = "reason_set_is_exact"
 #: know from `docs/semantics.md` §2 rather than from the document in front of them. Version 2
 #: states the clock the run was answered on, so a parser can tell a verdict counted in decisions
 #: from one counted on any later domain instead of assuming the first.
+#:
+#: Version 2 has since grown `basis`, `verbatim_text` and `details.certificate` without a bump,
+#: deliberately: each is a key added beside keys a parser already reads, and the convention above
+#: says addition is not a shape change. The decision was made in `tests/test_json_schema_version.py`
+#: rather than skipped.
 JSON_SCHEMA_VERSION = 2
 
 #: The two signals a decision record is read for when a report is asked what the system itself
@@ -203,6 +216,12 @@ class RequirementResult:
     carried through from the requirement so a reader of a single result never has to go back to
     the pack to know what kind of duty it is.
 
+    `verbatim_text` is the statutory quotation the duty restates, carried through from the
+    requirement unchanged and never reflowed, truncated or whitespace-normalised: the pack's
+    copy is the authority and this is a passthrough, so a detail pane that names a clause can
+    show its words. It is stamped beside `domains` and `basis` by `evaluate_requirement`, so a
+    directly constructed result may carry the default until a run stamps it.
+
     `basis` is the fourth such fact and the second coordinate of the evidence claim: what kind of
     thing this duty's evidence is *about*, as against `strength`, which says how far the claim was
     pushed. It is derived from the requirement by `evidence_basis` and stamped once by
@@ -226,6 +245,7 @@ class RequirementResult:
     scope: str = ""
     domains: tuple[str, ...] = ()
     basis: EvidenceBasis = EvidenceBasis.BEHAVIOURAL
+    verbatim_text: str = ""
 
     def __post_init__(self) -> None:
         # Every invariant below compares against the enum members, so a raw string would
@@ -547,6 +567,7 @@ class RequirementResult:
         return {
             "requirement_id": self.requirement_id,
             "source_clause": self.source_clause,
+            "verbatim_text": self.verbatim_text,
             "verdict": self.verdict.value,
             "strength": self.strength.value if self.strength else None,
             "signals_required": list(self.signals_required),
@@ -1377,7 +1398,15 @@ def evaluate_requirement(
     # the duty rather than about the run — which is why it is derived here from `req` alone and not
     # asked of whichever engine answered — and `replace` re-runs `__post_init__`, so a result
     # carrying a rung its basis does not admit is refused at the stamp rather than rendered.
-    return replace(result, domains=req.domains, basis=evidence_basis(req))
+    return replace(
+        result,
+        domains=req.domains,
+        basis=evidence_basis(req),
+        # The statutory quotation, stamped beside the other two facts about the duty rather
+        # than threaded through four engines: it is the pack's copy, unchanged, and an engine
+        # has nothing to say about the words of the clause it was checked against.
+        verbatim_text=req.verbatim_text,
+    )
 
 
 def _evaluate_requirement(

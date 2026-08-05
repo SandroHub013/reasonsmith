@@ -10,6 +10,27 @@ releases before it predate the file and are not reconstructed here.
 
 ### Added
 
+- **The `--json` machine record is complete: every result carries its evidence `basis`, its
+  `verbatim_text`, and the deletion certificate's reason identities.** Three keys a renderer needs,
+  all purely additive, so `JSON_SCHEMA_VERSION` stays at 2 under the stated convention (addition is
+  not a shape change; the decision was made in `tests/test_json_schema_version.py` rather than
+  skipped). `basis` — the second coordinate beside `strength`, which says what kind of thing the
+  evidence is about — is already stamped by `evaluate_requirement` and was only not reaching the
+  record; it rides on every result. `verbatim_text` is the statutory quotation the duty restates,
+  carried through from the pack **unchanged** — never reflowed, truncated or whitespace-normalised
+  — so a detail pane that names `12 CFR 1002.9(b)(2)` can show its words. And `details.certificate`
+  carries, for each decision the deletion probe certified, the full per-reason verdict: `status`
+  verbatim (`live`, `deleted`, `unseparable`, `inconclusive`, `undetermined`) beside each reason's
+  `score`, `exact_drop`, `engine_drop` and `detail`, so the difference between *deleted* and *we
+  could not separate this one* — a finding and a guess — cannot be collapsed by a rendering. That
+  key is the hundredth place the project's headline finding — one stated reason, five found, four
+  deleted — could previously be read only from a rendering; it is now in the machine record. It is
+  present only where a certificate exists and absent otherwise. Nothing is removed, renamed or
+  retyped; no verdict, rung, basis or engine moved, and `details.certificate` is a list — a
+  certificate exists per certified decision, and a single record would present one decision's
+  measurement as the whole. No shipped verdict moved and no byte-pinned document changed: none of
+  them embeds the `--json` result record.
+
 - **The strength lattice gains a rung, and the inference-artefact protocol gains a second family.**
   `Strength.RECOUNTED` sits between `observed` and `probed` and is the rung a reason-adequacy verdict
   reaches when the reason set the deletion probe ran over is one the *system recounted about its own

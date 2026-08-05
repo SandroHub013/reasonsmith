@@ -50,6 +50,11 @@ _TOP_LEVEL_KEYS = {
 _RESULT_KEYS = {
     "requirement_id",
     "source_clause",
+    # Added beside `source_clause`, not renamed or retyped, so the convention says this is not a
+    # version bump — the decision was made here rather than skipped. `verbatim_text` is the
+    # statutory quotation the duty restates, carried through from the pack unchanged; a consumer
+    # reading the keys it knows is unaffected.
+    "verbatim_text",
     "verdict",
     "strength",
     "signals_required",
