@@ -17,22 +17,63 @@
  *     header prints it in full whenever it is present.
  */
 
-import { For, Show } from "solid-js"
+import { For, Show, createMemo, createSignal } from "solid-js"
 import type { RequirementResult } from "@reasonsmith/core"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
+import { ReportHeader } from "../ui/header.tsx"
 import { VerdictChip } from "../ui/verdict-chip.tsx"
-import { wrap } from "../theme.ts"
 
 export function Findings() {
   const t = useTheme()
   const report = useReport()
   const route = useRoute()
+  const [filter, setFilter] = createSignal("")
+
+  const filtered = createMemo(() => {
+    const query = filter().trim().toLowerCase()
+    if (query === "") return report.results()
+    return report.results().filter((r) => r.requirement_id.toLowerCase().includes(query))
+  })
 
   return (
-    <box flexDirection="column" flexGrow={1} minHeight={0} width="100%">
-      <Header />
+    <box
+      flexDirection="column"
+      flexGrow={1}
+      minHeight={0}
+      width="100%"
+      borderStyle="rounded"
+      borderColor={t.color.border}
+      backgroundColor={t.color.surface}
+      paddingLeft={1}
+      paddingRight={1}
+      title={`Findings (${report.results().length})`}
+      titleAlignment="left"
+    >
+      <ReportHeader />
+      <box
+        flexDirection="row"
+        flexShrink={0}
+        width="100%"
+        paddingLeft={1}
+        paddingRight={1}
+        paddingTop={1}
+        gap={1}
+      >
+        <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none" content="filter:" />
+        <input
+          flexGrow={1}
+          minWidth={0}
+          placeholder="requirement id substring…"
+          backgroundColor={t.color.surface}
+          focusedBackgroundColor={t.color.surfaceRaised}
+          textColor={t.color.text}
+          cursorColor={t.color.info}
+          value={filter()}
+          onInput={(value) => setFilter(value)}
+        />
+      </box>
       <scrollbox
         flexGrow={1}
         minHeight={0}
@@ -40,87 +81,49 @@ export function Findings() {
         paddingLeft={1}
         paddingRight={1}
         backgroundColor={t.color.bg}
+        verticalScrollbarOptions={{
+          showArrows: true,
+          trackOptions: {
+            foregroundColor: t.color.info,
+            backgroundColor: t.color.surface,
+          },
+        }}
+        scrollbarOptions={{
+          showArrows: true,
+          trackOptions: {
+            foregroundColor: t.color.info,
+            backgroundColor: t.color.surface,
+          },
+        }}
       >
-        <For each={report.results()}>
-          {(result, index) => (
-            <Row result={result} selected={index() === report.selected()} onOpen={() => route.navigate({ type: "detail" })} />
-          )}
-        </For>
+        <Show
+          when={filtered().length > 0}
+          fallback={
+            <text
+              fg={t.color.textMuted}
+              attributes={t.attr.dim}
+              wrapMode="none"
+              content={`no requirement matches "${filter()}"`}
+            />
+          }
+        >
+          <For each={filtered()}>
+            {(result, index) => (
+              <Row
+                result={result}
+                selected={report.results().indexOf(result) === report.selected()}
+                onHover={() => report.select(report.results().indexOf(result))}
+                onOpen={() => route.navigate({ type: "detail" })}
+              />
+            )}
+          </For>
+        </Show>
       </scrollbox>
     </box>
   )
 }
 
-function Header() {
-  const t = useTheme()
-  const report = useReport()
-  const notice = () => report.report.undeclaredDomainNotice
-
-  return (
-    <box flexDirection="column" width="100%" paddingLeft={1} paddingRight={1}>
-      <box flexDirection="row" gap={1} height={1}>
-        <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="reasonsmith" />
-        <text fg={t.color.borderSubtle} wrapMode="none" content="·" />
-        <text fg={t.color.text} wrapMode="none" content={report.report.system_name} />
-        <text fg={t.color.borderSubtle} wrapMode="none" content="·" />
-        <text
-          fg={t.color.textSecondary}
-          wrapMode="none"
-          content={`pack ${report.report.pack_id}`}
-        />
-      </box>
-
-      {/*
-        `headline` is the projection table's own row — "declared scope/domains, headline, counts" —
-        and it is its own flag rather than a shade of `strength`. It is withheld from the lay reader
-        for the same reason the rung is: a count of rungs reached is this tool's evidence model, not
-        an answer about their decision.
-      */}
-      <Show when={report.view().headline}>
-        <box flexDirection="row" height={1}>
-          <text
-            fg={t.color.textSecondary}
-            wrapMode="none"
-            content={report.report.headline}
-          />
-        </box>
-        <box flexDirection="row" gap={1} height={1}>
-          <text
-            fg={t.color.textMuted}
-            attributes={t.attr.dim}
-            wrapMode="none"
-            content={`scope ${report.report.system_scope ?? "undeclared"}`}
-          />
-          <text fg={t.color.borderSubtle} wrapMode="none" content="·" />
-          <text
-            fg={
-              report.report.system_domains.length > 0 ? t.color.textMuted : t.color.warn
-            }
-            attributes={t.attr.dim}
-            wrapMode="none"
-            content={`domains ${
-              report.report.system_domains.length > 0
-                ? report.report.system_domains.join(", ")
-                : "undeclared"
-            }`}
-          />
-        </box>
-      </Show>
-
-      <Show when={notice()}>
-        {(text) => (
-          <box flexDirection="column" marginTop={1} marginBottom={1}>
-            <For each={wrap(text(), 96)}>
-              {(line) => <text fg={t.color.warn} wrapMode="none" content={line} />}
-            </For>
-          </box>
-        )}
-      </Show>
-    </box>
-  )
-}
-
-function Row(props: { result: RequirementResult; selected: boolean; onOpen: () => void }) {
+function Row(props: { result: RequirementResult; selected: boolean; onHover: () => void; onOpen: () => void }) {
   const t = useTheme()
   const report = useReport()
 
@@ -131,6 +134,7 @@ function Row(props: { result: RequirementResult; selected: boolean; onOpen: () =
       height={1}
       width="100%"
       backgroundColor={props.selected ? t.color.surfaceRaised : undefined}
+      onMouseOver={props.onHover}
       onMouseUp={props.onOpen}
     >
       <text
@@ -148,15 +152,20 @@ function Row(props: { result: RequirementResult; selected: boolean; onOpen: () =
         The id takes the slack and is the only thing that gives way when the terminal is narrow, so
         the columns either side of it stay aligned. `minWidth={0}` is what lets it shrink at all —
         without it the flex row overflows and the classification tag is drawn over the id's tail.
+        The `<span>` inside the row's `<text>` is the inline-styling primitive: `b` (bold) on the
+        selected row brightens the active row, and `<span>` wraps the bold toggle so the unselected
+        rows stay at the dim secondary colour while the selected row's id is bolded.
       */}
       <text
         fg={props.selected ? t.color.text : t.color.textSecondary}
-        attributes={props.selected ? t.attr.bold : t.attr.none}
         wrapMode="none"
         flexGrow={1}
         minWidth={0}
-        content={props.result.requirement_id}
-      />
+      >
+        <span>
+          {props.selected ? <b>{props.result.requirement_id}</b> : props.result.requirement_id}
+        </span>
+      </text>
       <Show when={report.view().classification}>
         <text
           fg={t.color.textMuted}

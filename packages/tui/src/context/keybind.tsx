@@ -20,21 +20,26 @@ import { useKeyboard, useRenderer } from "@opentui/solid"
 import { createSimpleContext } from "./helper.tsx"
 import { useReport } from "./report.tsx"
 import { useRoute } from "./route.tsx"
+import { useDialog } from "../ui/dialog.tsx"
+import { DialogHelp } from "../ui/dialog-help.tsx"
 
 export interface Binding {
   readonly keys: string
   readonly label: string
   /** The routes this binding is advertised on. */
-  readonly on: ReadonlyArray<"findings" | "detail" | "limits">
+  readonly on: ReadonlyArray<"findings" | "detail" | "limits" | "packs" | "systems" | "settings">
 }
 
 export const BINDINGS: readonly Binding[] = [
   { keys: "j/k ↑↓", label: "move", on: ["findings"] },
   { keys: "enter", label: "open", on: ["findings"] },
-  { keys: "esc", label: "back", on: ["detail", "limits"] },
-  { keys: "a", label: "audience", on: ["findings", "detail", "limits"] },
-  { keys: "L", label: "limits", on: ["findings", "detail"] },
-  { keys: "q", label: "quit", on: ["findings", "detail", "limits"] },
+  { keys: "esc", label: "back", on: ["detail", "limits", "packs", "systems", "settings"] },
+  { keys: "a", label: "audience", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
+  { keys: "L", label: "limits", on: ["findings", "detail", "packs", "systems", "settings"] },
+  { keys: "p", label: "packs", on: ["findings"] },
+  { keys: "s", label: "systems", on: ["findings"] },
+  { keys: "q", label: "quit", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
+  { keys: "?", label: "help", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
 ]
 
 export const { use: useKeybind, provider: KeybindProvider } = createSimpleContext({
@@ -43,6 +48,11 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
     const renderer = useRenderer()
     const report = useReport()
     const route = useRoute()
+    const dialog = useDialog()
+
+    const openHelp = () => {
+      dialog.replace(() => <DialogHelp />)
+    }
 
     const quit = () => {
       renderer.stop()
@@ -58,6 +68,9 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         case "q":
           quit()
           return
+        case "?":
+          openHelp()
+          return
         case "escape":
           route.back()
           return
@@ -68,6 +81,12 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         // `l` is left free rather than quietly doing the same thing.
         case "l":
           if (event.shift) route.navigate({ type: "limits" })
+          return
+        case "p":
+          route.navigate({ type: "packs" })
+          return
+        case "s":
+          route.navigate({ type: "systems" })
           return
       }
 
@@ -99,6 +118,55 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
       }
     })
 
-    return { bindings: BINDINGS, quit }
+    /**
+     * Dispatch the same action the keyboard handler routes, keyed by the footer hint's label so a
+     * click on `quit` and a press of `q` go through the same code path. Routes that are not bound on
+     * the current screen are ignored, mirroring the `route.route().type !== "findings"` short-circuit
+     * the keyboard uses.
+     */
+    function click(action: string): void {
+      switch (action) {
+        case "quit":
+          quit()
+          return
+        case "help":
+          openHelp()
+          return
+        case "back":
+          route.back()
+          return
+        case "audience":
+          report.cycleAudience()
+          return
+        case "limits":
+          route.navigate({ type: "limits" })
+          return
+        case "packs":
+          route.navigate({ type: "packs" })
+          return
+        case "systems":
+          route.navigate({ type: "systems" })
+          return
+        case "open":
+          route.navigate({ type: "detail" })
+          return
+        case "move":
+          return
+      }
+    }
+
+    return {
+      bindings: BINDINGS,
+      /**
+       * The key combo that triggers `action`, or the empty string if the action is not bound.
+       * Used by the help dialog so the column it prints cannot drift out of step with the footer.
+       */
+      printFor(action: string): string {
+        const match = BINDINGS.find((b) => b.label === action)
+        return match?.keys ?? ""
+      },
+      quit,
+      click,
+    }
   },
 })

@@ -10,7 +10,7 @@
  * that was suppressed.
  */
 
-import { For, Show } from "solid-js"
+import { For, Show, createSignal } from "solid-js"
 import { useKeybind } from "../context/keybind.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
@@ -21,21 +21,41 @@ export function FooterHints() {
   const keybind = useKeybind()
   const route = useRoute()
   const report = useReport()
+  const [hovered, setHovered] = createSignal<number | null>(null)
 
   const shown = () => keybind.bindings.filter((b) => b.on.includes(route.route().type))
 
   return (
-    <box flexDirection="row" width="100%" height={1} paddingLeft={1} paddingRight={1} gap={1}>
+    <box
+      flexDirection="row"
+      width="100%"
+      height={1}
+      paddingLeft={1}
+      paddingRight={1}
+      gap={1}
+      borderStyle="rounded"
+      borderColor={t.color.borderSubtle}
+      title="keys"
+      titleAlignment="left"
+    >
       <For each={shown()}>
         {(binding, index) => (
-          <box flexDirection="row" gap={1}>
-            <text fg={t.color.text} attributes={t.attr.bold} wrapMode="none" content={binding.keys} />
-            <text
-              fg={t.color.textMuted}
-              attributes={t.attr.dim}
-              wrapMode="none"
-              content={binding.label}
-            />
+          <box
+            flexDirection="row"
+            gap={1}
+            paddingLeft={1}
+            paddingRight={1}
+            backgroundColor={hovered() === index() ? t.color.surfaceRaised : undefined}
+            onMouseOver={() => setHovered(index())}
+            onMouseOut={() => setHovered((cur) => (cur === index() ? null : cur))}
+            onMouseUp={() => keybind.click(binding.label)}
+          >
+            <text fg={t.color.text} wrapMode="none">
+              <b>{binding.keys}</b>
+            </text>
+            <text fg={t.color.textMuted} wrapMode="none">
+              <i>{binding.label}</i>
+            </text>
             <Show when={index() < shown().length - 1}>
               <text fg={t.color.borderSubtle} wrapMode="none" content="·" />
             </Show>
@@ -43,12 +63,9 @@ export function FooterHints() {
         )}
       </For>
       <box flexGrow={1} />
-      <text
-        fg={t.color.info}
-        attributes={t.attr.dim}
-        wrapMode="none"
-        content={`for: ${report.audience()}`}
-      />
+      <text fg={t.color.info} wrapMode="none">
+        for: <b>{report.audience()}</b>
+      </text>
     </box>
   )
 }

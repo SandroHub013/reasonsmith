@@ -27,3 +27,47 @@ export * from "./ground-program.ts"
 export * from "./truncating-credit-system.ts"
 export * from "./neural-scorer.ts"
 export * from "./probabilistic-scorer.ts"
+
+/**
+ * One row of the systems picker: the `--system` id, the class name the adapter reports, and a
+ * one-line gloss a reader can scan without running the system. Kept in this barrel so a future
+ * fourth system adds one entry here and one export above.
+ */
+export interface SystemEntry {
+  readonly id: string
+  readonly name: string
+  readonly description: string
+}
+
+/**
+ * The systems this package ships, in the order `--system` accepts. The `id` is the CLI string; the
+ * `name` is what `SystemUnderTest.name` reports, so the picker agrees with the report header.
+ */
+export const SYSTEMS: readonly SystemEntry[] = [
+  {
+    id: "truncating-credit",
+    name: "TruncatingCreditSystem",
+    description:
+      "A deployed credit pipeline whose reason-giving duty comes back satisfied while the same " +
+      "clause's content duty comes back violated — the demonstration's own case.",
+  },
+  {
+    id: "neural-scorer",
+    name: "JSONLAdapter",
+    description:
+      "A neural scorer audited from its decision log alone; nothing crosses the boundary, so the " +
+      "strongest evidence available here is `observed`.",
+  },
+  {
+    id: "probabilistic-scorer",
+    name: "CallableAdapter",
+    description:
+      "A replayable probabilistic scorer; the probe perturbs logged decisions and replays them " +
+      "through `decide()`, which is the `probed` rung.",
+  },
+]
+
+/** The picker entry list, in declaration order. */
+export function listSystems(): readonly SystemEntry[] {
+  return SYSTEMS
+}

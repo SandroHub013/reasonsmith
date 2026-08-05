@@ -1,26 +1,28 @@
 /**
- * The app shell: the renderer, the provider stack, and the route switch.
+ * The app shell: the renderer, the provider stack, the route switch, and the masthead.
  *
- * The shape is nikcli's — `createCliRenderer(config)`, then `render(() => <tree/>, renderer)` with an
- * `ErrorBoundary` outermost and the contexts stacked inside it, and an `App` component that reads the
- * route and switches on it. The stack order matters and is not alphabetical: `ReportProvider` and
- * `RouteProvider` are both above `KeybindProvider`, because the keyboard moves the selection and
- * changes the route, so the keybind context reaches for both.
+ * Stack order, top-down, outermost-first:
  *
- * What a reader must not break:
+ *   ErrorBoundary
+ *     ThemeProvider       — design tokens, result tone (one palette, not six)
+ *     ExitProvider        — single exit() authority; restores terminal, runs onExit hooks
+ *     ReportProvider      — the run + the selected row + the audience (the report's authority)
+ *     RouteProvider       — which route is showing (findings/detail/limits/packs/systems)
+ *     DialogProvider      — overlay stack (help, alerts); mounts the overlay over the panel
+ *     KeybindProvider     — owns the keyboard; reaches for the four above
+ *     App                 — Masthead + Switch(route) + FooterHints
  *
- *   - **`tui()` resolves when the renderer stops, and the caller decides the exit code.** The exit
- *     code is a contract (`2` on a violation) and belongs with the run, not with the UI, so this
- *     module never touches `process.exitCode`.
- *   - **The error boundary stops the renderer before it prints.** A TUI that throws mid-render and
- *     keeps the alternate screen leaves the reader with no terminal and no error; stopping first is
- *     what makes the message visible.
+ * Every panel inside the switch is wrapped in a rounded-border box (the nikcli "every panel is a
+ * dialog" rule). The overlay is mounted by DialogProvider itself, so the route subtree does not
+ * have to know about dialogs.
  */
 
 import { type CliRendererConfig, createCliRenderer } from "@opentui/core"
 import { render } from "@opentui/solid"
 import { ErrorBoundary, Match, Switch } from "solid-js"
 import type { ConformanceReport } from "@reasonsmith/core"
+import { DialogProviderWithOverlay } from "./ui/dialog.tsx"
+import { ExitProvider } from "./context/exit.tsx"
 import { KeybindProvider } from "./context/keybind.tsx"
 import { ReportProvider } from "./context/report.tsx"
 import { RouteProvider, useRoute } from "./context/route.tsx"
@@ -28,21 +30,23 @@ import { ThemeProvider, useTheme } from "./context/theme.tsx"
 import { Detail } from "./routes/detail.tsx"
 import { Findings } from "./routes/findings.tsx"
 import { Limits } from "./routes/limits.tsx"
+import { Packs } from "./routes/packs.tsx"
+import { Settings } from "./routes/settings.tsx"
+import { Systems } from "./routes/systems.tsx"
 import { FooterHints } from "./ui/footer-hints.tsx"
+import { ReportHeader } from "./ui/header.tsx"
 
 function rendererConfig(): CliRendererConfig {
   return {
     targetFps: 30,
     gatherStats: false,
-    // Ctrl-C is handled in the keybind context, which stops the renderer so the terminal is
-    // restored; letting the runtime exit on it instead would skip that.
     exitOnCtrlC: false,
     useMouse: true,
+    enableMouseMovement: true,
     consoleMode: "disabled",
   }
 }
 
-/** Mount the TUI over `report` and resolve once the renderer has stopped. */
 export async function tui(report: ConformanceReport): Promise<void> {
   const renderer = await createCliRenderer(rendererConfig())
 
@@ -60,13 +64,17 @@ export async function tui(report: ConformanceReport): Promise<void> {
         }}
       >
         <ThemeProvider>
-          <ReportProvider report={report}>
-            <RouteProvider>
-              <KeybindProvider>
-                <App />
-              </KeybindProvider>
-            </RouteProvider>
-          </ReportProvider>
+          <ExitProvider>
+            <ReportProvider report={report}>
+              <RouteProvider>
+                <DialogProviderWithOverlay>
+                  <KeybindProvider>
+                    <App />
+                  </KeybindProvider>
+                </DialogProviderWithOverlay>
+              </RouteProvider>
+            </ReportProvider>
+          </ExitProvider>
         </ThemeProvider>
       </ErrorBoundary>
     ),
@@ -89,7 +97,8 @@ function App() {
 
   return (
     <box flexDirection="column" width="100%" height="100%" backgroundColor={t.color.bg}>
-      <box flexGrow={1} minHeight={0} width="100%">
+      <ReportHeader />
+      <box flexGrow={1} minHeight={0} width="100%" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0}>
         <Switch>
           <Match when={route.route().type === "findings"}>
             <Findings />
@@ -99,6 +108,15 @@ function App() {
           </Match>
           <Match when={route.route().type === "limits"}>
             <Limits />
+          </Match>
+          <Match when={route.route().type === "packs"}>
+            <Packs />
+          </Match>
+          <Match when={route.route().type === "systems"}>
+            <Systems />
+          </Match>
+          <Match when={route.route().type === "settings"}>
+            <Settings />
           </Match>
         </Switch>
       </box>

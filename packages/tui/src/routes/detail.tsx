@@ -29,6 +29,7 @@
  */
 
 import { For, Show } from "solid-js"
+import { SyntaxStyle } from "@opentui/core"
 import {
   CERTIFICATES_KEY,
   PROBE_BUDGET_KEY,
@@ -42,6 +43,14 @@ import { useTheme } from "../context/theme.tsx"
 import { VerdictChip } from "../ui/verdict-chip.tsx"
 import { type Color, wrap } from "../theme.ts"
 
+/**
+ * One `SyntaxStyle` for every `<markdown>` on this screen. The renderer needs a syntax style to
+ * colour headings and emphasis; an empty one bolds headings and dims everything else by convention,
+ * which is exactly what this screen wants. A single instance for the lifetime of the process — the
+ * renderable does not own the style, and the OS reclaims it on exit.
+ */
+const SYNTAX_STYLE = SyntaxStyle.create()
+
 const WIDTH = 94
 
 export function Detail() {
@@ -49,21 +58,44 @@ export function Detail() {
   const report = useReport()
 
   return (
-    <scrollbox
+    <box
+      flexDirection="column"
       flexGrow={1}
       minHeight={0}
       width="100%"
-      paddingLeft={1}
-      paddingRight={1}
-      backgroundColor={t.color.bg}
+      borderStyle="rounded"
+      borderColor={t.color.border}
     >
-      <Show
-        when={report.current()}
-        fallback={<text fg={t.color.textMuted} content="No requirement selected." />}
+      <scrollbox
+        flexGrow={1}
+        minHeight={0}
+        width="100%"
+        paddingLeft={1}
+        paddingRight={1}
+        backgroundColor={t.color.bg}
+        verticalScrollbarOptions={{
+          showArrows: true,
+          trackOptions: {
+            foregroundColor: t.color.info,
+            backgroundColor: t.color.surface,
+          },
+        }}
+        scrollbarOptions={{
+          showArrows: true,
+          trackOptions: {
+            foregroundColor: t.color.info,
+            backgroundColor: t.color.surface,
+          },
+        }}
       >
-        {(result) => <Body result={result()} />}
-      </Show>
-    </scrollbox>
+        <Show
+          when={report.current()}
+          fallback={<text fg={t.color.textMuted} content="No requirement selected." />}
+        >
+          {(result) => <Body result={result()} />}
+        </Show>
+      </scrollbox>
+    </box>
   )
 }
 
@@ -89,7 +121,15 @@ function Body(props: { result: RequirementResult }) {
 
   return (
     <box flexDirection="column" width="100%">
-      <box flexDirection="row" gap={1} height={1}>
+      <box
+        flexDirection="row"
+        gap={1}
+        height={1}
+        borderStyle="rounded"
+        borderColor={t.color.border}
+        title={props.result.requirement_id}
+        titleAlignment="left"
+      >
         <VerdictChip
           verdict={props.result.verdict}
           strength={props.result.strength}
@@ -98,12 +138,6 @@ function Body(props: { result: RequirementResult }) {
         />
         <text fg={tone().color} attributes={t.attr.bold} wrapMode="none" content={tone().label} />
       </box>
-      <text
-        fg={t.color.text}
-        attributes={t.attr.bold}
-        wrapMode="none"
-        content={props.result.requirement_id}
-      />
 
       {/* On every row of the projection table: no audience is shown a verdict without its clause. */}
       <Field label="clause" value={props.result.source_clause} />
@@ -145,7 +179,7 @@ function Body(props: { result: RequirementResult }) {
       </Show>
 
       <Show when={view().evidence && props.result.evidence_summary}>
-        <Paragraph label="evidence" text={props.result.evidence_summary} />
+        <MarkdownField label="evidence" text={props.result.evidence_summary} />
       </Show>
 
       <Show when={view().probeBudget}>
@@ -185,6 +219,26 @@ function Paragraph(props: { label: string; text: string }) {
       <For each={wrap(props.text, WIDTH)}>
         {(line) => <text fg={t.color.textSecondary} wrapMode="none" content={line} />}
       </For>
+    </box>
+  )
+}
+
+/**
+ * A labelled block whose body is rendered through OpenTUI's `<markdown>`. Used for the
+ * `evidence_summary` because the field is free-form prose and bold/italic in the source should
+ * survive into the panel — the way they survive into the text rendering this command also reaches.
+ */
+function MarkdownField(props: { label: string; text: string }) {
+  const t = useTheme()
+  return (
+    <box flexDirection="column" marginTop={1}>
+      <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none" content={props.label} />
+      <markdown
+        content={props.text}
+        syntaxStyle={SYNTAX_STYLE}
+        fg={t.color.textSecondary}
+        bg={t.color.bg}
+      />
     </box>
   )
 }
