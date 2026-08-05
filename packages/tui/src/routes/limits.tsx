@@ -81,6 +81,8 @@ export function Limits() {
         backgroundColor={t.color.surface}
         paddingLeft={1}
         paddingRight={1}
+        title="Limits of this report"
+        titleAlignment="left"
       >
         <text
           fg={t.color.text}

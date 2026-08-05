@@ -75,6 +75,8 @@ export function Settings() {
         backgroundColor={t.color.surface}
         paddingLeft={1}
         paddingRight={1}
+        title="Settings"
+        titleAlignment="left"
       >
         <Section heading="Theme">
           <Row label="audience" value={audienceName()} />
@@ -124,16 +126,17 @@ export function Settings() {
 function Section(props: { heading: string; children: import("solid-js").JSX.Element }) {
   const t = useTheme()
   return (
-    <box flexDirection="column" marginTop={1}>
-      <text
-        fg={t.color.info}
-        attributes={t.attr.bold}
-        wrapMode="none"
-        content={props.heading}
-      />
-      <box flexDirection="column" marginTop={0} marginLeft={2}>
-        {props.children}
-      </box>
+    <box
+      flexDirection="column"
+      marginTop={1}
+      borderStyle="rounded"
+      borderColor={t.color.borderSubtle}
+      title={props.heading}
+      titleAlignment="left"
+      paddingLeft={1}
+      paddingRight={1}
+    >
+      {props.children}
     </box>
   )
 }

@@ -25,13 +25,9 @@ export function VerdictChip(props: {
 
   return (
     <box flexDirection="row" gap={1} flexShrink={0}>
-      <text
-        fg={tone().color}
-        attributes={props.bold ? t.attr.bold : t.attr.none}
-        wrapMode="none"
-        width={MARK_WIDTH}
-        content={tone().mark}
-      />
+      <text fg={tone().color} wrapMode="none" width={MARK_WIDTH}>
+        <span>{props.bold ? <b>{tone().mark}</b> : tone().mark}</span>
+      </text>
       <Show when={props.showStrength}>
         {/*
           A fixed column, so the requirement ids beside it line up and a long rung name cannot run

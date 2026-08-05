@@ -43,13 +43,9 @@ export function Systems() {
         backgroundColor={t.color.surface}
         paddingLeft={1}
         paddingRight={1}
+        title="Systems under test"
+        titleAlignment="left"
       >
-        <text
-          fg={t.color.text}
-          attributes={t.attr.bold}
-          wrapMode="none"
-          content="Systems under test"
-        />
         <select
           options={options()}
           flexGrow={1}
