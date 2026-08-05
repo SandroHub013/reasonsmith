@@ -70,8 +70,13 @@ const USAGE = [
   `  --pack     ${listPacks().join(", ")}   (default: ecoa)`,
   `  --system   ${Object.keys(SYSTEMS).join(", ")}   (default: truncating-credit)`,
   "",
-  "keys: j/k move · enter open · esc back · a audience · L limits · q quit",
+  "keys: j/k move · enter open · esc back · a audience · L limits · t theme · ctrl+x leader · q quit",
 ].join("\n")
+
+/** CLI contract — `reasonsmith tui` reaches the TUI through this function only. */
+export async function runTUI(): Promise<number> {
+  return main()
+}
 
 export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<number> {
   const parsed = parseArgs(argv)

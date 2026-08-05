@@ -24,6 +24,25 @@ import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { ReportHeader } from "../ui/header.tsx"
 import { VerdictChip } from "../ui/verdict-chip.tsx"
+import { Clickable } from "../ui/clickable.tsx"
+
+function matchesCategoryFilter(
+  result: RequirementResult,
+  key: string,
+): boolean {
+  if (key === "violated") return result.verdict === "violated"
+  if (key === "not_applicable") return result.verdict === "not_applicable"
+  if (key === "unattainable") return result.strength === "unattainable"
+  if (key === "not_evaluated")
+    return !result.evaluated && result.verdict !== "not_applicable" && result.basis !== "assessment"
+  if (key === "on_an_assessment")
+    return !result.evaluated && result.verdict !== "not_applicable" && result.basis === "assessment"
+  if (key === "inconclusive")
+    return result.verdict === "inconclusive" && result.evaluated && result.strength !== "unattainable"
+  if (key === "proved" || key === "probed" || key === "recounted" || key === "observed")
+    return result.verdict === "satisfied" && result.strength === key
+  return true
+}
 
 export function Findings() {
   const t = useTheme()
@@ -33,8 +52,15 @@ export function Findings() {
 
   const filtered = createMemo(() => {
     const query = filter().trim().toLowerCase()
-    if (query === "") return report.results()
-    return report.results().filter((r) => r.requirement_id.toLowerCase().includes(query))
+    const category = report.categoryFilter()
+    let rows = report.results()
+    if (query !== "") {
+      rows = rows.filter((r) => r.requirement_id.toLowerCase().includes(query))
+    }
+    if (category) {
+      rows = rows.filter((r) => matchesCategoryFilter(r, category))
+    }
+    return rows
   })
 
   return (
@@ -113,7 +139,10 @@ export function Findings() {
                 result={result}
                 selected={report.results().indexOf(result) === report.selected()}
                 onHover={() => report.select(report.results().indexOf(result))}
-                onOpen={() => route.navigate({ type: "detail" })}
+                onOpen={() => {
+                  report.select(report.results().indexOf(result))
+                  route.navigate({ type: "detail" })
+                }}
               />
             )}
           </For>
@@ -128,14 +157,15 @@ function Row(props: { result: RequirementResult; selected: boolean; onHover: () 
   const report = useReport()
 
   return (
-    <box
+    <Clickable
+      cursor="pointer"
       flexDirection="row"
       gap={1}
       height={1}
       width="100%"
-      backgroundColor={props.selected ? t.color.surfaceRaised : undefined}
-      onMouseOver={props.onHover}
-      onMouseUp={props.onOpen}
+      active={props.selected}
+      onClick={props.onHover}
+      onDoubleClick={props.onOpen}
     >
       <text
         fg={props.selected ? t.color.info : t.color.borderSubtle}
@@ -148,14 +178,6 @@ function Row(props: { result: RequirementResult; selected: boolean; onHover: () 
         showStrength={report.view().strength}
         bold={props.selected}
       />
-      {/*
-        The id takes the slack and is the only thing that gives way when the terminal is narrow, so
-        the columns either side of it stay aligned. `minWidth={0}` is what lets it shrink at all —
-        without it the flex row overflows and the classification tag is drawn over the id's tail.
-        The `<span>` inside the row's `<text>` is the inline-styling primitive: `b` (bold) on the
-        selected row brightens the active row, and `<span>` wraps the bold toggle so the unselected
-        rows stay at the dim secondary colour while the selected row's id is bolded.
-      */}
       <text
         fg={props.selected ? t.color.text : t.color.textSecondary}
         wrapMode="none"
@@ -176,6 +198,6 @@ function Row(props: { result: RequirementResult; selected: boolean; onHover: () 
           content={props.result.binding ? "binding" : "interpretive"}
         />
       </Show>
-    </box>
+    </Clickable>
   )
 }

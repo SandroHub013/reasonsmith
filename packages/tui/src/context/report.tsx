@@ -36,6 +36,7 @@ export const { use: useReport, provider: ReportProvider } = createSimpleContext(
     const report = props.report
     const [audience, setAudience] = createSignal<Audience>("auditor")
     const [selected, setSelected] = createSignal(0)
+    const [categoryFilter, setCategoryFilter] = createSignal<string | null>(null)
 
     const results = (): readonly RequirementResult[] => report.results
     const view = createMemo<AudienceProjection>(() => PROJECTIONS[audience()])
@@ -62,6 +63,9 @@ export const { use: useReport, provider: ReportProvider } = createSimpleContext(
       setAudience,
       cycleAudience: () =>
         setAudience((a) => AUDIENCES[(AUDIENCES.indexOf(a) + 1) % AUDIENCES.length]),
+      categoryFilter,
+      setCategoryFilter,
+      clearCategoryFilter: () => setCategoryFilter(null),
       audiences: AUDIENCES,
     }
   },

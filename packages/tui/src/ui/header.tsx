@@ -19,6 +19,7 @@ import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { wrap } from "../theme.ts"
+import { Clickable } from "./clickable.tsx"
 
 const TABS = [
   { type: "findings", label: "Findings" },
@@ -78,7 +79,7 @@ export function ReportHeader() {
           hovered={hovered() === "settings"}
           onHover={() => setHovered("settings")}
           onLeave={() => setHovered((cur) => (cur === "settings" ? null : cur))}
-          onClick={() => route.navigate({ type: "limits" })}
+          onClick={() => route.navigate({ type: "settings" })}
           accent
         />
       </box>
@@ -104,9 +105,11 @@ export function ReportHeader() {
           {report.report.results.length} requirements
         </text>
         <box flexGrow={1} />
-        <text fg={t.color.info} wrapMode="none">
-          for: <b>{report.audience()}</b>
-        </text>
+        <Clickable cursor="pointer" onClick={() => report.cycleAudience()}>
+          <text fg={t.color.info} wrapMode="none">
+            for: <b>{report.audience()}</b>
+          </text>
+        </Clickable>
       </box>
 
       <Show when={report.view().headline}>
@@ -146,25 +149,20 @@ function Tab(props: {
   accent?: boolean
 }) {
   const t = useTheme()
-  const bg = () => {
-    if (props.active) return t.color.surfaceRaised
-    if (props.hovered) return t.color.borderSubtle
-    return undefined
-  }
   const fg = () => {
     if (props.active) return t.color.text
     if (props.hovered) return t.color.textSecondary
     return props.accent ? t.color.info : t.color.textMuted
   }
   return (
-    <box
-      flexDirection="row"
-      backgroundColor={bg()}
+    <Clickable
+      cursor="pointer"
       paddingLeft={1}
       paddingRight={1}
-      onMouseOver={props.onHover}
-      onMouseOut={props.onLeave}
-      onMouseUp={props.onClick}
+      active={props.active}
+      onClick={props.onClick}
+      onHover={props.onHover}
+      onLeave={props.onLeave}
     >
       <text
         fg={fg()}
@@ -173,6 +171,6 @@ function Tab(props: {
       >
         {props.label}
       </text>
-    </box>
+    </Clickable>
   )
 }

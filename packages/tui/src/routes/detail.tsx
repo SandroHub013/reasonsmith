@@ -39,7 +39,9 @@ import {
   basisSentence,
 } from "@reasonsmith/core"
 import { useReport } from "../context/report.tsx"
+import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
+import { Clickable } from "../ui/clickable.tsx"
 import { VerdictChip } from "../ui/verdict-chip.tsx"
 import { type Color, wrap } from "../theme.ts"
 
@@ -56,6 +58,7 @@ const WIDTH = 94
 export function Detail() {
   const t = useTheme()
   const report = useReport()
+  const route = useRoute()
 
   return (
     <box
@@ -66,6 +69,9 @@ export function Detail() {
       borderStyle="rounded"
       borderColor={t.color.border}
     >
+      <Clickable cursor="pointer" paddingLeft={1} paddingRight={1} onClick={() => route.back()}>
+        <text fg={t.color.info} attributes={t.attr.underline} wrapMode="none" content="← back to findings" />
+      </Clickable>
       <scrollbox
         flexGrow={1}
         minHeight={0}

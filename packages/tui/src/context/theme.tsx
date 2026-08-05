@@ -1,23 +1,49 @@
 /**
- * The theme context.
+ * The theme context — enterprise palettes with invariant verdict semantics.
  *
- * nikcli's theme provider loads one of sixty JSON palettes and tracks the terminal's light/dark
- * mode. This one carries a single palette, because the tokens here are not decoration to be swapped:
- * `resultTone` maps a verdict to a hue, and a user-selectable palette would let a reader choose one
- * in which satisfied and violated are the same colour. The provider exists anyway, in the same shape,
- * so components reach for colour through a context rather than importing a module-level constant —
- * which is what makes a second palette a change to *this* file rather than to twenty components.
+ * nikcli loads sixty JSON palettes; this TUI carries three enterprise chrome palettes while
+ * keeping verdict colours fixed. Colours live in a Solid store so palette switches re-render
+ * every panel without touching individual components.
  */
 
+import { createEffect, createSignal } from "solid-js"
+import { createStore } from "solid-js/store"
 import { createSimpleContext } from "./helper.tsx"
-import { A, c, resultTone, strengthWord } from "../theme.ts"
+import { A, resultTone, strengthWord } from "../theme.ts"
+import {
+  type PaletteId,
+  VERDICT,
+  getPalette,
+  nextPalette,
+  PALETTE_IDS,
+  type Palette,
+} from "../theme/palettes.ts"
+
+function chromeFor(id: PaletteId) {
+  return { ...getPalette(id).chrome, ...VERDICT }
+}
 
 export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
   name: "Theme",
-  init: () => ({
-    color: c,
-    attr: A,
-    resultTone,
-    strengthWord,
-  }),
+  init: () => {
+    const [paletteId, setPaletteId] = createSignal<PaletteId>("enterprise-dark")
+    const [color, setColor] = createStore(chromeFor("enterprise-dark"))
+
+    createEffect(() => {
+      setColor(chromeFor(paletteId()))
+    })
+
+    const palettes = (): readonly Palette[] => PALETTE_IDS.map((id) => getPalette(id))
+
+    return {
+      paletteId,
+      palettes,
+      setPalette: setPaletteId,
+      cyclePalette: () => setPaletteId((id) => nextPalette(id)),
+      color,
+      attr: A,
+      resultTone,
+      strengthWord,
+    }
+  },
 })

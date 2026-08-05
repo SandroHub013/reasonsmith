@@ -11,7 +11,9 @@
     "test": "bun turbo test",
     "dev": "bun scripts/dev.ts",
     "dev:cli": "bun run --cwd packages/cli run",
-    "dev:tui": "bun run --cwd packages/tui dev"
+    "dev:tui": "bun run --cwd packages/tui dev",
+    "record:tui": "bash scripts/record-tui.sh",
+    "install-skill": "bun run --cwd packages/terminal-control install-skill"
   },
   "workspaces": {
     "packages": [

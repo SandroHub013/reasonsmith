@@ -72,6 +72,13 @@ export function Limits() {
       paddingLeft={1}
       paddingRight={1}
       backgroundColor={t.color.bg}
+      verticalScrollbarOptions={{
+        showArrows: true,
+        trackOptions: {
+          foregroundColor: t.color.info,
+          backgroundColor: t.color.surface,
+        },
+      }}
     >
       <box
         flexDirection="column"

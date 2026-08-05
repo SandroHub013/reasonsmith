@@ -1,42 +1,20 @@
 /**
- * The settings route: a single dialog-styled panel that summarises the surface.
- *
- * Five sections, each a labelled heading plus a short list of rows:
- *
- *   - **Theme** — the active audience, the cycle key, and the audience's role (its purpose, from
- *     `AUDIENCE_HELP`). The audience *is* the theme — a projection changes what is shown and never
- *     what is claimed, and a reader who is not told which one they are in cannot tell a field that
- *     is absent from a field that was suppressed.
- *   - **Packs** — the active pack id, the system's declared scope and domains, and the cycle key
- *     for the picker.
- *   - **Systems** — the cycle key for the system picker. The currently-loaded system is shown in
- *     the masthead and is not repeated here, the same way the packs route reads.
- *   - **Navigation** — every binding the keybind context knows about, key beside label, read from
- *     `useKeybind().bindings` so the panel cannot drift out of step with the footer.
- *   - **Help** — the key that opens the help dialog. The dialog itself is the source of detail;
- *     this row names the shortcut.
- *
- * What a reader must not break:
- *
- *   - **The panel is dialog-styled.** Every panel in this TUI is a rounded-border box over the
- *     surface colour, matching the packs and systems routes beside it.
- *   - **The audience role comes from `AUDIENCE_HELP`.** A settings panel that paraphrased the role
- *     would be this TUI making a claim about the projections in its own voice, which is the move
- *     every rule in this repository is written to prevent. The wording is the audience help
- *     dialog's own.
+ * The settings route: enterprise configuration panel summarising the surface.
  */
 
 import { For } from "solid-js"
 import { useDialog } from "../ui/dialog.tsx"
 import { DialogHelp } from "../ui/dialog-help.tsx"
+import { DialogTheme } from "../ui/dialog-theme.tsx"
 import { AUDIENCE_HELP, AUDIENCE_LABELS } from "../ui/audiences.ts"
+import { Clickable } from "../ui/clickable.tsx"
 import { useKeybind } from "../context/keybind.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
 
 export function Settings() {
-  const t = useTheme()
+  const theme = useTheme()
   const report = useReport()
   const route = useRoute()
   const keybind = useKeybind()
@@ -71,52 +49,48 @@ export function Settings() {
         minHeight={0}
         width="100%"
         borderStyle="rounded"
-        borderColor={t.color.border}
-        backgroundColor={t.color.surface}
+        borderColor={theme.color.border}
+        backgroundColor={theme.color.surface}
         paddingLeft={1}
         paddingRight={1}
         title="Settings"
         titleAlignment="left"
       >
         <Section heading="Theme">
-          <Row label="audience" value={audienceName()} />
-          <Row label={`cycle  (${audienceKey()})`} value="next audience" />
+          <Row label="palette" value={theme.paletteId()} />
+          <Row label="cycle  (t)" value="next enterprise palette" onClick={() => theme.cyclePalette()} />
+          <Row
+            label={`picker  (${keybind.printFor("theme")})`}
+            value="open theme dialog"
+            onClick={() => dialog.replace(() => <DialogTheme />)}
+          />
+          <Row label="audience" value={audienceName()} onClick={() => report.cycleAudience()} />
+          <Row label={`cycle  (${audienceKey()})`} value="next audience" onClick={() => report.cycleAudience()} />
           <Row label="role" value={audienceRole()} />
+        </Section>
+
+        <Section heading="Leader key">
+          <Row label="activate" value="ctrl+x" />
+          <Row label="shortcuts" value="h help · t theme · a audience · L limits · p packs · s systems · q quit" />
         </Section>
 
         <Section heading="Packs">
           <Row label="active pack" value={report.report.pack_id} />
           <Row label="system declaration" value={scopeDomains()} />
-          <Row
-            label={`open  (${packsKey()})`}
-            value="open pack picker"
-            onClick={openPacks}
-          />
+          <Row label={`open  (${packsKey()})`} value="open pack picker" onClick={openPacks} />
         </Section>
 
         <Section heading="Systems">
           <Row label="active system" value={report.report.system_name} />
-          <Row
-            label={`open  (${systemsKey()})`}
-            value="open system picker"
-            onClick={openSystems}
-          />
+          <Row label={`open  (${systemsKey()})`} value="open system picker" onClick={openSystems} />
         </Section>
 
         <Section heading="Navigation">
-          <For each={keybind.bindings}>
-            {(binding) => (
-              <Row label={binding.keys} value={binding.label} />
-            )}
-          </For>
+          <For each={keybind.bindings}>{(binding) => <Row label={binding.keys} value={binding.label} />}</For>
         </Section>
 
         <Section heading="Help">
-          <Row
-            label={`open  (${helpKey()})`}
-            value="keybindings and audiences"
-            onClick={openHelp}
-          />
+          <Row label={`open  (${helpKey()})`} value="keybindings and audiences" onClick={openHelp} />
         </Section>
       </box>
     </box>
@@ -143,29 +117,25 @@ function Section(props: { heading: string; children: import("solid-js").JSX.Elem
 
 function Row(props: { label: string; value: string; onClick?: () => void }) {
   const t = useTheme()
+  if (props.onClick) {
+    return (
+      <Clickable cursor="pointer" flexDirection="row" gap={1} height={1} width="100%" onClick={props.onClick}>
+        <text fg={t.color.text} attributes={t.attr.bold} wrapMode="none" width={20} content={props.label} />
+        <text
+          fg={t.color.info}
+          attributes={t.attr.underline}
+          wrapMode="none"
+          flexGrow={1}
+          minWidth={0}
+          content={props.value}
+        />
+      </Clickable>
+    )
+  }
   return (
-    <box
-      flexDirection="row"
-      gap={1}
-      height={1}
-      width="100%"
-      onMouseUp={() => props.onClick?.()}
-    >
-      <text
-        fg={t.color.text}
-        attributes={t.attr.bold}
-        wrapMode="none"
-        width={20}
-        content={props.label}
-      />
-      <text
-        fg={props.onClick ? t.color.info : t.color.textSecondary}
-        attributes={props.onClick ? t.attr.underline : t.attr.none}
-        wrapMode="none"
-        flexGrow={1}
-        minWidth={0}
-        content={props.value}
-      />
+    <box flexDirection="row" gap={1} height={1} width="100%">
+      <text fg={t.color.text} attributes={t.attr.bold} wrapMode="none" width={20} content={props.label} />
+      <text fg={t.color.textSecondary} wrapMode="none" flexGrow={1} minWidth={0} content={props.value} />
     </box>
   )
 }

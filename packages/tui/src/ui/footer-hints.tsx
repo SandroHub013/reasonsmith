@@ -10,18 +10,18 @@
  * that was suppressed.
  */
 
-import { For, Show, createSignal } from "solid-js"
+import { For, Show } from "solid-js"
 import { useKeybind } from "../context/keybind.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
+import { Clickable } from "./clickable.tsx"
 
 export function FooterHints() {
   const t = useTheme()
   const keybind = useKeybind()
   const route = useRoute()
   const report = useReport()
-  const [hovered, setHovered] = createSignal<number | null>(null)
 
   const shown = () => keybind.bindings.filter((b) => b.on.includes(route.route().type))
 
@@ -40,15 +40,13 @@ export function FooterHints() {
     >
       <For each={shown()}>
         {(binding, index) => (
-          <box
+          <Clickable
+            cursor="pointer"
             flexDirection="row"
             gap={1}
             paddingLeft={1}
             paddingRight={1}
-            backgroundColor={hovered() === index() ? t.color.surfaceRaised : undefined}
-            onMouseOver={() => setHovered(index())}
-            onMouseOut={() => setHovered((cur) => (cur === index() ? null : cur))}
-            onMouseUp={() => keybind.click(binding.label)}
+            onClick={() => keybind.click(binding.label)}
           >
             <text fg={t.color.text} wrapMode="none">
               <b>{binding.keys}</b>
@@ -59,10 +57,13 @@ export function FooterHints() {
             <Show when={index() < shown().length - 1}>
               <text fg={t.color.borderSubtle} wrapMode="none" content="·" />
             </Show>
-          </box>
+          </Clickable>
         )}
       </For>
       <box flexGrow={1} />
+      <Show when={keybind.leader()}>
+        <text fg={t.color.warn} attributes={t.attr.bold} wrapMode="none" content="LEADER " />
+      </Show>
       <text fg={t.color.info} wrapMode="none">
         for: <b>{report.audience()}</b>
       </text>

@@ -20,6 +20,8 @@ import { useKeybind } from "../context/keybind.tsx"
 import { useReport } from "../context/report.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { AUDIENCE_HELP, AUDIENCE_LABELS } from "./audiences.ts"
+import { Button } from "./button.tsx"
+import { Clickable } from "./clickable.tsx"
 
 const SHORTCUT_BINDINGS = ["move", "open", "back", "audience", "limits", "quit"] as const
 
@@ -97,8 +99,15 @@ export function DialogHelp() {
             Audiences
           </text>
           <For each={audienceRows()}>
-            {(row) => (
-              <box flexDirection="column" gap={0}>
+            {(row, index) => (
+              <Clickable
+                cursor="pointer"
+                flexDirection="column"
+                onClick={() => {
+                  const audience = report.audiences[index()]!
+                  report.setAudience(audience)
+                }}
+              >
                 <text
                   fg={t.color.text}
                   attributes={TextAttributes.BOLD}
@@ -108,23 +117,14 @@ export function DialogHelp() {
                 <text fg={t.color.textMuted} wrapMode="none">
                   {row.description}
                 </text>
-              </box>
+              </Clickable>
             )}
           </For>
         </box>
       </box>
 
       <box flexDirection="row" justifyContent="flex-end" paddingTop={1}>
-        <box
-          paddingLeft={3}
-          paddingRight={3}
-          backgroundColor={t.color.info}
-          onMouseUp={() => dialog.clear()}
-        >
-          <text fg={t.color.bg} attributes={t.attr.bold} wrapMode="none">
-            OK
-          </text>
-        </box>
+        <Button label="OK" onClick={() => dialog.clear()} />
       </box>
     </box>
   )

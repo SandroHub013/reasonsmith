@@ -88,7 +88,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
  * `GlassBorder` rounded rules that holds the top dialog. The dim colour is the theme's `bg` at half
  * opacity, the same way nikcli does it.
  */
-function Overlay(props: { children: JSX.Element; size: DialogSize }) {
+function Overlay(props: { children: JSX.Element; size: DialogSize; onBackdropClick: () => void }) {
   const t = useTheme()
 
   const width = () => {
@@ -112,6 +112,7 @@ function Overlay(props: { children: JSX.Element; size: DialogSize }) {
       alignItems="center"
       justifyContent="center"
       backgroundColor={t.color.bg}
+      onMouseUp={props.onBackdropClick}
     >
       <box
         width={width()}
@@ -123,6 +124,7 @@ function Overlay(props: { children: JSX.Element; size: DialogSize }) {
         paddingBottom={1}
         border={[...GlassBorder.border]}
         customBorderChars={GlassBorder.customBorderChars}
+        onMouseUp={(event) => event.stopPropagation()}
       >
         {props.children}
       </box>
@@ -158,6 +160,7 @@ export function DialogProviderWithOverlay(props: ParentProps) {
 function DialogConsumers(props: { children: JSX.Element }) {
   const value = useDialog()
   const top = () => value.stack().at(-1)
+
   return (
     <>
       {props.children}
@@ -167,7 +170,11 @@ function DialogConsumers(props: { children: JSX.Element }) {
           const node = e.element
           const rendered: JSX.Element =
             typeof node === "function" ? (node as () => JSX.Element)() : node
-          return <Overlay size={e.size}>{rendered}</Overlay>
+          return (
+            <Overlay size={e.size} onBackdropClick={() => value.clear()}>
+              {rendered}
+            </Overlay>
+          )
         }}
       </Show>
     </>

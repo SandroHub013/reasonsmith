@@ -35,15 +35,21 @@ import { Settings } from "./routes/settings.tsx"
 import { Systems } from "./routes/systems.tsx"
 import { FooterHints } from "./ui/footer-hints.tsx"
 import { ReportHeader } from "./ui/header.tsx"
+import { StatusBar } from "./ui/status-bar.tsx"
 
 function rendererConfig(): CliRendererConfig {
   return {
-    targetFps: 30,
+    targetFps: 45,
     gatherStats: false,
     exitOnCtrlC: false,
     useMouse: true,
     enableMouseMovement: true,
     consoleMode: "disabled",
+    useKittyKeyboard: {
+      disambiguate: true,
+      alternateKeys: true,
+      events: false,
+    },
   }
 }
 
@@ -98,6 +104,7 @@ function App() {
   return (
     <box flexDirection="column" width="100%" height="100%" backgroundColor={t.color.bg}>
       <ReportHeader />
+      <StatusBar />
       <box flexGrow={1} minHeight={0} width="100%" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0}>
         <Switch>
           <Match when={route.route().type === "findings"}>
