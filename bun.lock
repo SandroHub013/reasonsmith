@@ -40,6 +40,8 @@
         "effect": "catalog:",
       },
       "devDependencies": {
+        "@reasonsmith/engines": "workspace:*",
+        "@reasonsmith/systems": "workspace:*",
         "@tsconfig/bun": "catalog:",
         "@types/bun": "catalog:",
         "typescript": "catalog:",

@@ -21,50 +21,122 @@ import { DECISION_RECORD_SIGNAL, type ConformanceReport, type RequirementResult 
 import { PROBE_BUDGET_KEY, TRUTH_DEGREE_KEY, VACUOUS_TRIGGER_KEY } from "./report.ts"
 import { BASIS_RUNGS, type EvidenceBasis } from "./verdict.ts"
 
-/** The five audiences a report may be projected for. */
+/**
+ * The five audiences a report may be projected for.
+ *
+ * This vocabulary is the Python's own (`docs/semantics.md` §7). `auditor` **is** the full report by
+ * identity — an auditor's question is *what is the complete evidentiary basis*, and the report the
+ * run already emitted is the answer — which is why the no-flag default did not have to change to
+ * acquire an audience.
+ */
 export const AUDIENCES = [
-  "expert",
-  "compliance-officer",
-  "engineer",
-  "executive",
+  "developer",
+  "deployer",
+  "auditor",
+  "regulator",
   "affected-individual",
 ] as const
 export type Audience = (typeof AUDIENCES)[number]
 
+/**
+ * What each audience is shown. **This table is authored, not derived** — the same kind of choice a
+ * pack author makes when they pick a threshold. Nothing in the law, in the packs or in the evidence
+ * says a deployer should not see a counterexample. It is written down so it can be argued with,
+ * rather than left to be reverse-engineered from a record type.
+ *
+ * Every projection but one *suppresses*. `plainAccount` is the only field that **emits**, and it is
+ * on for `affected-individual` alone. That is not a detail: built out of suppression flags alone,
+ * the lay artefact was the developer's report with parts removed — its word set a strict subset of
+ * the developer's — so the reader least able to fill a gap in was handed the most gaps. It must
+ * never become a subset of an expert view again.
+ *
+ * Three rows no projection may drop: the verdict, the limits, and the notice that duties went
+ * unchecked. And no audience may disagree with another about a verdict.
+ */
 export interface AudienceProjection {
-  /** Show each result's evidence strength. Withheld from the lay projection. */
+  /** The evidence strength (the rung on the lattice). */
   readonly strength: boolean
-  /** Show the engine's own account of the evidence. */
+  /** Declared scope and domains, the headline and the counts. */
+  readonly headline: boolean
+  /** The binding/interpretive tag, and the duty's scope and domain limits. */
+  readonly classification: boolean
+  /** Required signal names, and the signals absent from the trace. */
+  readonly signalNames: boolean
+  /** The capability signals a system does not declare. */
+  readonly missingCapabilities: boolean
+  /** The engine's own account of the evidence. */
   readonly evidence: boolean
-  /** Show the search budget, the probe counts and the raw details. */
-  readonly mechanism: boolean
-  /** Show the clause text the duty was drawn from. */
-  readonly clause: boolean
+  /** The search budget a probed claim carries. */
+  readonly probeBudget: boolean
+  /** Counterexample inputs and the witness records of a violation. */
+  readonly witnesses: boolean
   /**
-   * The one field that *emits* rather than suppresses: the plain account of what the log said,
-   * quoted and never paraphrased.
+   * The plain-language account of what the system recorded — the one field that emits. Everything
+   * it prints is quoted: the decision and the reason out of the log the run already read, and a
+   * reason left unstated out of the certificate engine's own measurement. It paraphrases no statute
+   * and explains no decision.
    */
   readonly plainAccount: boolean
 }
 
+/** The full report: every row. `auditor` is this by identity, and so is the no-flag default. */
+const FULL: AudienceProjection = {
+  strength: true,
+  headline: true,
+  classification: true,
+  signalNames: true,
+  missingCapabilities: true,
+  evidence: true,
+  probeBudget: true,
+  witnesses: true,
+  plainAccount: false,
+}
+
 export const PROJECTIONS: Record<Audience, AudienceProjection> = {
-  expert: { strength: true, evidence: true, mechanism: true, clause: true, plainAccount: false },
-  "compliance-officer": {
-    strength: true,
-    evidence: true,
-    mechanism: false,
-    clause: true,
-    plainAccount: false,
-  },
-  engineer: { strength: true, evidence: true, mechanism: true, clause: false, plainAccount: false },
-  executive: { strength: true, evidence: false, mechanism: false, clause: false, plainAccount: false },
+  // Asks *which signal is missing and where*, so it keeps every signal name, the absent-from-trace
+  // finding, the witness records and the counterexample inputs. It drops the binding/interpretive
+  // tag and the scope and domain limits: those decide whether a duty reaches this system, which is
+  // not a thing a developer changes by editing the system.
+  developer: { ...FULL, classification: false },
+  // Asks *does this duty reach my deployment, and what must I declare or procure*. Keeps the legal
+  // classification and the missing-capability finding; drops the diagnostic signal lists and the
+  // witnesses. The witnesses are the sharper call: a witness table inlines real decision records,
+  // which in a consumer-credit deployment are personal data about applicants, and an operator does
+  // not need them to act.
+  deployer: { ...FULL, signalNames: false, witnesses: false },
+  auditor: FULL,
+  // Asks *which duties were checked, how far does the claim reach, and what was not determined*.
+  // Keeps the strength, the classification, the evidence summaries and the probe budgets — the
+  // bound on a probed claim is exactly "how far does this reach". Drops signal names and witnesses:
+  // the internal architecture of a system, and the personal data of the people it decided about,
+  // are not what makes a claim's reach legible.
+  regulator: { ...FULL, signalNames: false, missingCapabilities: false, witnesses: false },
+  // The narrowest artefact, and the one with a hard rule around it: **no system internals at all**
+  // — no counterexamples, no probe budgets, no signal names, no solver output, and no strength
+  // vocabulary, because being told a duty is `probed` hands a person this tool's evidence model
+  // instead of an answer.
   "affected-individual": {
     strength: false,
+    headline: false,
+    classification: false,
+    signalNames: false,
+    missingCapabilities: false,
     evidence: false,
-    mechanism: false,
-    clause: false,
+    probeBudget: false,
+    witnesses: false,
     plainAccount: true,
   },
+}
+
+/** An unknown audience is refused rather than widened to the full report. */
+export function projectionFor(audience: string): AudienceProjection {
+  const known = (AUDIENCES as readonly string[]).includes(audience)
+  if (!known) {
+    throw new Error(
+      `Unknown audience ${JSON.stringify(audience)}; valid: ${AUDIENCES.join(", ")}`,
+    )
+  }
+  return PROJECTIONS[audience as Audience]
 }
 
 const VERDICT_MARK: Record<string, string> = {
@@ -127,21 +199,49 @@ function wrap(text: string, width: number, indent: string): string[] {
 function renderResult(result: RequirementResult, view: AudienceProjection): string[] {
   const lines: string[] = []
   const mark = VERDICT_MARK[result.verdict] ?? "????"
+  // The verdict is on every row of the table: no projection may drop it, and no audience may
+  // disagree with another about one.
   const strength = view.strength ? ` [${result.strength ?? "not evaluated"}]` : ""
   lines.push(`  ${mark}  ${result.requirement_id}${strength}`)
-  if (view.clause) lines.push(`        ${result.source_clause}`)
-  if (view.strength) lines.push(`        basis: ${basisSentence(result.basis)}`)
-  if (result.signals_missing.length > 0) {
-    lines.push(`        missing signals: ${result.signals_missing.join(", ")}`)
+  lines.push(`        ${result.source_clause}`)
+  if (view.classification) {
+    const limits = [
+      result.binding ? "binding" : "interpretive",
+      result.scope ? `scope ${result.scope}` : null,
+      result.domains.length > 0 ? `domains ${result.domains.join(", ")}` : null,
+    ].filter((part): part is string => part !== null)
+    lines.push(`        ${limits.join(" · ")}`)
   }
-  const offending = offendingName(result)
-  if (offending && result.verdict === "violated") {
-    lines.push(`        first offending decision: ${offending}`)
+  if (view.strength) lines.push(`        basis: ${basisSentence(result.basis)}`)
+  if (view.signalNames && result.signals_required.length > 0) {
+    lines.push(`        requires: ${result.signals_required.join(", ")}`)
+  }
+  if (view.signalNames) {
+    const absent = result.details.signals_absent_from_trace
+    if (Array.isArray(absent) && absent.length > 0) {
+      lines.push(`        absent from the trace: ${absent.map(String).join(", ")}`)
+    }
+  }
+  // A missing *capability* is a different finding from a signal absent from a trace: one says the
+  // system cannot emit it at all, the other that this log did not. The deployer sees the first and
+  // not the second, which is the whole reason they are separate rows.
+  if (view.missingCapabilities && result.signals_missing.length > 0) {
+    lines.push(`        missing capability signals: ${result.signals_missing.join(", ")}`)
+  }
+  if (view.witnesses) {
+    const offending = offendingName(result)
+    if (offending && result.verdict === "violated") {
+      lines.push(`        first offending decision: ${offending}`)
+    }
+    const counterexample = result.details.counterexample
+    if (counterexample && typeof counterexample === "object") {
+      lines.push(`        counterexample: ${JSON.stringify(counterexample)}`)
+    }
   }
   if (view.evidence && result.evidence_summary) {
     lines.push(...wrap(result.evidence_summary, 68, "        "))
   }
-  if (view.mechanism) {
+  if (view.probeBudget) {
     const budget = result.details[PROBE_BUDGET_KEY] as Record<string, unknown> | undefined
     if (budget) {
       lines.push(`        probe budget: ${String(budget.trials)} trial(s); seed ${String(budget.seed)}`)
@@ -152,13 +252,21 @@ function renderResult(result: RequirementResult, view: AudienceProjection): stri
         }
       }
     }
+  }
+  if (view.evidence) {
     const vacuous = result.details[VACUOUS_TRIGGER_KEY] as Record<string, unknown> | undefined
     if (vacuous) {
-      lines.push(`        trigger never fired: ${String(vacuous.antecedent)} over ${String(vacuous.domain)}`)
+      lines.push(
+        `        trigger never fired: ${String(vacuous.antecedent)} over ${String(vacuous.domain)}`,
+      )
     }
     const degree = result.details[TRUTH_DEGREE_KEY] as Record<string, unknown> | undefined
     if (degree) {
-      lines.push(`        truth degree: ${String(degree.degree)} over the ${String(degree.algebra)} algebra`)
+      // The one place a degree is formatted, and a result carrying one carries no strength — so
+      // `0.7` can never read as a fraction of a rung.
+      lines.push(
+        `        truth degree: ${String(degree.degree)} over the ${String(degree.algebra)} algebra`,
+      )
     }
   }
   return lines
@@ -168,41 +276,63 @@ function renderResult(result: RequirementResult, view: AudienceProjection): stri
  * The lay projection's own sections: the decision and the reason, quoted out of the log, and the
  * reasons a measurement found the notice left unstated. It paraphrases no statute and explains no
  * decision.
+ *
+ * **Absence of a finding is never completeness.** A run where no certificate measured whether the
+ * stated reasons were all the reasons prints a section saying so, because silence there reads to
+ * this reader as a clean result and it is not one. Equally, no heading is printed over an empty box.
  */
 function laySections(report: ConformanceReport): string[] {
   const lines: string[] = []
   lines.push("", "WHAT THE SYSTEM RECORDED ABOUT THE DECISIONS", rule())
   if (report.decisions.length === 0) {
-    lines.push("  This run read no decision log, so there is nothing here to quote.")
+    lines.push(
+      "  This run read no decision log, so there is nothing here to quote. That is not a finding",
+      "  that the decisions were sound; it is this report having seen none of them.",
+    )
   }
   for (const account of report.decisions) {
     if (account.decision) lines.push(`  Decision: ${account.decision}`)
     if (account.reason) lines.push(`  Reason given: ${account.reason}`)
     lines.push("")
   }
-  const measured = report.results.filter(
-    (r) => r.verdict === "violated" && r.basis === "artifact",
-  )
-  if (measured.length > 0) {
-    lines.push("REASONS THE MEASUREMENT FOUND LEFT UNSTATED", rule())
-    for (const result of measured) {
-      const certificates = result.details.certificates
-      if (!Array.isArray(certificates)) continue
-      for (const cert of certificates as Record<string, unknown>[]) {
-        const missing = cert.missing_reasons
-        if (Array.isArray(missing) && missing.length > 0) {
-          for (const reason of missing) lines.push(`  · ${String(reason)}`)
-        }
-      }
+
+  // Every duty answered on the artifact basis — whatever its verdict — because a reader shown only
+  // the breaches would read the silence on the others as a clean result.
+  const onTheArtifact = report.results.filter((r) => r.basis === "artifact")
+  const missing: string[] = []
+  let anyMeasured = false
+  for (const result of onTheArtifact) {
+    const certificates = result.details.certificates
+    if (!Array.isArray(certificates)) continue
+    anyMeasured = true
+    for (const cert of certificates as Record<string, unknown>[]) {
+      const reasons = cert.missing_reasons
+      if (Array.isArray(reasons)) missing.push(...reasons.map(String))
     }
-    lines.push("")
   }
+
+  lines.push("WHETHER THE STATED REASONS WERE ALL THE REASONS", rule())
+  if (!anyMeasured) {
+    lines.push(
+      "  Nothing in this run measured that. No inference artefact was opened up, so this report",
+      "  does not say the reasons you were given were complete, and does not say they were not.",
+    )
+  } else if (missing.length === 0) {
+    lines.push(
+      "  Every reason the decision's own inference used is one the statement names, as far as this",
+      "  run could measure. It measured only the decisions the system opened up.",
+    )
+  } else {
+    lines.push("  These reasons the decision's own inference used were not stated to you:")
+    for (const reason of [...new Set(missing)]) lines.push(`    · ${reason}`)
+  }
+  lines.push("")
   return lines
 }
 
 /** The text rendering, projected for `audience`. */
-export function renderText(report: ConformanceReport, audience: Audience = "expert"): string {
-  const view = PROJECTIONS[audience] ?? PROJECTIONS.expert
+export function renderText(report: ConformanceReport, audience: Audience = "auditor"): string {
+  const view = projectionFor(audience)
   const lines: string[] = []
 
   lines.push(rule("=".length * 78))
@@ -210,13 +340,15 @@ export function renderText(report: ConformanceReport, audience: Audience = "expe
   lines.push(rule())
   lines.push(`System:      ${report.system_name}`)
   lines.push(`Pack:        ${report.pack_id}`)
-  lines.push(`Scope:       ${report.system_scope ?? "undeclared"}`)
-  lines.push(
-    `Domains:     ${report.system_domains.length > 0 ? report.system_domains.join(", ") : "undeclared"}`,
-  )
-  lines.push(`Time domain: ${report.time_domain}`)
-  lines.push("")
-  lines.push(report.headline)
+  if (view.headline) {
+    lines.push(`Scope:       ${report.system_scope ?? "undeclared"}`)
+    lines.push(
+      `Domains:     ${report.system_domains.length > 0 ? report.system_domains.join(", ") : "undeclared"}`,
+    )
+    lines.push(`Time domain: ${report.time_domain}`)
+    lines.push("")
+    lines.push(report.headline)
+  }
   lines.push("")
 
   lines.push("FINDINGS")

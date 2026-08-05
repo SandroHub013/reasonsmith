@@ -114,7 +114,11 @@ One smaller one: the probed engine's PRNG is mulberry32 rather than Python's Mer
   run — and not at all when nothing in the pack is applicable, attainable and checkable.
 - **The two applicability gates are decided in one place**, so a system that has not declared its
   domain is never reported satisfied on a domain-limited duty.
-- **The lay projection is shown no strength and no basis**, and everything it prints is quoted.
+- **The five audience projections are the documented ones** — `developer`, `deployer`, `auditor`,
+  `regulator`, `affected-individual` — with `auditor` the full report by identity and an unknown
+  audience refused rather than widened. The lay artefact carries **no system internals at all** and
+  is a *derivation*, not a subset of an expert one: `core/src/render.test.ts` asserts that as an
+  exclusion over the run's own data, so a change that adds a leak fails rather than passes.
 
 ## Reading order
 
