@@ -1,12 +1,13 @@
 /**
- * Theme picker dialog — enterprise palette selection, nikcli settings shape.
+ * Theme picker dialog — enterprise palette selection modal panel.
  */
 
 import { For } from "solid-js"
 import { useDialog } from "./dialog.tsx"
 import { useTheme } from "../context/theme.tsx"
-import { Clickable } from "./clickable.tsx"
 import type { PaletteId } from "../theme/palettes.ts"
+import { Clickable } from "./clickable.tsx"
+import { ModalPanel } from "./modal-panel.tsx"
 
 export function DialogTheme() {
   const dialog = useDialog()
@@ -14,20 +15,11 @@ export function DialogTheme() {
 
   const select = (id: PaletteId) => {
     theme.setPalette(id)
-    dialog.clear()
+    dialog.pop()
   }
 
   return (
-    <box flexDirection="column" gap={1} paddingBottom={1}>
-      <box flexDirection="row" justifyContent="space-between">
-        <text fg={theme.color.text} attributes={theme.attr.bold} wrapMode="none">
-          Theme
-        </text>
-        <text fg={theme.color.textMuted} wrapMode="none">
-          esc to close
-        </text>
-      </box>
-
+    <ModalPanel title="Theme" subtitle="enterprise chrome palettes" stackDepth={dialog.stack().length} width={68}>
       <For each={theme.palettes()}>
         {(palette) => {
           const active = () => theme.paletteId() === palette.id
@@ -65,6 +57,6 @@ export function DialogTheme() {
           )
         }}
       </For>
-    </box>
+    </ModalPanel>
   )
 }

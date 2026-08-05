@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "createdAt": "2026-08-05T03:13:20.449Z",
+  "createdAt": "2026-08-05T03:16:00.697Z",
   "result": "passed",
   "title": "Reasonsmith enterprise TUI verification",
   "summary": "OpenTUI enterprise dashboard: leader key, palettes, status bar, mouse, keyboard (Kitty), full route navigation — verified via terminal-control.",
   "capture": {
     "final": true
   },
-  "sourceRecordingSha256": "e8af6faf2ad7256d1a854d994aed8486b03d26627cfa91c8c4398544c7e77644",
+  "sourceRecordingSha256": "4c26d2a5b17b51adae9beadae96cb339af9a9ffba4672309317ec164573cb084",
   "artifacts": [
     {
       "kind": "screen-text",
@@ -36,20 +36,20 @@
     {
       "kind": "video",
       "path": "demo.mp4",
-      "bytes": 525181,
-      "sha256": "364e5992aa927ac7f5721dce614b1deb7880b4241e28e1c14b61c1b283b40a09"
+      "bytes": 611770,
+      "sha256": "dfd85f76cedc60d95da59ca1ee4374fd8f66f97c74ef5a7915b53db5593ed3b0"
     },
     {
       "kind": "preview",
       "path": "preview.gif",
-      "bytes": 718529,
-      "sha256": "877db72cc4ba3adf3c70b6e3db83a0b1180297913b7b98603aedcc52a4444b2e"
+      "bytes": 1017095,
+      "sha256": "3b506f0d9630ba8177501cdbcf9b8f3f764d579fd8cfd52aee79acdefcd913da"
     },
     {
       "kind": "recording",
       "path": "recording.termctrl",
-      "bytes": 487892,
-      "sha256": "e8af6faf2ad7256d1a854d994aed8486b03d26627cfa91c8c4398544c7e77644"
+      "bytes": 638586,
+      "sha256": "4c26d2a5b17b51adae9beadae96cb339af9a9ffba4672309317ec164573cb084"
     },
     {
       "kind": "pr-markdown",

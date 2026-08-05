@@ -51,6 +51,12 @@ echo "==> Theme cycle"
 $TC send tui-check text:t
 $TC mark tui-check theme
 
+echo "==> Command palette"
+$TC send tui-check ctrl-p
+$TC wait tui-check "Command palette" --timeout 5000
+$TC send tui-check text:theme enter
+$TC mark tui-check palette
+
 echo "==> Help dialog via leader (ctrl+x h)"
 $TC send tui-check ctrl-x text:h
 $TC wait tui-check "Help" --timeout 5000

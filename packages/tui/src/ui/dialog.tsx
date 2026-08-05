@@ -1,19 +1,11 @@
 /**
- * The dialog overlay system, in nikcli's shape.
+ * The dialog overlay system — stacked modal panels (nikcli / opencode shape).
  *
- * A stack of dialogs, not a single one: nikcli's `DialogProvider` keeps a `stack` array so a dialog
- * can open another (the command palette opens the settings dialog, which opens the theme dialog,
- * and so on) without the second one replacing the first's focus state. `replace` clears the stack and
- * pushes one; `clear` empties it; `stack` exposes the top entry for the renderer.
- *
- * Escape closes only the top, and a top dialog's interactive children (the ones with a focused
- * textarea) let Ctrl-C propagate rather than closing the stack — same rule nikcli states, because a
- * user mid-typing in a prompt who hits Ctrl-C is cancelling the prompt, not the whole UI.
- *
- * What a reader must not break: the overlay is rendered **outside** the route subtree, by the
- * `DialogProvider` itself, so a route that has no notion of dialogs does not have to mount one.
- * The route subtree is the panel; the dialog stack floats above it. A panel that paints over the
- * overlay is a bug in the panel.
+ * API:
+ *   push()    — stack a modal (command palette → theme picker → …)
+ *   replace() — clear stack and open one modal
+ *   pop()     — close the top modal (escape, backdrop)
+ *   clear()   — dismiss entire stack
  */
 
 import { type JSX, type ParentProps, Show, createContext, useContext } from "solid-js"
@@ -23,7 +15,7 @@ import { createSimpleContext } from "../context/helper.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { GlassBorder } from "./border.ts"
 
-export type DialogSize = "small" | "medium" | "large"
+export type DialogSize = "small" | "medium" | "large" | "full"
 
 interface DialogEntry {
   element: JSX.Element | (() => JSX.Element)
@@ -33,7 +25,10 @@ interface DialogEntry {
 
 export interface DialogContext {
   readonly stack: () => readonly DialogEntry[]
-  replace(input: JSX.Element | (() => JSX.Element), options?: { size?: DialogSize }): void
+  readonly isOpen: () => boolean
+  push(input: JSX.Element | (() => JSX.Element), options?: { size?: DialogSize; onClose?: () => void }): void
+  replace(input: JSX.Element | (() => JSX.Element), options?: { size?: DialogSize; onClose?: () => void }): void
+  pop(): void
   clear(): void
 }
 
@@ -44,11 +39,10 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
   init: () => {
     const [store, setStore] = createStore<{ stack: DialogEntry[] }>({ stack: [] })
 
-    function closeTop() {
+    function pop() {
       const top = store.stack.at(-1)
       if (!top) return
-      const next = store.stack.slice(0, -1)
-      setStore("stack", next)
+      setStore("stack", store.stack.slice(0, -1))
       top.onClose?.()
     }
 
@@ -57,7 +51,7 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
       if (evt.name === "escape") {
         evt.preventDefault()
         evt.stopPropagation()
-        closeTop()
+        pop()
         return
       }
       if (evt.ctrl && evt.name === "c") {
@@ -71,36 +65,52 @@ export const { use: useDialog, provider: DialogProvider } = createSimpleContext(
       get stack() {
         return () => store.stack
       },
-      replace(input, options) {
-        const size: DialogSize = options?.size ?? "medium"
-        const top = store.stack.at(-1)
-        setStore("stack", [...store.stack, { element: input, size, onClose: top?.onClose }])
+      isOpen: () => store.stack.length > 0,
+      push(input, options) {
+        const entry: DialogEntry = {
+          element: input,
+          size: options?.size ?? "medium",
+          onClose: options?.onClose,
+        }
+        setStore("stack", [...store.stack, entry])
       },
+      replace(input, options) {
+        const entry: DialogEntry = {
+          element: input,
+          size: options?.size ?? "medium",
+          onClose: options?.onClose,
+        }
+        setStore("stack", [entry])
+      },
+      pop,
       clear() {
+        for (const entry of [...store.stack].reverse()) entry.onClose?.()
         setStore("stack", [])
       },
     } satisfies DialogContext as DialogContext
   },
 })
 
-/**
- * The overlay frame. One `box` at the screen extent that dims the panel beneath, then one panel with
- * `GlassBorder` rounded rules that holds the top dialog. The dim colour is the theme's `bg` at half
- * opacity, the same way nikcli does it.
- */
-function Overlay(props: { children: JSX.Element; size: DialogSize; onBackdropClick: () => void }) {
-  const t = useTheme()
-
-  const width = () => {
-    switch (props.size) {
-      case "large":
-        return 80
-      case "small":
-        return 40
-      default:
-        return 60
-    }
+function panelWidth(size: DialogSize): number | "100%" {
+  switch (size) {
+    case "full":
+      return "100%"
+    case "large":
+      return 80
+    case "small":
+      return 40
+    default:
+      return 64
   }
+}
+
+function Overlay(props: {
+  children: JSX.Element
+  size: DialogSize
+  depth: number
+  onBackdropClick: () => void
+}) {
+  const t = useTheme()
 
   return (
     <box
@@ -115,48 +125,38 @@ function Overlay(props: { children: JSX.Element; size: DialogSize; onBackdropCli
       onMouseUp={props.onBackdropClick}
     >
       <box
-        width={width()}
+        width={panelWidth(props.size)}
         flexDirection="column"
         backgroundColor={t.color.surface}
-        paddingLeft={2}
-        paddingRight={2}
+        paddingLeft={1}
+        paddingRight={1}
         paddingTop={1}
         paddingBottom={1}
         border={[...GlassBorder.border]}
         customBorderChars={GlassBorder.customBorderChars}
         onMouseUp={(event) => event.stopPropagation()}
       >
+        <Show when={props.depth > 1}>
+          <box flexDirection="row" justifyContent="flex-end" height={1}>
+            <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none">
+              {`modal ${props.depth}`}
+            </text>
+          </box>
+        </Show>
         {props.children}
       </box>
     </box>
   )
 }
 
-/**
- * The provider extension: in addition to putting the context value on the tree, it renders the top
- * dialog as an overlay. The route subtree is mounted as `props.children`; the overlay sits on top,
- * separately.
- *
- * Implementation note: this component cannot call `useDialog()` itself — at the moment that hook
- * is evaluated, the `<DialogProvider>` above has not yet set the context, and the hook returns
- * `undefined`. This is the same bug nikcli's `DialogProviderWithOverlay` solves by composing the
- * base provider transparently: we mount the base `<DialogProvider>` (which owns the context), then
- * render the overlay as a sibling, outside the children subtree but inside the same parent.
- */
 export function DialogProviderWithOverlay(props: ParentProps) {
   return (
     <DialogProvider>
-      <DialogConsumers>
-        {props.children}
-      </DialogConsumers>
+      <DialogConsumers>{props.children}</DialogConsumers>
     </DialogProvider>
   )
 }
 
-/**
- * The inner component that runs *inside* the DialogProvider so `useDialog()` returns the value.
- * It mounts the overlay using the consumer's view of the stack.
- */
 function DialogConsumers(props: { children: JSX.Element }) {
   const value = useDialog()
   const top = () => value.stack().at(-1)
@@ -171,7 +171,11 @@ function DialogConsumers(props: { children: JSX.Element }) {
           const rendered: JSX.Element =
             typeof node === "function" ? (node as () => JSX.Element)() : node
           return (
-            <Overlay size={e.size} onBackdropClick={() => value.clear()}>
+            <Overlay
+              size={e.size}
+              depth={value.stack().length}
+              onBackdropClick={() => value.pop()}
+            >
               {rendered}
             </Overlay>
           )

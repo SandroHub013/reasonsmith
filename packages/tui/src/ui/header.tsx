@@ -17,6 +17,7 @@
 import { For, Show, createSignal } from "solid-js"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
+import { useKeybind } from "../context/keybind.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { wrap } from "../theme.ts"
 import { Clickable } from "./clickable.tsx"
@@ -34,6 +35,7 @@ export function ReportHeader() {
   const t = useTheme()
   const route = useRoute()
   const report = useReport()
+  const keybind = useKeybind()
   const notice = () => report.report.undeclaredDomainNotice
   const [hovered, setHovered] = createSignal<string | null>(null)
 
@@ -105,6 +107,10 @@ export function ReportHeader() {
           {report.report.results.length} requirements
         </text>
         <box flexGrow={1} />
+        <Clickable cursor="pointer" onClick={() => keybind.openCommandPalette()}>
+          <text fg={t.color.textMuted} wrapMode="none" content="ctrl+p" />
+        </Clickable>
+        <text fg={t.color.borderSubtle} wrapMode="none" content=" · " />
         <Clickable cursor="pointer" onClick={() => report.cycleAudience()}>
           <text fg={t.color.info} wrapMode="none">
             for: <b>{report.audience()}</b>

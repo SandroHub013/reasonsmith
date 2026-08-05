@@ -1,5 +1,5 @@
 /**
- * The keybind context — OpenTUI keyboard + enterprise leader-key mode.
+ * The keybind context — OpenTUI keyboard + leader key + command palette.
  */
 
 import { createSignal } from "solid-js"
@@ -10,7 +10,9 @@ import { useReport } from "./report.tsx"
 import { useRoute } from "./route.tsx"
 import { useTheme } from "./theme.tsx"
 import { useDialog } from "../ui/dialog.tsx"
+import { DialogCommandPalette } from "../ui/dialog-command-palette.tsx"
 import { DialogHelp } from "../ui/dialog-help.tsx"
+import { DialogSettings } from "../ui/dialog-settings.tsx"
 import { DialogTheme } from "../ui/dialog-theme.tsx"
 import { Keybind } from "../util/keybind.ts"
 
@@ -22,6 +24,7 @@ export interface Binding {
 }
 
 export const BINDINGS: readonly Binding[] = [
+  { keys: "ctrl+p", label: "commands", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
   { keys: "j/k ↑↓", label: "move", on: ["findings"] },
   { keys: "enter", label: "open", on: ["findings"] },
   { keys: "esc", label: "back", on: ["detail", "limits", "packs", "systems", "settings"] },
@@ -34,7 +37,6 @@ export const BINDINGS: readonly Binding[] = [
   { keys: "q", label: "quit", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
   { keys: "?", label: "help", on: ["findings", "detail", "limits", "packs", "systems", "settings"] },
 ]
-
 
 export const { use: useKeybind, provider: KeybindProvider } = createSimpleContext({
   name: "Keybind",
@@ -49,8 +51,11 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
     let leaderTimeout: ReturnType<typeof setTimeout> | undefined
     const LEADER_TIMEOUT_MS = 2000
 
-    const openHelp = () => dialog.replace(() => <DialogHelp />)
-    const openTheme = () => dialog.replace(() => <DialogTheme />)
+    const openCommandPalette = () =>
+      dialog.push(() => <DialogCommandPalette />, { size: "large" })
+    const openHelp = () => dialog.push(() => <DialogHelp />, { size: "large" })
+    const openTheme = () => dialog.push(() => <DialogTheme />)
+    const openSettings = () => dialog.push(() => <DialogSettings />, { size: "large" })
     const quit = () => renderer.stop()
 
     const activateLeader = () => {
@@ -98,6 +103,18 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
 
     useKeyboard((event) => {
       if (Keybind.isRepeat(event)) return
+
+      if (event.ctrl && event.name === ",") {
+        openSettings()
+        return
+      }
+
+      if (matches("ctrl+p", event, false)) {
+        openCommandPalette()
+        return
+      }
+
+      if (dialog.isOpen()) return
 
       if (matches("ctrl+c", event, false)) {
         quit()
@@ -178,6 +195,9 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
 
     function click(action: string): void {
       switch (action) {
+        case "commands":
+          openCommandPalette()
+          return
         case "quit":
           quit()
           return
@@ -221,6 +241,10 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
       },
       quit,
       click,
+      openCommandPalette,
+      openHelp,
+      openTheme,
+      openSettings,
     }
   },
 })
