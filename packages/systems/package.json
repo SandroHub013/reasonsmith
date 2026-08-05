@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "@reasonsmith/engines": "workspace:*"
   }
 }

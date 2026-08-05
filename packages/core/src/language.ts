@@ -468,6 +468,11 @@ export function containsLiteral(haystack: unknown, needle: string): boolean {
 // Walkers: atoms, signal names, role checks
 // ---------------------------------------------------------------------------
 
+/** Every node of an expression, the node itself first. Exported as `walkExpr`. */
+export function walkExpr(node: Expr): readonly Expr[] {
+  return walk(node)
+}
+
 function walk(node: Expr): readonly Expr[] {
   const out: Expr[] = []
   const stack = [node]
@@ -605,7 +610,10 @@ export function unconditionalSignalNames(node: Expr): readonly string[] {
     if (branches.length === 0) return []
     const common: string[] = branches
       .slice(1)
-      .reduce((acc, branch) => acc.filter((name) => branch.includes(name)), branches[0])
+      .reduce(
+        (acc, branch) => acc.filter((name) => branch.includes(name)),
+        branches[0] as string[],
+      )
     return [...new Set(common)].sort()
   }
   if (node.kind === "and") {
@@ -961,6 +969,15 @@ export function isFlagTrue(value: unknown): boolean {
  */
 export function evalAt(node: Expr, trace: readonly DecisionRecord[], i: number): boolean {
   switch (node.kind) {
+    // The Boolean connectives are compositional over positions, so they recurse here rather than
+    // falling through to the per-record interpreter — which would refuse a temporal operator under
+    // them and report `always(p) and always(q)` unevaluable.
+    case "not":
+      return !evalAt(node.operand, trace, i)
+    case "and":
+      return node.values.every((v) => evalAt(v, trace, i))
+    case "or":
+      return node.values.some((v) => evalAt(v, trace, i))
     case "call": {
       const { name, args } = node
       if (name === "always") return range(trace, i, trace.length).every((j) => evalAt(args[0], trace, j))
@@ -973,17 +990,22 @@ export function evalAt(node: Expr, trace: readonly DecisionRecord[], i: number):
         return range(trace, 0, i + 1).some((j) =>
           evalAt(args[1], trace, j) && range(trace, j + 1, i + 1).every((k) => evalAt(args[0], trace, k)),
         )
-      if (name === "once") return i > 0 && range(trace, 0, i).some((j) => evalAt(args[0], trace, j))
+      // The past operators include the current position, as rtamt's do: `once(p)` at position 0 of
+      // a trace whose first record satisfies `p` holds.
+      if (name === "once") return range(trace, 0, i + 1).some((j) => evalAt(args[0], trace, j))
       if (name === "historically")
-        return i > 0 && range(trace, 0, i).every((j) => evalAt(args[0], trace, j))
+        return range(trace, 0, i + 1).every((j) => evalAt(args[0], trace, j))
       if (name === "next") return i + 1 < trace.length && evalAt(args[0], trace, i + 1)
       if (name === "prev") return i > 0 && evalAt(args[0], trace, i - 1)
       if (name === "rise")
         return i + 1 < trace.length && !evalAt(args[0], trace, i) && evalAt(args[0], trace, i + 1)
       if (name === "fall")
         return i + 1 < trace.length && evalAt(args[0], trace, i) && !evalAt(args[0], trace, i + 1)
-      if (name === "and" || name === "or") throw new Error("unreachable")
-      // state/call/atom forms evaluate pointwise against the current record
+      // The connectives spelled as calls recurse for the same reason `and`/`or` above do.
+      if (name === "implies" || name === "Implies")
+        return !evalAt(args[0], trace, i) || evalAt(args[1], trace, i)
+      if (name === "Iff") return evalAt(args[0], trace, i) === evalAt(args[1], trace, i)
+      // Every other atom is a property of one decision record, evaluated at this position.
       return evalExpression(node, trace[i])
     }
     default:

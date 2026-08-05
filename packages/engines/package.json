@@ -4,17 +4,16 @@
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
-  "description": "Reasonsmith engines: the observed (temporal record), probed (perturb-and-replay), proved (rule logic) and certificate (artifact reason-fidelity) rungs.",
+  "description": "Reasonsmith engines: the record and observed (trace) rungs, the probed (perturb-and-replay) rung, and the certificate (reason-deletion) rung. No solver in this build, so the proof rungs are absent rather than approximated.",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "bun test src/**/*.test.ts"
   },
   "exports": {
     ".": "./src/index.ts",
-    "./ladder": "./src/ladder.ts",
+    "./record": "./src/record.ts",
     "./observed": "./src/observed.ts",
     "./probed": "./src/probed.ts",
-    "./proved": "./src/proved.ts",
     "./certificate": "./src/certificate.ts"
   },
   "dependencies": {
