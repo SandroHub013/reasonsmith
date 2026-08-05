@@ -7,7 +7,7 @@
   "description": "Reasonsmith engines: the record and observed (trace) rungs, the probed (perturb-and-replay) rung, and the certificate (reason-deletion) rung. No solver in this build, so the proof rungs are absent rather than approximated.",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/**/*.test.ts"
+    "test": "bun test ./src/"
   },
   "exports": {
     ".": "./src/index.ts",

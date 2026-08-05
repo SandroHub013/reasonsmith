@@ -7,7 +7,7 @@
   "description": "Reasonsmith demonstration systems: the truncating credit system whose property duty comes back violated while the form duty passes.",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/**/*.test.ts"
+    "test": "bun test ./src/"
   },
   "exports": {
     ".": "./src/index.ts",
