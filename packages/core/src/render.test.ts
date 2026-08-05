@@ -114,3 +114,22 @@ describe("the projections differ by content, not framing", () => {
     expect(rendered.regulator).toContain("probe budget")
   })
 })
+
+describe("the notice that duties went unchecked survives every projection", () => {
+  test("no audience drops it — a compliance gate must not go green over unchecked duties", () => {
+    // A system that declares no domain: every domain-limited duty is not applicable without being
+    // checked. The run still exits as a clean one would, so the *report* has to carry what the exit
+    // code cannot, in every format.
+    const undeclared = {
+      name: "Undeclared",
+      capabilities: () => ["artifact_logs_decision_record"],
+      decisions: () => [{ artifact_logs_decision_record: "a" }],
+      logic: () => null,
+    }
+    const skipped = checkConformance(undeclared, loadPack("ecoa"), { systemName: "undeclared" })
+    expect(skipped.undeclaredDomainNotice).not.toBeNull()
+    for (const audience of AUDIENCES) {
+      expect(renderText(skipped, audience)).toContain("without being checked")
+    }
+  })
+})

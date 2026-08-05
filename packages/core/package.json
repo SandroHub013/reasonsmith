@@ -7,7 +7,7 @@
   "description": "Reasonsmith domain model: strength lattice, evidence basis, verdicts, requirements, packs, and the conformance run that drives the engine ladder.",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/**/*.test.ts"
+    "test": "bun test ./src/"
   },
   "exports": {
     ".": "./src/index.ts",
