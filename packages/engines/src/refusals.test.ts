@@ -127,3 +127,39 @@ describe("the record engine names which signal failed in which record", () => {
     expect(result.details.violation_step_indices).toEqual([1])
   })
 })
+
+describe("a temporal violation names a record only where there is one to name", () => {
+  const trace = [
+    { artifact_logs_decision_record: "a", artifact_logs_incompleteness_notice_sent: "" },
+    { artifact_logs_decision_record: "", artifact_logs_incompleteness_notice_sent: "" },
+  ]
+
+  test("always(f) names the position where f actually failed, not position 0", () => {
+    const result = runOne(
+      duty({
+        formalism: "temporal",
+        spec: "always(present(artifact_logs_decision_record))",
+      }),
+      system(trace, ["artifact_logs_decision_record"]),
+    )
+    expect(result.verdict).toBe("violated")
+    // The breach is at #1. Reporting #0 — where the *formula* was evaluated — would hand a reader a
+    // record that is perfectly compliant.
+    expect(result.details.violation_step_indices).toEqual([1])
+    expect(result.evidence_summary).toContain("decision #1")
+  })
+
+  test("a shape with no per-record breach offers no offending record at all", () => {
+    const result = runOne(
+      duty({
+        formalism: "temporal",
+        spec: "eventually(present(artifact_logs_incompleteness_notice_sent))",
+        requires: ["artifact_logs_incompleteness_notice_sent"],
+      }),
+      system(trace, ["artifact_logs_incompleteness_notice_sent"]),
+    )
+    expect(result.verdict).toBe("violated")
+    expect(result.details.offending_trace_segment).toBeUndefined()
+    expect(result.evidence_summary).toContain("no single breaching decision to name")
+  })
+})

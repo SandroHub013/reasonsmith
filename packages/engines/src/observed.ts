@@ -11,8 +11,11 @@
  *   - There is no robustness *margin* here, so the exact-tie case rtamt scores as zero robustness
  *     is decided by the comparison itself. `>=` at equality holds, which is what the language says
  *     and what the reference interpreter has always done.
- *   - The witness is named by position and by the record's own identifier, which robustness could
- *     not do — one number for the whole formula cannot say which record breached.
+ *   - A state property's witness is named by position and by the record's own identifier, which
+ *     robustness could not do — one number for the whole formula cannot say which record breached.
+ *     A *temporal* formula gets that only for `always(f)`, whose breach is a record's; every other
+ *     temporal shape fails as a property of the trace and is reported with **no** offending record,
+ *     because naming one would hand a reader a decision that may be perfectly compliant.
  *
  * What a reader must not break:
  *   - An empty trace is NOT EVALUATED, never satisfied: the top of the lattice is not evidence.
@@ -29,6 +32,7 @@
 
 import {
   type DecisionRecord,
+  type Expr,
   NotAStatementError,
   type Requirement,
   RequirementResult,
@@ -50,6 +54,32 @@ export const TRACE_SEMANTICS =
   "A satisfied verdict is universal over the decisions supplied and claims nothing about a " +
   "decision not in the trace; a violated verdict is existential and one witnessing decision " +
   "settles it. Both are statements about this trace, not about the system as built."
+
+/**
+ * The positions a *temporal* violation can honestly be pinned to, or none.
+ *
+ * `always(f)` over a finite trace fails exactly where `f` fails, so its witnesses are those
+ * positions and a reader can be handed the record. Every other temporal shape — `eventually`,
+ * `until`, `since`, and any nesting — fails as a property of the trace rather than of a decision in
+ * it: there is no record that is *the* breach, and offering one would name a decision that may be
+ * perfectly compliant. This returns nothing for those, and the summary says so rather than
+ * inventing a witness.
+ */
+function witnessPositions(node: Expr, records: readonly DecisionRecord[]): number[] {
+  if (node.kind !== "call" || node.name !== "always" || node.args.length !== 1) return []
+  const inner = node.args[0]
+  const positions: number[] = []
+  for (let i = 0; i < records.length; i++) {
+    try {
+      if (!evalAt(inner, records, i)) positions.push(i)
+    } catch {
+      // A position the inner formula cannot be read at is not a witness; the caller already
+      // reported anything that made the whole formula unreadable.
+      return positions
+    }
+  }
+  return positions
+}
 
 export function evaluateObserved(
   req: Requirement,
@@ -100,13 +130,24 @@ export function evaluateObserved(
       throw error
     }
     if (!holds) breaches.push(i)
-    // A temporal formula is a property of the trace from a position, so a top-level temporal
+    // A temporal formula is a property of the trace *from* a position, so a top-level temporal
     // operator is answered once, at position 0, and not once per record.
     if (req.formalism === "temporal") break
   }
 
   if (breaches.length > 0) {
-    const index = breaches[0]
+    // Which record to name. For a state property the breaching positions are the witnesses and
+    // there is nothing more to find. For a temporal formula the loop above answered at position 0
+    // only, so position 0 is where the *formula* failed and says nothing about where the trace
+    // went wrong — naming it would hand a reader a record that may be perfectly compliant. Only
+    // `always(f)` has a per-record witness at all, and `witnessPositions` finds it; every other
+    // temporal shape gets no `offending_trace_segment`, because it has none to give.
+    const witnesses =
+      req.formalism === "temporal" ? witnessPositions(node, records) : breaches
+    const at =
+      witnesses.length > 0
+        ? `at decision #${witnesses[0]}`
+        : "over the trace as a whole — this temporal shape has no single breaching decision to name"
     return new RequirementResult({
       requirement_id: req.id,
       source_clause: sourceClause(req),
@@ -115,12 +156,16 @@ export function evaluateObserved(
       signals_required: req.requires,
       evidence_summary:
         `Violated over ${records.length} observed decision(s): ${JSON.stringify(req.spec)} does ` +
-        `not hold at decision #${index}. ${TRACE_SEMANTICS}`,
+        `not hold ${at}. ${TRACE_SEMANTICS}`,
       details: {
         engine: "observed",
         records_observed: records.length,
-        violation_step_indices: breaches,
-        offending_trace_segment: breaches.map((i) => records[i]),
+        ...(witnesses.length > 0
+          ? {
+              violation_step_indices: witnesses,
+              offending_trace_segment: witnesses.map((i) => records[i]),
+            }
+          : {}),
         trace_semantics: TRACE_SEMANTICS,
       },
       binding: req.binding,
