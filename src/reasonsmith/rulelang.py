@@ -1187,9 +1187,7 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
         )
 
     if isinstance(node, ast.Name):
-        if node.id in env:
-            return env[node.id]
-        raise NameError(f"name {node.id!r} is not defined for this decision")
+        return env.get(node.id, 0.0)
 
     if isinstance(node, ast.UnaryOp):
         operand = eval_expression(node.operand, env)
