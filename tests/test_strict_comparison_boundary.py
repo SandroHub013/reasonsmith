@@ -273,3 +273,108 @@ def test_missing_numeric_signal_returns_inconclusive():
     assert res.strength is None
     assert res.verdict == Verdict.INCONCLUSIVE
     assert "Not evaluated" in res.evidence_summary
+
+
+def test_unreachable_trigger_antecedent_zero_boundary():
+    """Reproduction 1: antecedent b > 0 with b = 0.0 must return INCONCLUSIVE / None."""
+    req = Requirement(
+        id="test-zero-antecedent",
+        source_document="test",
+        article_clause="test",
+        verbatim_text="test",
+        stakeholder="test",
+        formalism="temporal",
+        spec="always(b > 0 -> c > 0)",
+        requires=("b", "c"),
+        rationale="antecedent zero boundary test",
+        binding=True,
+        scope="",
+        domains=(),
+        deontic_type="obligation",
+        defeasibility="strict",
+    )
+    sut = BaseSUT({"b", "c"})
+    records = [{"b": 0.0, "c": 1.0}, {"b": 0.0, "c": 1.0}]
+    res = ObservedEngine.evaluate(req, sut, records)
+    assert res.verdict == Verdict.INCONCLUSIVE
+    assert res.strength is None
+    assert "vacuous_trigger" in res.details
+
+
+def test_unreachable_trigger_antecedent_negative_boundary():
+    """Reproduction 2: antecedent b > 0 with b = -1.0 must return INCONCLUSIVE / None."""
+    req = Requirement(
+        id="test-negative-antecedent",
+        source_document="test",
+        article_clause="test",
+        verbatim_text="test",
+        stakeholder="test",
+        formalism="temporal",
+        spec="always(b > 0 -> c > 0)",
+        requires=("b", "c"),
+        rationale="antecedent negative boundary test",
+        binding=True,
+        scope="",
+        domains=(),
+        deontic_type="obligation",
+        defeasibility="strict",
+    )
+    sut = BaseSUT({"b", "c"})
+    records = [{"b": -1.0, "c": 1.0}, {"b": -1.0, "c": 1.0}]
+    res = ObservedEngine.evaluate(req, sut, records)
+    assert res.verdict == Verdict.INCONCLUSIVE
+    assert res.strength is None
+    assert "vacuous_trigger" in res.details
+
+
+def test_unknown_antecedent_returns_inconclusive():
+    """Antecedent never true and unknown somewhere must return INCONCLUSIVE / None."""
+    req = Requirement(
+        id="test-unknown-antecedent",
+        source_document="test",
+        article_clause="test",
+        verbatim_text="test",
+        stakeholder="test",
+        formalism="temporal",
+        spec="always(b > 0 -> c > 0)",
+        requires=("b", "c"),
+        rationale="unknown antecedent test",
+        binding=True,
+        scope="",
+        domains=(),
+        deontic_type="obligation",
+        defeasibility="strict",
+    )
+    sut = BaseSUT({"b", "c"})
+    records = [{"c": 1.0}, {"c": 1.0}]
+    res = ObservedEngine.evaluate(req, sut, records)
+    assert res.verdict == Verdict.INCONCLUSIVE
+    assert res.strength is None
+    assert "Not evaluated" in res.evidence_summary
+
+
+def test_negative_zero_antecedent_robustness_cannot_slip_through():
+    """Assert directly that the vacuity guard fires for an antecedent whose robustness is -0.0."""
+    req = Requirement(
+        id="test-negative-zero-antecedent",
+        source_document="test",
+        article_clause="test",
+        verbatim_text="test",
+        stakeholder="test",
+        formalism="temporal",
+        spec="always(b > 0 -> c > 0)",
+        requires=("b", "c"),
+        rationale="negative zero antecedent test",
+        binding=True,
+        scope="",
+        domains=(),
+        deontic_type="obligation",
+        defeasibility="strict",
+    )
+    sut = BaseSUT({"b", "c"})
+    records = [{"b": -0.0, "c": 1.0}, {"b": -0.0, "c": 1.0}]
+    res = ObservedEngine.evaluate(req, sut, records)
+    assert res.verdict == Verdict.INCONCLUSIVE
+    assert res.strength is None
+    assert "vacuous_trigger" in res.details
+

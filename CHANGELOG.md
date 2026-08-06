@@ -13,6 +13,9 @@ releases before it predate the file and are not reconstructed here.
 - **Temporal verdict derived from Boolean semantics.**
   The temporal engine (`engines/observed.py`) now derives requirement verdicts from the Boolean semantics over finite traces (`rulelang.eval_temporal_trace`) rather than from quantitative robustness sign alone. Robustness remains reported as the quantitative margin in `evaluation_scores`. This resolves strict comparison boundary issues at robustness zero (e.g. `always(b > 0)` at `b = 0.0` now evaluates to `VIOLATED` rather than `SATISFIED`).
 
+- **Unreachable trigger vacuity guard uses Kleene 3-valued Boolean semantics.**
+  The temporal engine (`engines/observed.py`) now evaluates implication antecedents under Kleene 3-valued logic over the trace (`rulelang.eval_temporal_trace`) rather than using quantitative robustness comparisons (`rob < 0`). An antecedent that is false at every position is reported as an unreachable trigger (`verdict=INCONCLUSIVE`), an antecedent that is unknown anywhere and never true is reported as not evaluated (`verdict=INCONCLUSIVE`), and negative zero robustness (`-0.0`) can no longer bypass the guard.
+
 - **Silent wrong answers closed in the temporal backend.**
   A temporal formula that the backend parser did not read whole (due to dropped lexer tokens like `%` or multi-statement inputs like `'a b > 1'`) is now reported `not evaluated` (`verdict=INCONCLUSIVE`) rather than answered from an incomplete parse. Implemented via a strict lexer subclass (`F1`) that attaches rtamt's raising error listener to the lexer and a postcondition assertion (`F2`) that the backend parser produced exactly one statement. Every formula in every shipped pack was swept and verified to parse to rendering exactly one statement.
 

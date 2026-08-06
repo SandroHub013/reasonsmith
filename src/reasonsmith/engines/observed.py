@@ -32,7 +32,7 @@ What a reader must not break:
     `parse()` does not raise, so the monitor answers about a formula nobody wrote.
     `test_rtamt_still_behaves_the_way_the_refusals_assume` fails if a version bump moves any
     admitted construct between raising, agreeing and misreading.
-  - Where the property is an implication whose antecedent scored below zero at every position,
+  - Where the property's antecedent evaluated false or unknown at every position,
     report `NOT EVALUATED`, never `satisfied`.
     Why this matters: an implication holds at every step its trigger does not fire, so such a
     trace scores non-negative for every system alike and the monitor learned nothing about this
@@ -486,25 +486,13 @@ class ObservedEngine:
             req.spec, set(req.requires)
         )
 
-        # The property's antecedent, rendered for the same monitor. It is a sub-formula of the
-        # spec, so it introduces no signal the trace was not already read for; what it needs is
-        # synthetic flags of its own, which is why the names already taken are reserved. Rendered
-        # here rather than after the monitor runs, so its flags are populated by the one pass that
-        # builds the time series. See the module docstring for what it is for.
+        # The property's antecedent, evaluated under Kleene 3-valued logic over the finite trace.
         antecedent_node = implication_antecedent(property_node)
-        antecedent_stl: str | None = None
-        if antecedent_node is not None:
-            antecedent_stl, extra_presence, extra_contains = _render_stl(
-                ast.unparse(antecedent_node),
-                set(req.requires) | set(presence_signals) | set(contains_signals),
-            )
-            presence_signals.update(extra_presence)
-            contains_signals.update(extra_contains)
 
         # Extract variable names from formula or req.requires
         var_names = set(req.requires)
         # Also extract identifiers from spec formula
-        monitored_text = stl_text if antecedent_stl is None else f"{stl_text} {antecedent_stl}"
+        monitored_text = stl_text
         found_vars = set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", monitored_text))
         keywords = {
             "always", "eventually", "until", "then", "implies", "and", "or", "not",
@@ -722,20 +710,29 @@ class ObservedEngine:
             )
 
         # No step breached the duty — but a duty triggered nowhere is not breached by any trace,
-        # and the monitor scoring every step non-negative is then a fact about the antecedent.
-        # The antecedent is read at the same threshold satisfaction is: robustness below zero is
-        # the trigger not firing, exactly as it is the formula not holding.
-        #
-        # Monitored here, after the violation check and in a try of its own, so that an
-        # antecedent rtamt cannot parse can only ever withhold a satisfied verdict. Sharing the
-        # try above would let a sub-formula the monitor chokes on suppress a breach the monitor
-        # had already scored.
-        if antecedent_stl is not None:
-            try:
-                antecedent_res = _monitor(
-                    antecedent_stl, f"{spec_name}_antecedent", spec_vars, time_series
+        # and an antecedent evaluated false at every position is an unreachable trigger.
+        # The antecedent is evaluated under Kleene 3-valued logic over the trace.
+        if antecedent_node is not None:
+            antecedent_bools = eval_temporal_trace(antecedent_node, records)
+            if all(b is False for b in antecedent_bools):
+                return not_evaluated_for_unreachable_trigger(
+                    req,
+                    ast.unparse(antecedent_node),
+                    f"the {len(records)} decision(s) of this trace",
+                    {"records_observed": len(records), "antecedent_evaluations": antecedent_bools},
                 )
-            except Exception as exc:
+            if any(is_unknown(b) for b in antecedent_bools) and not any(
+                b is True for b in antecedent_bools
+            ):
+                absent_vars = sorted(
+                    [v for v in spec_vars if any(v not in rec or rec[v] is None for rec in records)]
+                )
+                gaps = ", ".join(absent_vars) if absent_vars else "a required signal"
+                details_dict: dict[str, Any] = {"records_observed": len(records)}
+                if absent_vars:
+                    details_dict["signals_absent_in_trace"] = absent_vars
+                if unmeasured:
+                    details_dict["signals_unmeasured_in_trace"] = dict(sorted(unmeasured.items()))
                 return RequirementResult(
                     requirement_id=req.id,
                     source_clause=clause,
@@ -743,21 +740,15 @@ class ObservedEngine:
                     strength=None,
                     signals_required=tuple(req.requires),
                     evidence_summary=(
-                        f"Not evaluated: no decision breached {req.spec!r}, but rtamt cannot "
-                        f"express or parse its antecedent {ast.unparse(antecedent_node)!r}: "
-                        f"{exc}. A duty whose trigger cannot be read is reported as no evidence "
-                        "rather than as a clean verdict."
+                        f"Not evaluated: {req.spec!r} is an implication, and its antecedent "
+                        f"{ast.unparse(antecedent_node)!r} evaluates to UNKNOWN under Kleene "
+                        "3-valued logic and was never true in the trace — "
+                        f"no value for {gaps}. A duty whose trigger cannot be settled is reported "
+                        "as no evidence rather than as a clean verdict."
                     ),
-                    details={"error": str(exc), "records_observed": len(records)},
+                    details=details_dict,
                     binding=req.binding,
                     scope=req.scope,
-                )
-            if all(rob < 0 for _t, rob in antecedent_res):
-                return not_evaluated_for_unreachable_trigger(
-                    req,
-                    ast.unparse(antecedent_node),
-                    f"the {len(records)} decision(s) of this trace",
-                    {"records_observed": len(records), "antecedent_scores": antecedent_res},
                 )
 
         return RequirementResult(
