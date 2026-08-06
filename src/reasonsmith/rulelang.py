@@ -1379,3 +1379,89 @@ def execute_statements(stmts: list[ast.stmt], env: dict[str, Any]) -> None:
             raise UnsupportedConstructError(
                 f"Unsupported rule statement type: {type(stmt).__name__}"
             )
+
+
+def eval_temporal_trace(node: ast.AST, records: list[dict[str, Any]]) -> list[bool]:
+    """Evaluate a temporal or state property AST over a finite trace of decision records.
+
+    Returns a list of Booleans `[b_0, b_1, ..., b_{N-1}]`, where `b_i` is the Boolean truth
+    value of `node` at time step `i` (0-indexed). The Boolean verdict for the trace is
+    `b_0`, matching the LTLf finite-trace semantics (docs/language.md §2.9).
+
+    Delegates state predicate evaluation (comparisons, arithmetic, `present`, `contains`, etc.)
+    for each record to `eval_expression`.
+    """
+    if isinstance(node, ast.Expression):
+        return eval_temporal_trace(node.body, records)
+
+    if not has_temporal_operator(node):
+        return [bool(eval_expression(node, r)) for r in records]
+
+    n = len(records)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        sub = eval_temporal_trace(node.operand, records)
+        return [not b for b in sub]
+
+    if isinstance(node, ast.BoolOp):
+        subs = [eval_temporal_trace(v, records) for v in node.values]
+        if isinstance(node.op, ast.And):
+            return [all(s[i] for s in subs) for i in range(n)]
+        if isinstance(node.op, ast.Or):
+            return [any(s[i] for s in subs) for i in range(n)]
+        raise UnsupportedConstructError(f"Unsupported boolean operator: {type(node.op).__name__}")
+
+    if isinstance(node, ast.Call):
+        name = node.func.id if isinstance(node.func, ast.Name) else ""
+        if name in IMPLICATION_CALLS:
+            left = eval_temporal_trace(node.args[0], records)
+            right = eval_temporal_trace(node.args[1], records)
+            return [(not left[i]) or right[i] for i in range(n)]
+        if name == EQUIVALENCE_CALL:
+            left = eval_temporal_trace(node.args[0], records)
+            right = eval_temporal_trace(node.args[1], records)
+            return [left[i] == right[i] for i in range(n)]
+        if name in TEMPORAL_OPERATORS:
+            if name == "always":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [all(sub[j] for j in range(i, n)) for i in range(n)]
+            if name == "eventually":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [any(sub[j] for j in range(i, n)) for i in range(n)]
+            if name == "historically":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [all(sub[j] for j in range(0, i + 1)) for i in range(n)]
+            if name == "once":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [any(sub[j] for j in range(0, i + 1)) for i in range(n)]
+            if name == "next":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [sub[i + 1] if i + 1 < n else True for i in range(n)]
+            if name == "prev":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [sub[i - 1] if i > 0 else True for i in range(n)]
+            if name == "rise":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [sub[0] if i == 0 else (sub[i] and not sub[i - 1]) for i in range(n)]
+            if name == "fall":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [(not sub[0]) if i == 0 else ((not sub[i]) and sub[i - 1]) for i in range(n)]
+            if name == "until":
+                left = eval_temporal_trace(node.args[0], records)
+                right = eval_temporal_trace(node.args[1], records)
+                return [
+                    any(right[j] and all(left[k] for k in range(i, j)) for j in range(i, n))
+                    for i in range(n)
+                ]
+            if name == "since":
+                left = eval_temporal_trace(node.args[0], records)
+                right = eval_temporal_trace(node.args[1], records)
+                return [
+                    any(
+                        right[j] and all(left[k] for k in range(j + 1, i + 1))
+                        for j in range(0, i + 1)
+                    )
+                    for i in range(n)
+                ]
+
+    raise UnsupportedConstructError(f"Unsupported temporal construct: {ast.unparse(node)!r}")
+
