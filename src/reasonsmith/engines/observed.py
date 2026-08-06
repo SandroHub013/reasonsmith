@@ -668,7 +668,7 @@ class ObservedEngine:
         # Compute the Boolean verdict from the Boolean semantics over the finite trace.
         # Robustness scores (res) remain reported as the quantitative margin in evaluation_scores.
         boolean_trace = eval_temporal_trace(property_node, records)
-        property_satisfied = boolean_trace[0]
+        property_satisfied = all(boolean_trace)
 
         if not property_satisfied:
             body_ast = (
