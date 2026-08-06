@@ -10,6 +10,9 @@ releases before it predate the file and are not reconstructed here.
 
 ### Fixed
 
+- **Specification read-whole verification across all engines.**
+  `rulelang.parse_expression` now verifies that Python's parser read the whole specification text (`verify_parsed_whole`) without silently dropping comments (`# ...`) or unparsed tokens (such as implicit string literal concatenation `a and "b" "c"`). Any specification that is not read whole is reported `not evaluated` (`verdict=INCONCLUSIVE`, `strength=None`) across all seven engines (`certificate`, `counterfactual`, `observed`, `probed`, `proved`, `record`, `temporal`), ensuring incomplete formulas are never answered.
+
 - **Temporal verdict derived from Boolean semantics.**
   The temporal engine (`engines/observed.py`) now derives requirement verdicts from the Boolean semantics over finite traces (`rulelang.eval_temporal_trace`) rather than from quantitative robustness sign alone. Robustness remains reported as the quantitative margin in `evaluation_scores`. This resolves strict comparison boundary issues at robustness zero (e.g. `always(b > 0)` at `b = 0.0` now evaluates to `VIOLATED` rather than `SATISFIED`).
 

@@ -39,7 +39,9 @@ What a reader must not break:
 from __future__ import annotations
 
 import ast
+import io
 import math
+import tokenize
 from typing import Any, Iterable
 
 _EQUIVALENCE_TOKENS = ("<=>", "<->")
@@ -613,9 +615,61 @@ def preprocess_spec(spec: str) -> str:
     return _rewrite_arrows(spec.strip())
 
 
+def _normalize_tokens_for_read_whole(text: str) -> list[str]:
+    """Extract code tokens from expression text, skipping parens and newline/encoding tokens."""
+    tokens = []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type in (
+                tokenize.ENCODING,
+                tokenize.ENDMARKER,
+                tokenize.NEWLINE,
+                tokenize.NL,
+            ):
+                continue
+            val = tok.string
+            if val in ("(", ")"):
+                continue
+            tokens.append(val)
+    except Exception:
+        pass
+    return tokens
+
+
+def verify_parsed_whole(text: str, node: ast.AST | None = None) -> None:
+    """Verify that Python's parser read the whole source text without dropping text.
+
+    `parse_expression` uses Python's `ast.parse`, which silently drops comments (`# ...`) and
+    trailing unparsed tokens. This check verifies that unparsing the parsed AST accounts for all
+    tokens in the source text. If text was dropped (resulting in fewer unparsed tokens than the
+    input), `UnsupportedConstructError` is raised so every engine reports `not evaluated`
+    rather than answering a truncated formula.
+    """
+    pre = preprocess_spec(text)
+    if node is None:
+        try:
+            node = ast.parse(pre, mode="eval")
+        except SyntaxError as exc:
+            raise UnsupportedConstructError(
+                f"{text!r} is not a property in this language: {exc.msg}."
+            ) from exc
+    unparsed = ast.unparse(node)
+
+    tokens_pre = _normalize_tokens_for_read_whole(pre)
+    tokens_unp = _normalize_tokens_for_read_whole(unparsed)
+
+    if len(tokens_pre) > len(tokens_unp):
+        raise UnsupportedConstructError(
+            f"Specification {text!r} was not read whole: unparsing the parsed AST produced "
+            f"{unparsed!r}, dropping text from the input."
+        )
+
+
 def parse_expression(text: str) -> ast.Expression:
     """Parse specification or constraint text into an AST after arrow normalisation."""
-    return ast.parse(preprocess_spec(text), mode="eval")
+    tree = ast.parse(preprocess_spec(text), mode="eval")
+    verify_parsed_whole(text, tree)
+    return tree
 
 
 def parse_property(text: str) -> ast.Expression:
