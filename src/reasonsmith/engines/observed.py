@@ -667,7 +667,8 @@ class ObservedEngine:
         # Check evaluations for violations (robustness < 0)
         # Compute the Boolean verdict from the Boolean semantics over the finite trace.
         # Robustness scores (res) remain reported as the quantitative margin in evaluation_scores.
-        boolean_trace = eval_temporal_trace(property_node, records)
+        eval_records = [{var: 0.0 for var in spec_vars} | rec for rec in records]
+        boolean_trace = eval_temporal_trace(property_node, eval_records)
         property_satisfied = all(boolean_trace)
 
         if not property_satisfied:
