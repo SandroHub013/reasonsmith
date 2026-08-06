@@ -160,6 +160,12 @@ def test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisf
     assert ltlf.satisfiable([formula], abstraction) is False
 
 
+def test_black_non_empty_semantics_g_false_is_unsat():
+    # BLACK interprets LTLf over non-empty finite traces natively (G(False) is UNSAT),
+    # which is what makes the NON_EMPTY guard unnecessary.
+    assert ltlf._run_black("G(False)") is False
+
+
 def test_decoy_black_on_path_is_rejected(tmp_path, monkeypatch):
     """A decoy executable named `black` (e.g. code formatter) is rejected rather than invoked."""
     decoy = tmp_path / "black"
