@@ -8,6 +8,11 @@ releases before it predate the file and are not reconstructed here.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Silent wrong answers closed in the temporal backend.**
+  A temporal formula that the backend parser did not read whole (due to dropped lexer tokens like `%` or multi-statement inputs like `'a b > 1'`) is now reported `not evaluated` (`verdict=INCONCLUSIVE`) rather than answered from an incomplete parse. Implemented via a strict lexer subclass (`F1`) that attaches rtamt's raising error listener to the lexer and a postcondition assertion (`F2`) that the backend parser produced exactly one statement. Every formula in every shipped pack was swept and verified to parse to rendering exactly one statement.
+
 ### Added
 
 - **The strength lattice gains a rung, and the inference-artefact protocol gains a second family.**
