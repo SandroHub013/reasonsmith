@@ -471,23 +471,69 @@ the *graded* reading of equality and precisely not the crisp comparison `==` den
 refused: it states a threshold, and a threshold written into a pack is the author's number
 presented as the regulation's (`test_a_graded_comparison_the_author_wrote_is_still_refused`).
 
-### 2.8 Temporal formulas, and what this package does not define
+### 2.8 Temporal formulas denotation over finite traces
 
-For a trace σ of length `n > 0` and a position `i < n`, `⟦φ⟧^pos(σ, i) ∈ 𝔹` is the standard
-finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and
-linear dynamic logic on finite traces* (IJCAI 2013) — with the past operators read as their usual
-mirror images over the prefix.
+For a trace $\sigma$ of length $n = |\sigma| > 0$ and a position $i \in \{0, \dots, n-1\}$, $\llbracket \phi \rrbracket^{\text{pos}}(\sigma, i) \in \mathbb{B}$ defines the Boolean semantics of every temporal formula $\phi$ at position $i$. The trace verdict is evaluated at position 0: $\llbracket \phi \rrbracket^{\text{tr}}(\sigma) = \llbracket \phi \rrbracket^{\text{pos}}(\sigma, 0)$ (§2.9).
 
-**This package implements none of it, and this document defines none of it.** The clauses are
-named, not restated, and the reason is a rule in the tree: rtamt owns the temporal semantics at the
-`observed` rung and `flloat` owns them in the analysis, and a second implementation of one is the
-thing to refuse if it is ever proposed. The property language's whole contribution here is a
-**syntax mapping** — prefix calls, because it parses through Python's `ast`, rendered back into
-rtamt's infix by `engines/observed.to_stl` and into `flloat`'s by `ltlf.to_ltlf`
-(`test_the_rendered_form_is_rtamt_infix_and_rtamt_monitors_it`).
+State predicates without temporal operators are evaluated per-record via $\llbracket f \rrbracket^{\text{rec}}(\sigma_i)$ using `rulelang.eval_expression`. The connective and temporal operator denotations over finite traces match the discrete-time monitor semantics of `rtamt`:
 
-One clause the package does own, because `engines/temporal.py` implements it:
+#### Connectives
+- $\llbracket \text{not } \phi \rrbracket^{\text{pos}}(\sigma, i) = \neg \llbracket \phi \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \phi_1 \text{ and } \phi_2 \rrbracket^{\text{pos}}(\sigma, i) = \llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) \land \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \phi_1 \text{ or } \phi_2 \rrbracket^{\text{pos}}(\sigma, i) = \llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) \lor \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \text{Implies}(\phi_1, \phi_2) \rrbracket^{\text{pos}}(\sigma, i) = \neg \llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) \lor \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \text{Iff}(\phi_1, \phi_2) \rrbracket^{\text{pos}}(\sigma, i) = (\llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) == \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i))$
 
+#### Temporal Operators
+1. `always(f)`: $\bigwedge_{j=i}^{n-1} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+2. `eventually(f)`: $\bigvee_{j=i}^{n-1} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+3. `next(f)`: $\llbracket f \rrbracket^{\text{pos}}(\sigma, i+1)$ if $i+1 < n$, else $1$ (weak `next`)
+4. `prev(f)`: $\llbracket f \rrbracket^{\text{pos}}(\sigma, i-1)$ if $i > 0$, else $1$ (weak `prev`)
+5. `historically(f)`: $\bigwedge_{j=0}^{i} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+6. `once(f)`: $\bigvee_{j=0}^{i} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+7. `rise(f)`: $\llbracket f \rrbracket^{\text{pos}}(\sigma, 0)$ if $i = 0$, else $\llbracket f \rrbracket^{\text{pos}}(\sigma, i) \land \neg \llbracket f \rrbracket^{\text{pos}}(\sigma, i-1)$
+8. `fall(f)`: $\neg \llbracket f \rrbracket^{\text{pos}}(\sigma, 0)$ if $i = 0$, else $\neg \llbracket f \rrbracket^{\text{pos}}(\sigma, i) \land \llbracket f \rrbracket^{\text{pos}}(\sigma, i-1)$
+9. `until(a, b)`: $\bigvee_{j=i}^{n-1} \left( \llbracket b \rrbracket^{\text{pos}}(\sigma, j) \land \bigwedge_{k=i}^{j-1} \llbracket a \rrbracket^{\text{pos}}(\sigma, k) \right)$
+10. `since(a, b)`: $\bigvee_{j=0}^{i} \left( \llbracket b \rrbracket^{\text{pos}}(\sigma, j) \land \bigwedge_{k=j+1}^{i} \llbracket a \rrbracket^{\text{pos}}(\sigma, k) \right)$
+
+#### Boundary Edge Cases & Empirical `rtamt` Evidence
+
+The finite-trace boundary edge cases are determined by running `rtamt` over discrete traces:
+
+- **`next` at position $n - 1$**: Weak `next` (evaluates to `True`).
+  *Empirical probe*: `next(b >= 0.5)` on $b = [1.0, 0.0]$:
+  ```python
+  spec = rtamt.StlDiscreteTimeSpecification()
+  spec.declare_var('b', 'float')
+  spec.spec = 'next(b >= 0.5)'
+  spec.parse()
+  spec.evaluate({'time': [0, 1], 'b': [1.0, 0.0]})
+  # Output: [[0, -0.5], [1, inf]]  --> robustness +inf at t=1 implies True
+  ```
+- **`prev` at position 0**: Weak `prev` (evaluates to `True`).
+  *Empirical probe*: `prev(b >= 0.5)` on $b = [0.0, 1.0]$:
+  ```python
+  spec.spec = 'prev(b >= 0.5)'
+  spec.evaluate({'time': [0, 1], 'b': [0.0, 1.0]})
+  # Output: [[0, inf], [1, -0.5]]  --> robustness +inf at t=0 implies True
+  ```
+- **`until(a, b)`**: Search interval $[i, n-1]$ is inclusive. If $b$ never holds on $[i, n-1]$, returns `False`.
+  *Empirical probe*: `until(a >= 0.5, b >= 0.5)` on $a = [1, 1], b = [0, 0]$:
+  ```python
+  spec.evaluate({'time': [0, 1], 'a': [1.0, 1.0], 'b': [0.0, 0.0]})
+  # Output: [[0, -0.5], [1, -0.5]] --> robustness -0.5 implies False
+  ```
+- **`since`, `once`, `historically` at position 0**: Evaluated over prefix $[0, 0]$.
+  *Empirical probe*: `since(a >= 0.5, b >= 0.5)` on $a = [0, 1], b = [1, 0]$:
+  ```python
+  spec.evaluate({'time': [0, 1], 'a': [0.0, 1.0], 'b': [1.0, 0.0]})
+  # Output: [[0, 0.5], [1, 0.5]]   --> robustness +0.5 implies True
+  ```
+- **`rise` and `fall` at position 0**: Implicitly assumes initial boundary conditions $f(-1) = 0$ for `rise` and $f(-1) = 1$ for `fall`.
+  *Empirical probe*: `rise(b >= 0.5)` on $b = [1.0, 0.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`), and `fall(b >= 0.5)` on $b = [0.0, 1.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`).
+- **Strictness at threshold $\rho = 0$**: The Boolean verdict follows from strict comparison operator semantics: `>` and `<` evaluate to `False` on the threshold, while `>=` and `<=` evaluate to `True` (`test_strict_comparison_boundary_table`, `test_all_ten_temporal_operators_covered_and_distinguished`, `test_differential_property_shipped_packs_and_systems`, `test_differential_property_random_traces`).
+
+One clause `engines/temporal.py` implements for reduction to `proved`:
 ```
 ⟦always(φ)⟧^tr(σ)  =  ⨅_{i < |σ|} ⟦φ⟧^rec(σᵢ)          for φ free of temporal operators
 ```
