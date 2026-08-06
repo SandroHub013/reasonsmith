@@ -99,8 +99,11 @@ from reasonsmith.rulelang import (
     bare_boolean_names,
     contains_literal,
     eval_temporal_trace,
+    has_temporal_operator,
     implication_antecedent,
     is_present,
+    is_unknown,
+    kleene_and,
     parse_property,
     string_literal_mask,
     validate_temporal_property,
@@ -623,26 +626,6 @@ class ObservedEngine:
                 scope=req.scope,
             )
 
-        if unmeasured:
-            gaps = ", ".join(
-                f"{var} in {count} of {len(records)} decision(s)"
-                for var, count in sorted(unmeasured.items())
-            )
-            return RequirementResult(
-                requirement_id=req.id,
-                source_clause=clause,
-                verdict=Verdict.INCONCLUSIVE,
-                strength=None,
-                signals_required=tuple(req.requires),
-                evidence_summary=(
-                    f"Not evaluated: {req.spec!r} compares a magnitude the trace does not "
-                    f"measure — no numeric value for {gaps}. An absent, blank or non-numeric "
-                    "value is not a measurement, so the monitor was not run over this trace."
-                ),
-                details={"signals_unmeasured_in_trace": dict(sorted(unmeasured.items()))},
-                binding=req.binding,
-                scope=req.scope,
-            )
 
         # Construct rtamt STL specification
         spec_name = f"spec_{req.id.replace('-', '_')}"
@@ -665,19 +648,16 @@ class ObservedEngine:
             )
 
         # Check evaluations for violations (robustness < 0)
-        # Compute the Boolean verdict from the Boolean semantics over the finite trace.
+        # Compute the 3-valued verdict under Kleene 3-valued logic over the finite trace.
         # Robustness scores (res) remain reported as the quantitative margin in evaluation_scores.
-        # Boolean flags (spec_vars - magnitude_vars) default to 0.0 (unset flag) if omitted
-        # from a record; missing magnitude_vars were checked and rejected as unmeasured above.
-        flag_vars = spec_vars - magnitude_vars
-        eval_records = [
-            {var: 0.0 for var in flag_vars if var not in rec} | rec
-            for rec in records
-        ]
-        boolean_trace = eval_temporal_trace(property_node, eval_records)
-        property_satisfied = all(boolean_trace)
+        boolean_trace = eval_temporal_trace(property_node, records)
+        trace_val = (
+            boolean_trace[0]
+            if has_temporal_operator(property_node)
+            else kleene_and(boolean_trace)
+        )
 
-        if not property_satisfied:
+        if trace_val is False:
             body_ast = (
                 property_node.body
                 if isinstance(property_node, ast.Expression)
@@ -689,10 +669,10 @@ class ObservedEngine:
                 and body_ast.func.id == "always"
                 and len(body_ast.args) == 1
             ):
-                step_bools = eval_temporal_trace(body_ast.args[0], eval_records)
-                violation_indices = [t for t, b in enumerate(step_bools) if not b]
+                step_bools = eval_temporal_trace(body_ast.args[0], records)
+                violation_indices = [t for t, b in enumerate(step_bools) if b is False]
             else:
-                violation_indices = [t for t, b in enumerate(boolean_trace) if not b]
+                violation_indices = [t for t, b in enumerate(boolean_trace) if b is False]
             if not violation_indices:
                 violation_indices = [0]
 
@@ -713,6 +693,30 @@ class ObservedEngine:
                     "violation_step_indices": violation_indices,
                     "evaluation_scores": res,
                 },
+                binding=req.binding,
+                scope=req.scope,
+            )
+
+        if is_unknown(trace_val):
+            absent_vars = sorted(
+                [v for v in spec_vars if any(v not in rec or rec[v] is None for rec in records)]
+            )
+            gaps = ", ".join(absent_vars) if absent_vars else "a required signal"
+            details_dict: dict[str, Any] = {"signals_absent_in_trace": absent_vars}
+            if unmeasured:
+                details_dict["signals_unmeasured_in_trace"] = dict(sorted(unmeasured.items()))
+            return RequirementResult(
+                requirement_id=req.id,
+                source_clause=clause,
+                verdict=Verdict.INCONCLUSIVE,
+                strength=None,
+                signals_required=tuple(req.requires),
+                evidence_summary=(
+                    f"Not evaluated: {req.spec!r} depends on signal(s) absent from the trace — "
+                    f"no value for {gaps}. The requirement evaluates to UNKNOWN under Kleene "
+                    "3-valued logic."
+                ),
+                details=details_dict,
                 binding=req.binding,
                 scope=req.scope,
             )

@@ -39,7 +39,8 @@ What a reader must not break:
 from __future__ import annotations
 
 import ast
-from typing import Any
+import math
+from typing import Any, Iterable
 
 _EQUIVALENCE_TOKENS = ("<=>", "<->")
 _IMPLICATION_TOKENS = ("=>", "->", " implies ")
@@ -1174,8 +1175,76 @@ def _implies(antecedent: Any, consequent: Any) -> bool:
     return (not antecedent) or bool(consequent)
 
 
+class _UnknownType:
+    """Kleene 3-valued logic UNKNOWN sentinel."""
+
+    def __repr__(self) -> str:
+        return "UNKNOWN"
+
+    def __bool__(self) -> bool:
+        raise TypeError("Boolean value of UNKNOWN is undefined; use Kleene operators")
+
+
+UNKNOWN = _UnknownType()
+
+
+def is_unknown(val: Any) -> bool:
+    """Whether `val` is the Kleene 3-valued logic UNKNOWN value."""
+    return type(val).__name__ == "_UnknownType" or val is UNKNOWN
+
+
+def kleene_not(val: Any) -> Any:
+    if is_unknown(val):
+        return UNKNOWN
+    return not bool(val)
+
+
+def kleene_and_binary(a: Any, b: Any) -> Any:
+    if a is False or b is False:
+        return False
+    if is_unknown(a) or is_unknown(b):
+        return UNKNOWN
+    return True
+
+
+def kleene_or_binary(a: Any, b: Any) -> Any:
+    if a is True or b is True:
+        return True
+    if is_unknown(a) or is_unknown(b):
+        return UNKNOWN
+    return False
+
+
+def kleene_and(vals: Iterable[Any]) -> Any:
+    res: Any = True
+    for v in vals:
+        if v is False:
+            return False
+        if is_unknown(v):
+            res = UNKNOWN
+    return res
+
+
+def kleene_or(vals: Iterable[Any]) -> Any:
+    res: Any = False
+    for v in vals:
+        if v is True:
+            return True
+        if is_unknown(v):
+            res = UNKNOWN
+    return res
+
+
+def kleene_implies(a: Any, b: Any) -> Any:
+    return kleene_or_binary(kleene_not(a), b)
+
+
+def kleene_iff(a: Any, b: Any) -> Any:
+    return kleene_and_binary(kleene_implies(a, b), kleene_implies(b, a))
+
+
 def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
-    """Evaluate a whitelisted expression AST against `env` without invoking the Python compiler."""
+    """Evaluate a whitelisted expression AST against `env` under Kleene 3-valued logic."""
     if isinstance(node, ast.Expression):
         return eval_expression(node.body, env)
 
@@ -1187,14 +1256,16 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
         )
 
     if isinstance(node, ast.Name):
-        if node.id in env:
+        if node.id in env and env[node.id] is not None and not is_unknown(env[node.id]):
             return env[node.id]
-        raise NameError(f"name {node.id!r} is not defined for this decision")
+        return UNKNOWN
 
     if isinstance(node, ast.UnaryOp):
         operand = eval_expression(node.operand, env)
         if isinstance(node.op, ast.Not):
-            return not operand
+            return kleene_not(operand)
+        if is_unknown(operand):
+            return UNKNOWN
         if isinstance(node.op, ast.USub):
             return -operand
         if isinstance(node.op, ast.UAdd):
@@ -1204,6 +1275,8 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
     if isinstance(node, ast.BinOp):
         left = eval_expression(node.left, env)
         right = eval_expression(node.right, env)
+        if is_unknown(left) or is_unknown(right):
+            return UNKNOWN
         if isinstance(node.op, ast.Add):
             return left + right
         if isinstance(node.op, ast.Sub):
@@ -1218,37 +1291,47 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
 
     if isinstance(node, ast.BoolOp):
         if isinstance(node.op, ast.And):
-            result: Any = True
-            for value in node.values:
-                result = eval_expression(value, env)
-                if not result:
-                    return result
-            return result
+            return kleene_and([eval_expression(value, env) for value in node.values])
         if isinstance(node.op, ast.Or):
-            result = False
-            for value in node.values:
-                result = eval_expression(value, env)
-                if result:
-                    return result
-            return result
+            return kleene_or([eval_expression(value, env) for value in node.values])
         raise UnsupportedConstructError(f"Unsupported boolean operator: {type(node.op).__name__}")
 
     if isinstance(node, ast.Compare):
         left = eval_expression(node.left, env)
+        if is_unknown(left):
+            return UNKNOWN
         for op, comparator in zip(node.ops, node.comparators, strict=False):
             right = eval_expression(comparator, env)
-            if isinstance(op, ast.Eq):
+            if is_unknown(right):
+                return UNKNOWN
+            if isinstance(op, (ast.Lt, ast.LtE, ast.Gt, ast.GtE)):
+                is_flag = _flag_comparison(node.left, op, comparator)
+                if is_flag:
+                    conv_left = (1.0 if left else 0.0) if isinstance(left, bool) else left
+                    conv_right = (1.0 if right else 0.0) if isinstance(right, bool) else right
+                else:
+                    if isinstance(left, bool) or isinstance(right, bool):
+                        return UNKNOWN
+                    conv_left, conv_right = left, right
+                if (
+                    not isinstance(conv_left, (int, float))
+                    or not isinstance(conv_right, (int, float))
+                    or not (math.isfinite(conv_left) and math.isfinite(conv_right))
+                ):
+                    return UNKNOWN
+                held = (
+                    conv_left < conv_right
+                    if isinstance(op, ast.Lt)
+                    else conv_left <= conv_right
+                    if isinstance(op, ast.LtE)
+                    else conv_left > conv_right
+                    if isinstance(op, ast.Gt)
+                    else conv_left >= conv_right
+                )
+            elif isinstance(op, ast.Eq):
                 held = left == right
             elif isinstance(op, ast.NotEq):
                 held = left != right
-            elif isinstance(op, ast.Lt):
-                held = left < right
-            elif isinstance(op, ast.LtE):
-                held = left <= right
-            elif isinstance(op, ast.Gt):
-                held = left > right
-            elif isinstance(op, ast.GtE):
-                held = left >= right
             else:
                 raise UnsupportedConstructError(f"Unsupported comparison: {type(op).__name__}")
             if not held:
@@ -1263,28 +1346,15 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
                 f"Keyword arguments are unsupported: {ast.unparse(node)!r}"
             )
         if name == PRESENCE_CALL:
-            # Asked before the argument is evaluated, and answered without raising: a signal the
-            # record does not carry is exactly what this atom is for, and resolving the name
-            # first would turn "absent" into a NameError.
             if len(node.args) != 1 or not isinstance(node.args[0], ast.Name):
                 raise UnsupportedConstructError(
                     f"{PRESENCE_CALL}() takes one signal name: {ast.unparse(node)!r}"
                 )
             return is_present(env.get(node.args[0].id))
         if name == CONTAINS_CALL:
-            # Read the same way `present()` is: the argument names a field of the record, so it is
-            # fetched rather than resolved, and a record that carries no such field is answered
-            # rather than turned into a NameError.
             signal, phrase = contains_arguments(node)
             return contains_literal(env.get(signal), phrase)
         if name == COUNTERFACTUAL_CALL:
-            # Refused rather than answered, and this is the load-bearing refusal of the whole
-            # fragment. This interpreter is handed one decision record, and one record is what
-            # happened; the atom asks what would have happened had one input differed. Every
-            # engine that reads a trace — the record engine, the observed monitor, the replay
-            # search's own property check — evaluates through here, so refusing at this one place
-            # is what makes "no engine answers a counterfactual off a decision log" a fact about
-            # the code rather than a convention `report._engine_ladder` is trusted to keep.
             outcome, protected = counterfactual_arguments(node)
             raise UnsupportedConstructError(
                 f"{COUNTERFACTUAL_CALL}({outcome}, {protected}) cannot be evaluated against a "
@@ -1295,11 +1365,6 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
                 "replaying a paired input — never read off a log"
             )
         if name == UNDETERMINED_CALL:
-            # Refused rather than answered, and for the same reason the counterfactual atom is: this
-            # interpreter is what every trace-reading engine evaluates through, so refusing here is
-            # what makes "no engine settles an open-textured predicate" a fact about the code rather
-            # than a convention `report._engine_ladder` is trusted to keep. Answering `False` would
-            # report a system violated on a predicate nobody applied, and `True` would clear it.
             signal, predicate, authority = undetermined_arguments(node)
             raise UnsupportedConstructError(
                 f"{UNDETERMINED_CALL}({signal}, {predicate!r}, {authority!r}) is a predicate the "
@@ -1308,11 +1373,6 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
                 "that rather than guessing"
             )
         if name == DEGREE_CALL:
-            # Refused here too, and the refusal is what keeps a two-valued engine from reading a
-            # graded atom as a flag. A degree is read only by `manyvalued.degree_of`, over an
-            # algebra a pack declared and against a grading a caller supplied; neither exists in
-            # this interpreter's environment, and inventing a truthiness for the atom would let the
-            # record engine answer a graded duty off a log.
             signal, predicate = degree_arguments(node)
             raise UnsupportedConstructError(
                 f"{DEGREE_CALL}({signal}, {predicate!r}) has a truth degree and not a truth value. "
@@ -1323,23 +1383,24 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
         args = [eval_expression(arg, env) for arg in node.args]
         if name in ("implies", "Implies"):
             _require_arity(name, args, 2)
-            return _implies(args[0], args[1])
+            return kleene_implies(args[0], args[1])
         if name == EQUIVALENCE_CALL:
-            # Equality of truth values, which over the Booleans is what `<=>` always meant: the
-            # rewriter used to emit `==` and this is the same function of the same two operands.
-            # `bool()` on each side is what the old `==` did not do, and is why a number under an
-            # equivalence is refused a rung earlier by `expression_kind` rather than quietly
-            # compared here.
             _require_arity(name, args, 2)
-            return bool(args[0]) == bool(args[1])
+            return kleene_iff(args[0], args[1])
         if name == "abs":
             _require_arity(name, args, 1)
+            if is_unknown(args[0]):
+                return UNKNOWN
             return abs(args[0])
         if name == "min":
             _require_arity(name, args, 2)
+            if is_unknown(args[0]) or is_unknown(args[1]):
+                return UNKNOWN
             return min(args[0], args[1])
         if name == "max":
             _require_arity(name, args, 2)
+            if is_unknown(args[0]) or is_unknown(args[1]):
+                return UNKNOWN
             return max(args[0], args[1])
         raise UnsupportedConstructError(f"Unsupported function call: {ast.unparse(node)!r}")
 
@@ -1381,33 +1442,31 @@ def execute_statements(stmts: list[ast.stmt], env: dict[str, Any]) -> None:
             )
 
 
-def eval_temporal_trace(node: ast.AST, records: list[dict[str, Any]]) -> list[bool]:
-    """Evaluate a temporal or state property AST over a finite trace of decision records.
+def eval_temporal_trace(node: ast.AST, records: list[dict[str, Any]]) -> list[Any]:
+    """Evaluate a temporal or state property AST over a finite trace of decision records
 
-    Returns a list of Booleans `[b_0, b_1, ..., b_{N-1}]`, where `b_i` is the Boolean truth
-    value of `node` at time step `i` (0-indexed). The Boolean verdict for the trace is
-    `b_0`, matching the LTLf finite-trace semantics (docs/language.md §2.9).
-
-    Delegates state predicate evaluation (comparisons, arithmetic, `present`, `contains`, etc.)
-    for each record to `eval_expression`.
+    under Kleene 3-valued logic.
+    Returns a list of 3-valued truth values `[b_0, b_1, ..., b_{N-1}]`, where each `b_i` is
+    `True`, `False`, or `UNKNOWN`. The trace verdict is `b_0` for temporal properties or
+    `kleene_and(b)` for state properties.
     """
     if isinstance(node, ast.Expression):
         return eval_temporal_trace(node.body, records)
 
     if not has_temporal_operator(node):
-        return [bool(eval_expression(node, r)) for r in records]
+        return [eval_expression(node, r) for r in records]
 
     n = len(records)
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
         sub = eval_temporal_trace(node.operand, records)
-        return [not b for b in sub]
+        return [kleene_not(b) for b in sub]
 
     if isinstance(node, ast.BoolOp):
         subs = [eval_temporal_trace(v, records) for v in node.values]
         if isinstance(node.op, ast.And):
-            return [all(s[i] for s in subs) for i in range(n)]
+            return [kleene_and([s[i] for s in subs]) for i in range(n)]
         if isinstance(node.op, ast.Or):
-            return [any(s[i] for s in subs) for i in range(n)]
+            return [kleene_or([s[i] for s in subs]) for i in range(n)]
         raise UnsupportedConstructError(f"Unsupported boolean operator: {type(node.op).__name__}")
 
     if isinstance(node, ast.Call):
@@ -1415,24 +1474,24 @@ def eval_temporal_trace(node: ast.AST, records: list[dict[str, Any]]) -> list[bo
         if name in IMPLICATION_CALLS:
             left = eval_temporal_trace(node.args[0], records)
             right = eval_temporal_trace(node.args[1], records)
-            return [(not left[i]) or right[i] for i in range(n)]
+            return [kleene_implies(left[i], right[i]) for i in range(n)]
         if name == EQUIVALENCE_CALL:
             left = eval_temporal_trace(node.args[0], records)
             right = eval_temporal_trace(node.args[1], records)
-            return [left[i] == right[i] for i in range(n)]
+            return [kleene_iff(left[i], right[i]) for i in range(n)]
         if name in TEMPORAL_OPERATORS:
             if name == "always":
                 sub = eval_temporal_trace(node.args[0], records)
-                return [all(sub[j] for j in range(i, n)) for i in range(n)]
+                return [kleene_and(sub[i:n]) for i in range(n)]
             if name == "eventually":
                 sub = eval_temporal_trace(node.args[0], records)
-                return [any(sub[j] for j in range(i, n)) for i in range(n)]
+                return [kleene_or(sub[i:n]) for i in range(n)]
             if name == "historically":
                 sub = eval_temporal_trace(node.args[0], records)
-                return [all(sub[j] for j in range(0, i + 1)) for i in range(n)]
+                return [kleene_and(sub[0 : i + 1]) for i in range(n)]
             if name == "once":
                 sub = eval_temporal_trace(node.args[0], records)
-                return [any(sub[j] for j in range(0, i + 1)) for i in range(n)]
+                return [kleene_or(sub[0 : i + 1]) for i in range(n)]
             if name == "next":
                 sub = eval_temporal_trace(node.args[0], records)
                 return [sub[i + 1] if i + 1 < n else True for i in range(n)]
@@ -1441,25 +1500,38 @@ def eval_temporal_trace(node: ast.AST, records: list[dict[str, Any]]) -> list[bo
                 return [sub[i - 1] if i > 0 else True for i in range(n)]
             if name == "rise":
                 sub = eval_temporal_trace(node.args[0], records)
-                return [sub[0] if i == 0 else (sub[i] and not sub[i - 1]) for i in range(n)]
+                return [
+                    sub[0]
+                    if i == 0
+                    else kleene_and_binary(sub[i], kleene_not(sub[i - 1]))
+                    for i in range(n)
+                ]
             if name == "fall":
                 sub = eval_temporal_trace(node.args[0], records)
-                return [(not sub[0]) if i == 0 else ((not sub[i]) and sub[i - 1]) for i in range(n)]
+                return [
+                    kleene_not(sub[0])
+                    if i == 0
+                    else kleene_and_binary(kleene_not(sub[i]), sub[i - 1])
+                    for i in range(n)
+                ]
             if name == "until":
                 left = eval_temporal_trace(node.args[0], records)
                 right = eval_temporal_trace(node.args[1], records)
                 return [
-                    any(right[j] and all(left[k] for k in range(i, j)) for j in range(i, n))
+                    kleene_or([
+                        kleene_and_binary(right[j], kleene_and(left[i:j]))
+                        for j in range(i, n)
+                    ])
                     for i in range(n)
                 ]
             if name == "since":
                 left = eval_temporal_trace(node.args[0], records)
                 right = eval_temporal_trace(node.args[1], records)
                 return [
-                    any(
-                        right[j] and all(left[k] for k in range(j + 1, i + 1))
+                    kleene_or([
+                        kleene_and_binary(right[j], kleene_and(left[j + 1 : i + 1]))
                         for j in range(0, i + 1)
-                    )
+                    ])
                     for i in range(n)
                 ]
 

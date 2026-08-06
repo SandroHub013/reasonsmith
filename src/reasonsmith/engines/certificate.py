@@ -132,6 +132,7 @@ from reasonsmith.rulelang import (
     UnsupportedConstructError,
     eval_expression,
     implication_antecedent,
+    is_unknown,
     parse_property,
     signal_names,
 )
@@ -316,6 +317,8 @@ class CertificateEngine:
                 ),
             )
 
+        node = parse_property(req.spec)
+        spec_vars = set(signal_names(node))
         antecedent_node = implication_antecedent(node)
         antecedent_text = ast.unparse(antecedent_node) if antecedent_node is not None else ""
         # The decisions the duty's trigger reached, by index rather than as a count: the satisfied
@@ -399,8 +402,30 @@ class CertificateEngine:
                 return _refused(req, index, refusal, declared, len(cert.non_monotone))
             try:
                 env = _env(record, cert)
-                held = bool(eval_expression(node, env))
-                if antecedent_node is not None and eval_expression(antecedent_node, env):
+                val = eval_expression(node, env)
+                if is_unknown(val):
+                    absent = sorted([v for v in spec_vars if env.get(v) is None])
+                    gaps = ", ".join(absent) if absent else "a required signal"
+                    return _result(
+                        req,
+                        Verdict.INCONCLUSIVE,
+                        None,
+                        (
+                            f"Not evaluated: evaluating {req.spec!r} against decision #{index} "
+                            "depends on signal(s) absent from the decision record — "
+                            f"no value for {gaps}. "
+                            "The measurement was made; the property could not be decided from it, "
+                            "so nothing is claimed either way."
+                        ),
+                        details={
+                            "engine": "certificate",
+                            "reason": "spec_evaluation_failed",
+                            "decision_index": index,
+                            "signals_absent_in_record": absent,
+                        },
+                    )
+                held = bool(val)
+                if antecedent_node is not None and eval_expression(antecedent_node, env) is True:
                     triggered_at.add(index)
             except Exception as exc:  # noqa: BLE001 — reported, never swallowed
                 return _result(
