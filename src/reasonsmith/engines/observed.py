@@ -667,7 +667,14 @@ class ObservedEngine:
         # Check evaluations for violations (robustness < 0)
         # Compute the Boolean verdict from the Boolean semantics over the finite trace.
         # Robustness scores (res) remain reported as the quantitative margin in evaluation_scores.
-        eval_records = [{var: 0.0 for var in spec_vars} | rec for rec in records]
+        non_zero_fill = set(presence_signals.values()) | {
+            source for source, _ in contains_signals.values()
+        }
+        zero_fill_vars = spec_vars - non_zero_fill
+        eval_records = [
+            {var: 0.0 for var in zero_fill_vars if var not in rec} | rec
+            for rec in records
+        ]
         boolean_trace = eval_temporal_trace(property_node, eval_records)
         property_satisfied = all(boolean_trace)
 
@@ -683,7 +690,7 @@ class ObservedEngine:
                 and body_ast.func.id == "always"
                 and len(body_ast.args) == 1
             ):
-                step_bools = eval_temporal_trace(body_ast.args[0], records)
+                step_bools = eval_temporal_trace(body_ast.args[0], eval_records)
                 violation_indices = [t for t, b in enumerate(step_bools) if not b]
             else:
                 violation_indices = [t for t, b in enumerate(boolean_trace) if not b]
