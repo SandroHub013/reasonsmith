@@ -635,7 +635,9 @@ def test_both_spellings_of_equivalence_reach_the_same_refusal():
 
 
 def test_dropped_token_and_multi_statement_formulas_are_not_evaluated():
-    """Formulas with dropped tokens (e.g. %) or multiple statements (e.g. 'a b > 1') are reported not evaluated."""
+    """Formulas with dropped tokens (e.g. %) or multiple statements (e.g. 'a b > 1') are reported
+    not evaluated.
+    """
     for spec in ("count_a % count_b > 1", "count_a count_b > 1"):
         result = _observed_on(spec)
         assert result.verdict == Verdict.INCONCLUSIVE
@@ -644,9 +646,11 @@ def test_dropped_token_and_multi_statement_formulas_are_not_evaluated():
 
 
 def test_sweep_every_shipped_pack_formula_parses_to_exactly_one_statement():
-    """Sweep every formula in every shipped pack and prove each parses to exactly 1 statement in backend."""
+    """Sweep every formula in every shipped pack and prove each parses to exactly 1 statement."""
     import re
+
     import rtamt
+
     from reasonsmith.engines.observed import _render_stl
     from reasonsmith.rulelang import UnsupportedConstructError
 
@@ -659,10 +663,25 @@ def test_sweep_every_shipped_pack_formula_parses_to_exactly_one_statement():
             self._listeners = [ErrorListener()]
 
     keywords = {
-        "always", "eventually", "until", "then", "implies", "and", "or", "not", "true", "false",
-        "historically", "once", "since", "rise", "fall", "prev"
+        "always",
+        "eventually",
+        "until",
+        "then",
+        "implies",
+        "and",
+        "or",
+        "not",
+        "true",
+        "false",
+        "historically",
+        "once",
+        "since",
+        "rise",
+        "fall",
+        "prev",
     }
 
+    checked_count = 0
     for pack_id in list_packs():
         pack = load_pack(pack_id)
         for req in pack.requirements:
@@ -682,10 +701,12 @@ def test_sweep_every_shipped_pack_formula_parses_to_exactly_one_statement():
                 spec.parse()
             except Exception:
                 continue
+            checked_count += 1
             assert len(spec.ast.specs) == 1, (
                 f"Requirement {req.id} in pack {pack_id} parsed to {len(spec.ast.specs)} "
                 f"statements, expected 1: {req.spec!r}"
             )
+    assert checked_count > 0
 
 
 #: What rtamt does with every construct the property language admits, measured rather than assumed.
