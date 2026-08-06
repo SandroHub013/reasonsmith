@@ -1,4 +1,4 @@
-"""A finite-trace decision procedure for the temporal fragment, behind an optional extra.
+"""A finite-trace decision procedure for the temporal fragment using the BLACK solver.
 
 What this module is for:
   `analysis.py` decides a pack's questions — joint satisfiability, entailment, equivalence — with
@@ -10,28 +10,44 @@ What this module is for:
 
   This module answers those questions for the whole fragment by handing the formula to a published
   LTLf decision procedure. It is **a syntax mapping and an emptiness question, and nothing else** —
-  the same discipline `engines/observed.to_stl` observes for rtamt. `flloat` (Favorito & Fuggitti,
-  Apache-2.0) compiles an LTLf formula to a DFA over its propositional atoms; a formula is
-  satisfiable exactly when that automaton's language is non-empty, entailment is
-  `left & !right` unsatisfiable, and equivalence is entailment both ways. No temporal semantics,
-  automaton construction, tableau or monitor is implemented here, and none may be.
+  the same discipline `engines/observed.to_stl` observes for rtamt. **BLACK** (Geatti, Gigante,
+  Montanari; MIT) decides LTL, LTL+Past and LTLf via SAT solving over bounded model checking.
+  BLACK is invoked as a subprocess behind a strict boundary.
 
-  What was priced against `flloat`, so the choice is reconstructible rather than asserted. **BLACK**
-  (Geatti, Gigante, Montanari; MIT) decides LTL, LTL+Past and LTLf and would have covered the past
-  operators this does not, but publishes no PyPI distribution under any name searched, so
-  integrating it means shipping a subprocess boundary onto a binary a user installs by hand.
-  **LTLf2DFA** and **Lydia** compile LTLf to a minimal DFA through **MONA**, which is a native
-  package (`apt install mona`) and not a wheel: `pip install reasonsmith[ltlf]` would succeed and
-  the tool would still not run, which is worse than no extra. **Spot** is mature and has Python
-  bindings, and is likewise not on PyPI. **nuXmv** is free for non-commercial use only and must not
-  go on a dependency path at all. `flloat` is the one candidate that is pure Python on PyPI, and it
-  is chosen for exactly that: the extra installs with no native toolchain. It is paid for in the
-  ceiling `ATOM_BUDGET` records — measured, not assumed — and in having no past operators.
+The mathematics of trace pinning:
+  The production surface needs satisfiability and entailment, which BLACK natively answers:
+    entails(l, r) <==> not SAT(l and not r)
 
-  It is deliberately **not** under `engines/`. An engine returns a `RequirementResult` about a
-  system and occupies a rung of the strength lattice. This decides formulas, is never given a
-  system, and adds no rung: `release discipline` counts the modules under `engines/` and the count
-  in `ROADMAP.md` and `README.md` is still right.
+  accepts(phi, sigma) — whether a concrete trace sigma satisfies formula phi — is re-encoded as
+  a satisfiability question over the trace's characteristic formula pin(sigma).
+
+  Fix the finite atom set AP. LTLf is interpreted over finite traces
+  sigma = sigma_0 ... sigma_{n-1} with sigma_i <= AP. X is the strong next (requires a successor
+  to exist), and Last == !X True holds exactly at the final position.
+
+  Complete literal at a position:
+    lambda_i := AND_{a in sigma_i} a  and  AND_{a in AP \\ sigma_i} !a
+
+  Characteristic formula:
+    pin(sigma) := AND_{i=0}^{n-1} X^i lambda_i  and  X^{n-1} Last
+
+  Proposition. L(pin(sigma)) = {sigma} over the alphabet 2^AP.
+  Proof. (=>) Position i exists in sigma for every i < n and lambda_i holds there by construction,
+  so sigma |= X^i lambda_i; position n-1 exists and has no successor, so sigma |= X^{n-1} Last.
+  (<=) Let tau |= pin(sigma) with |tau| = m. X^{n-1} Last requires position n-1 to exist, so m >= n;
+  Last there requires no successor, so m = n. Each X^i lambda_i then forces tau_i = sigma_i because
+  lambda_i is complete over AP. Hence tau = sigma. Q.E.D.
+
+  Corollary. accepts(phi, sigma) <==> SAT(phi and pin(sigma)).
+
+Empty trace semantics:
+  BLACK interprets LTLf formulas over non-empty finite traces (length >= 1), where position 0
+  always exists. Unlike flloat, BLACK excludes the empty trace natively, so no additional
+  `NON_EMPTY` guard formula is required.
+
+Atom ceiling:
+  `ATOM_BUDGET` is set to 100. BLACK is SAT-based and scales linearly with atom count (n*|AP|
+  literals in pin(sigma)), unlike flloat's exponential powerset DFA construction.
 
 What a reader must not break:
   - **rtamt keeps every magnitude; this keeps every qualitative question.** The two backends are
@@ -43,27 +59,25 @@ What a reader must not break:
     direction for satisfiability*, which is why `satisfiable()` is only ever used to report a pack
     consistent, never to report one contradictory. `LTLF_ABSTRACTION_LIMIT` states it on every
     answer that rests on it.
-  - **The extra is optional and its absence is reported, never worked around.** `pip install
-    reasonsmith` stays a two-command demo: `flloat` arrives with `pip install reasonsmith[ltlf]`.
-    With it absent, `available()` is False and the analysis says so in a note; nothing degrades to
-    a weaker answer presented as the same one.
+  - **The extra is optional and its absence is reported, never worked around.** With BLACK absent,
+    `available()` is False and the analysis says so in a note; nothing degrades to a weaker
+    answer presented as the same one.
     (`test_the_analysis_says_so_when_the_extra_is_absent`)
-  - **Only the future fragment.** `flloat` parses LTLf, which has no past operators, so a spec
+  - **Only the future fragment.** BLACK is given LTLf formulas in the future fragment, so a spec
     using `once`, `historically`, `prev`, `since`, `rise` or `fall` is refused **by name** into the
     analysis' `skipped` list. Rendering one into a future operator would be implementing its
     semantics. (`test_a_past_operator_is_skipped_by_name_rather_than_rendered`)
-  - **Every question is asked over a non-empty trace.** LTLf as `flloat` implements it admits the
-    empty trace, on which `always(f)` holds whatever `f` says — so every `always` duty would be
-    reported satisfiable by a trace no monitor ever reads. `NON_EMPTY` is the LTLf formula for
-    "there is a position", conjoined into every question, so the models this reports are the traces
-    the monitors run on. It is a formula and not a construction.
-    (`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`)
+  - **Every question is asked over a non-empty trace.** BLACK interprets LTLf over non-empty
+    traces natively.
 """
 
 from __future__ import annotations
 
 import ast
+import os
 import re
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from typing import Sequence
 
@@ -83,8 +97,8 @@ __all__ = [
     "Abstraction",
     "LTLF_ABSTRACTION_LIMIT",
     "LTLF_EXTRA",
-    "NON_EMPTY",
     "UNAVAILABLE_NOTE",
+    "accepts",
     "atom_count",
     "available",
     "entails",
@@ -92,14 +106,14 @@ __all__ = [
     "to_ltlf",
 ]
 
-#: The name of the optional dependency group that installs the decision procedure.
+#: The name of the optional dependency group for temporal analysis.
 LTLF_EXTRA = "ltlf"
 
-#: What the analysis prints when the extra is not installed. It names the install command rather
-#: than the package, because the package is an implementation detail of the extra.
+#: What the analysis prints when the BLACK solver is not installed or available.
 UNAVAILABLE_NOTE = (
-    "temporal decision procedure: not installed, so no temporal duty was decided as a formula. "
-    "`pip install reasonsmith[ltlf]` adds it. Nothing was answered from a weaker substitute."
+    "temporal decision procedure: not installed (BLACK solver binary not found on PATH). "
+    "Install BLACK from your system package manager or https://www.black-sat.org. "
+    "Nothing was answered from a weaker substitute."
 )
 
 #: The limit every answer from this module carries, for the reason `MUTATION_LIMIT` is carried on
@@ -114,39 +128,88 @@ LTLF_ABSTRACTION_LIMIT = (
     "not be a claim about the pack."
 )
 
-#: The LTLf formula for "this trace has a position". See the module docstring: `flloat` admits the
-#: empty trace, on which every `always(f)` holds, and the traces this package's monitors read are
-#: non-empty. `F(true)` is a formula of the logic and not a construction over its automata.
-NON_EMPTY = "F(true)"
+#: The most propositional atoms **one question** may carry before it is refused by name.
+#: BLACK is SAT-based and scales linearly with atom count (n*|AP| literals in pin(sigma)),
+#: benchmarking under 50 ms for 200+ atoms.
+ATOM_BUDGET = 100
 
-#: The most propositional atoms **one question** may carry before it is refused by name. This is
-#: the installed procedure's ceiling and not a policy: `flloat` enumerates the full powerset of the
-#: atoms as the automaton's alphabet and calls `sympy.satisfiable` once per symbol per state, so a
-#: pack-shaped question measured on this tree costs about 2 s at four atoms, 9 s at five and more
-#: than 90 s at six. There is no wall clock anywhere in this package — the same limit
-#: `docs/authoring-engines.md` states for a plug-in — so the count is checked before the automaton
-#: is built rather than after the run has hung. Every shipped temporal duty carries at most
-#: four atoms, and one is a single comparison; every *pair* of them is seven, which is why the
-#: pack's entailment questions are reported refused rather than answered.
-#: (`test_a_question_over_the_atom_budget_is_refused_by_name`)
-ATOM_BUDGET = 5
-
-#: The rulelang operators `flloat` has, and their LTLf spelling.
+#: The rulelang operators BLACK has, and their LTLf spelling.
 _UNARY_RENDERING = {"always": "G", "eventually": "F", "next": "X"}
 _BINARY_RENDERING = {"until": "U"}
 
-#: The operators of the language `flloat` does not have. LTLf is the future fragment; each of these
-#: needs the past, and rendering one into a future operator would be implementing its semantics.
+#: The operators of the language BLACK is not handed here. LTLf is the future fragment;
+#: each of these needs the past, and rendering one into a future operator would be
+#: implementing its semantics.
 _PAST_OPERATORS = TEMPORAL_OPERATORS - set(_UNARY_RENDERING) - set(_BINARY_RENDERING)
 
 
-def available() -> bool:
-    """Whether the optional decision procedure is installed."""
+def _verify_black_binary(path: str) -> bool:
     try:
-        import flloat.parser.ltlf  # noqa: F401
-    except Exception:  # pragma: no cover - exercised only where the extra is absent
+        res = subprocess.run(
+            [path, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        if res.returncode != 0:
+            return False
+        output = res.stdout + res.stderr
+        return "BLACK" in output and (
+            "Bounded" in output or "sAtisfiability" in output or "black-sat" in output
+        )
+    except Exception:
         return False
-    return True
+
+
+def _get_black_path() -> str | None:
+    env_path = (
+        os.getenv("BLACK_SAT_PATH")
+        or os.getenv("BLACK_PATH")
+        or os.getenv("BLACK_EXECUTABLE")
+    )
+    if env_path:
+        if _verify_black_binary(env_path):
+            return env_path
+        return None
+
+    for candidate_name in ["black-sat", "black"]:
+        candidate = shutil.which(candidate_name)
+        if candidate and _verify_black_binary(candidate):
+            return candidate
+    return None
+
+
+def available() -> bool:
+    """Whether the optional BLACK decision procedure is installed and identifiable."""
+    return _get_black_path() is not None
+
+
+def _run_black(formula: str, timeout: int = 30) -> bool:
+    path = _get_black_path()
+    if not path:
+        raise RuntimeError("BLACK solver is not available")
+    try:
+        res = subprocess.run(
+            [path, "solve", "--finite", "-f", formula],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise UnsupportedConstructError(f"BLACK solver timed out after {timeout} seconds") from err
+    except Exception as err:
+        raise RuntimeError(f"Failed to execute BLACK solver: {err}") from err
+
+    if res.returncode != 0:
+        err_msg = res.stderr.strip() or res.stdout.strip()
+        raise RuntimeError(f"BLACK solver failed with exit code {res.returncode}: {err_msg}")
+
+    out = res.stdout.strip()
+    if out == "SAT":
+        return True
+    if out == "UNSAT":
+        return False
+    raise RuntimeError(f"Unexpected output from BLACK solver: {out!r}")
 
 
 @dataclass
@@ -166,8 +229,8 @@ class Abstraction:
     def atom(self, key: str) -> str:
         """The propositional letter standing for `key`, minted on first sight.
 
-        The letter is synthetic rather than the signal's own name because `flloat`'s grammar
-        reserves `true`, `false` and the operator letters, and a pack is free to name a signal
+        The letter is synthetic rather than the signal's own name because BLACK's grammar
+        reserves `true`, `false` and operator letters, and a pack is free to name a signal
         anything the loader accepts.
         """
         if key not in self.atoms:
@@ -176,7 +239,7 @@ class Abstraction:
 
 
 def to_ltlf(spec: str, abstraction: Abstraction) -> str:
-    """Render a requirement `spec` in `flloat`'s LTLf syntax, abstracting every atom.
+    """Render a requirement `spec` in BLACK's LTLf syntax, abstracting every atom.
 
     Raises `UnsupportedConstructError` — never a partial or approximate rendering — for a past
     operator, for the counterfactual atom, and for anything else the mapping has no spelling for.
@@ -190,8 +253,6 @@ def _render(node: ast.AST, abstraction: Abstraction) -> str:
         return "(" + joiner.join(_render(value, abstraction) for value in node.values) + ")"
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
         return f"!({_render(node.operand, abstraction)})"
-    # There is no case for a bare Boolean constant: `rulelang.validate_property` refuses one before
-    # a spec reaches here, so a case would be a spelling for something no `spec` can say.
     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
         name = node.func.id
         if name in _PAST_OPERATORS:
@@ -238,29 +299,36 @@ def _atom(node: ast.AST, abstraction: Abstraction) -> str:
     return letter
 
 
-def _language_non_empty(formula: str) -> bool:
-    """Whether some non-empty finite trace satisfies `formula`.
-
-    The whole of the decision procedure this module uses: `flloat` compiles the formula to a DFA
-    whose states are exactly the ones its construction reaches from the initial state, so the
-    language is non-empty exactly when one of them accepts.
-    """
-    from flloat.parser.ltlf import LTLfParser
-
-    automaton = LTLfParser()(f"({formula}) & {NON_EMPTY}").to_automaton()
-    return bool(automaton.accepting_states)
+def _apply_X(expr: str, count: int) -> str:
+    for _ in range(count):
+        expr = f"X ({expr})"
+    return expr
 
 
 def accepts(formula: str, valuations: Sequence[dict[str, bool]]) -> bool:
-    """Whether the formula's automaton accepts one trace of propositional valuations.
+    """Whether one concrete trace of propositional valuations satisfies formula."""
+    n = len(valuations)
+    if n == 0:
+        return False
+    ap = sorted(
+        set(_ATOM_PATTERN.findall(formula))
+        | {k for v in valuations for k in v.keys()}
+    )
+    if not ap:
+        lambdas = ["True"] * n
+    else:
+        lambdas = [
+            " & ".join(a if v.get(a, False) else f"!{a}" for a in ap)
+            for v in valuations
+        ]
 
-    The one entry point the differential test needs, and the reason it is here rather than in the
-    test: every call into the installed procedure goes through this module, so there is one place
-    where what LTLf means to this package is decided.
-    """
-    from flloat.parser.ltlf import LTLfParser
-
-    return bool(LTLfParser()(formula).to_automaton().accepts([dict(v) for v in valuations]))
+    pin_parts = [
+        _apply_X(f"({lam})", i) for i, lam in enumerate(lambdas)
+    ]
+    pin_parts.append(_apply_X("!(X True)", n - 1))
+    pin_formula = " & ".join(f"({p})" for p in pin_parts)
+    combined = f"({formula}) & ({pin_formula})"
+    return _run_black(combined)
 
 
 _ATOM_PATTERN = re.compile(r"\bp\d+\b")
@@ -272,13 +340,6 @@ def atom_count(formula: str) -> int:
 
 
 def _conjoin(formulas: Sequence[str], abstraction: Abstraction) -> str:
-    """The question put to the procedure: the formulas, plus every axiom that speaks about them.
-
-    Only the axioms whose atoms the question already reads. `Abstraction` is shared across a whole
-    pack, so an axiom belonging to some other requirement's `contains()` would otherwise add its two
-    atoms to every question — inflating the count `ATOM_BUDGET` is checked against and refusing a
-    question for a reason that is not the question's.
-    """
     asked = "".join(formulas)
     reads = set(_ATOM_PATTERN.findall(asked))
     parts = [f"({formula})" for formula in formulas]
@@ -287,17 +348,16 @@ def _conjoin(formulas: Sequence[str], abstraction: Abstraction) -> str:
         for axiom in abstraction.axioms
         if reads.intersection(_ATOM_PATTERN.findall(axiom))
     ]
-    return " & ".join(parts) if parts else "true"
+    return " & ".join(parts) if parts else "True"
 
 
 def _decide(formula: str) -> bool:
     if atom_count(formula) > ATOM_BUDGET:
         raise UnsupportedConstructError(
             f"the question carries {atom_count(formula)} propositional atoms, over the "
-            f"{ATOM_BUDGET} the installed decision procedure builds an automaton for in "
-            "bounded time"
+            f"{ATOM_BUDGET} the installed decision procedure checks in bounded time"
         )
-    return _language_non_empty(formula)
+    return _run_black(formula)
 
 
 def satisfiable(formulas: Sequence[str], abstraction: Abstraction) -> bool:

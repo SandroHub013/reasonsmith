@@ -480,10 +480,10 @@ mirror images over the prefix.
 
 **This package implements none of it, and this document defines none of it.** The clauses are
 named, not restated, and the reason is a rule in the tree: rtamt owns the temporal semantics at the
-`observed` rung and `flloat` owns them in the analysis, and a second implementation of one is the
+`observed` rung and BLACK owns them in the analysis, and a second implementation of one is the
 thing to refuse if it is ever proposed. The property language's whole contribution here is a
 **syntax mapping** — prefix calls, because it parses through Python's `ast`, rendered back into
-rtamt's infix by `engines/observed.to_stl` and into `flloat`'s by `ltlf.to_ltlf`
+rtamt's infix by `engines/observed.to_stl` and into BLACK's by `ltlf.to_ltlf`
 (`test_the_rendered_form_is_rtamt_infix_and_rtamt_monitors_it`).
 
 One clause the package does own, because `engines/temporal.py` implements it:
@@ -669,15 +669,15 @@ corpus of state formulas, evaluated by the reference interpreter and by the moni
 It carries four **named exclusions**, and §4 is what they are — three of them now refused in the
 rendering rather than answered, the fourth a boundary convention.
 
-### 3.4 flloat, at a propositional abstraction
+### 3.4 BLACK, at a propositional abstraction
 
-`ltlf.py` compiles a temporal formula to a DFA and asks emptiness. It is the only implementation
-that changes the structure rather than the algebra: every comparison of magnitudes becomes one
+`ltlf.py` hands a temporal formula to BLACK (a satisfiability checker for LTL and LTLf) over a subprocess boundary.
+It is the only implementation that changes the structure rather than the algebra: every comparison of magnitudes becomes one
 opaque propositional atom, so `x <= 30` bears no relation to `x <= 90`. That abstraction is sound
 for the entailments it reports and incomplete for the ones it does not, which is why satisfiability
 is reported only in the affirmative and `LTLF_ABSTRACTION_LIMIT` rides on every answer.
 
-Two of its choices are §2 clauses rather than implementation details. Every question conjoins
+BLACK interprets LTLf formulas over non-empty finite traces natively. Two of its choices are §2 clauses rather than implementation details. Every question conjoins
 `F(true)`, because LTLf admits the empty trace on which every `always` duty vacuously holds — which
 is §2.9's refusal of `⨅ ∅` restated in the object logic
 (`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`). And `Iff` is
