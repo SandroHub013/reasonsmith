@@ -244,3 +244,32 @@ def test_all_ten_temporal_operators_covered_and_distinguished():
     ]
     assert eval_temporal_trace(node_since, r_since) == [True, True, True]
     assert eval_temporal_trace(node_until, r_since) == [True, False, False]
+
+
+def test_missing_numeric_signal_returns_inconclusive():
+    """A temporal requirement over records missing a required numeric signal must return
+
+    INCONCLUSIVE.
+    """
+    req = Requirement(
+        id="test-missing-latency",
+        source_document="test",
+        article_clause="test",
+        verbatim_text="test",
+        stakeholder="test",
+        formalism="temporal",
+        spec="always(latency <= 30)",
+        requires=("latency",),
+        rationale="missing numeric signal test",
+        binding=True,
+        scope="",
+        domains=(),
+        deontic_type="obligation",
+        defeasibility="strict",
+    )
+    sut = BaseSUT({"latency"})
+    records = [{"id": 1}, {"id": 2}]
+    res = ObservedEngine.evaluate(req, sut, records)
+    assert res.strength is None
+    assert res.verdict == Verdict.INCONCLUSIVE
+    assert "Not evaluated" in res.evidence_summary

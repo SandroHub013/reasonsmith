@@ -667,12 +667,11 @@ class ObservedEngine:
         # Check evaluations for violations (robustness < 0)
         # Compute the Boolean verdict from the Boolean semantics over the finite trace.
         # Robustness scores (res) remain reported as the quantitative margin in evaluation_scores.
-        non_zero_fill = set(presence_signals.values()) | {
-            source for source, _ in contains_signals.values()
-        }
-        zero_fill_vars = spec_vars - non_zero_fill
+        # Boolean flags (spec_vars - magnitude_vars) default to 0.0 (unset flag) if omitted
+        # from a record; missing magnitude_vars were checked and rejected as unmeasured above.
+        flag_vars = spec_vars - magnitude_vars
         eval_records = [
-            {var: 0.0 for var in zero_fill_vars if var not in rec} | rec
+            {var: 0.0 for var in flag_vars if var not in rec} | rec
             for rec in records
         ]
         boolean_trace = eval_temporal_trace(property_node, eval_records)

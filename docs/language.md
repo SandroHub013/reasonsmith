@@ -531,7 +531,7 @@ The finite-trace boundary edge cases are determined by running `rtamt` over disc
   ```
 - **`rise` and `fall` at position 0**: Implicitly assumes initial boundary conditions $f(-1) = 0$ for `rise` and $f(-1) = 1$ for `fall`.
   *Empirical probe*: `rise(b >= 0.5)` on $b = [1.0, 0.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`), and `fall(b >= 0.5)` on $b = [0.0, 1.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`).
-- **Strictness at threshold $\rho = 0$**: The Boolean verdict follows from strict comparison operator semantics: `>` and `<` evaluate to `False` on the threshold, while `>=` and `<=` evaluate to `True` (`test_strict_comparison_boundary_table`, `test_all_ten_temporal_operators_covered_and_distinguished`, `test_differential_property_shipped_packs_and_systems`, `test_differential_property_random_traces`).
+- **Strictness at threshold $\rho = 0$**: The Boolean verdict follows from strict comparison operator semantics: `>` and `<` evaluate to `False` on the threshold, while `>=` and `<=` evaluate to `True` (`test_strict_comparison_boundary_table`, `test_all_ten_temporal_operators_covered_and_distinguished`, `test_differential_property_shipped_packs_and_systems`, `test_differential_property_random_traces`, `test_missing_numeric_signal_returns_inconclusive`).
 
 One clause `engines/temporal.py` implements for reduction to `proved`:
 ```
