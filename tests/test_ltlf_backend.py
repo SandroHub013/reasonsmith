@@ -170,7 +170,16 @@ def test_black_non_empty_semantics_g_false_is_unsat():
 
 
 def test_pin_characteristic_formula_accepts_sigma_and_rejects_neighbors():
-    """`pin(sigma)` accepts sigma, rejects every Hamming step, and rejects length neighbours."""
+    """`L(pin(σ)) = {σ}`, asked of the solver rather than read off the formula's shape.
+
+    This is the behavioural half of `docs/formal.md` §6.11's proposition; the structural half —
+    that each `λᵢ` is complete over `AP` — is
+    `test_the_pinning_formula_states_every_atom_at_every_position`, which needs no solver and so
+    runs on a machine without the extra. **Every** trace one Hamming step from σ is asked, not a
+    sample of them: the proposition's `(⊆)` direction forces `τᵢ = σᵢ` at every position and for
+    every atom, and a test flipping two of the four bits would pass against an encoding that pinned
+    only the atoms it happened to check.
+    """
     formula = "p0 & X(p1)"
     sigma = [{"p0": True, "p1": False}, {"p0": False, "p1": True}]
 
@@ -184,11 +193,17 @@ def test_pin_characteristic_formula_accepts_sigma_and_rejects_neighbors():
     # 1. Accepts sigma
     assert ltlf.accepts(pin_sigma, sigma) is True
 
-    # 2. Rejects every trace one Hamming step from sigma
-    hamming_t0 = [{"p0": False, "p1": False}, {"p0": False, "p1": True}]
-    hamming_t1 = [{"p0": True, "p1": False}, {"p0": False, "p1": False}]
-    assert ltlf.accepts(pin_sigma, hamming_t0) is False
-    assert ltlf.accepts(pin_sigma, hamming_t1) is False
+    # 2. Rejects every trace one Hamming step from sigma — n * |AP| of them.
+    flips = 0
+    for position in range(len(sigma)):
+        for atom in ap:
+            neighbour = [dict(valuation) for valuation in sigma]
+            neighbour[position][atom] = not neighbour[position][atom]
+            flips += 1
+            assert ltlf.accepts(pin_sigma, neighbour) is False, (
+                f"pin(σ) accepts a trace with {atom} flipped at position {position}"
+            )
+    assert flips == len(sigma) * len(ap), "not every single-atom flip was asked"
 
     # 3. Rejects length neighbour n-1
     len_n_minus = [{"p0": True, "p1": False}]
