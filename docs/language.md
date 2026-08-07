@@ -475,23 +475,88 @@ the *graded* reading of equality and precisely not the crisp comparison `==` den
 refused: it states a threshold, and a threshold written into a pack is the author's number
 presented as the regulation's (`test_a_graded_comparison_the_author_wrote_is_still_refused`).
 
-### 2.8 Temporal formulas, and what this package does not define
+### 2.8 Temporal formulas denotation over finite traces
 
-For a trace σ of length `n > 0` and a position `i < n`, `⟦φ⟧^pos(σ, i) ∈ 𝔹` is the standard
-finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and
-linear dynamic logic on finite traces* (IJCAI 2013 — `[@degiacomo-2013]`) — with the past operators
-read as their usual mirror images over the prefix.
+For a trace $\sigma$ of length $n = |\sigma| > 0$ and a position $i \in \{0, \dots, n-1\}$, $\llbracket \phi \rrbracket^{\text{pos}}(\sigma, i)$ defines the semantics of every temporal formula $\phi$ at position $i$. The trace verdict is evaluated at position 0: $\llbracket \phi \rrbracket^{\text{tr}}(\sigma) = \llbracket \phi \rrbracket^{\text{pos}}(\sigma, 0)$ (§2.9). The clauses are the standard finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and linear dynamic logic on finite traces* (IJCAI 2013 — `[@degiacomo-2013]`) — with the past operators read as their usual mirror images over the prefix.
 
-**This package implements none of it, and this document defines none of it.** The clauses are
-named, not restated, and the reason is a rule in the tree: rtamt owns the temporal semantics at the
-`observed` rung and BLACK owns them in the analysis, and a second implementation of one is the
-thing to refuse if it is ever proposed. The property language's whole contribution here is a
-**syntax mapping** — prefix calls, because it parses through Python's `ast`, rendered back into
-rtamt's infix by `engines/observed.to_stl` and into BLACK's by `ltlf.to_ltlf`
-(`test_the_rendered_form_is_rtamt_infix_and_rtamt_monitors_it`).
+They are **restated here rather than named**, and the reason is a change in the code that this
+section is the contract for. `rulelang.eval_temporal_trace` evaluates these clauses directly, over
+the Kleene chain of §2.12 rather than over `𝔹`, and `engines/observed.py` takes its verdict from
+that evaluation. It does **not** take it from a robustness sign, and that is the whole point of the
+clauses being written down: $\rho > 0$ implies satisfaction and $\rho < 0$ implies violation, but
+$\rho = 0$ implies neither, and $\rho$ does not represent strictness at all — $\rho(x > c) = \rho(x
+\ge c)$. A Boolean question answered by comparing a robustness number is therefore a defect, and a
+definition that only *named* its clauses gave no statement against which to find one.
 
-One clause the package does own, because `engines/temporal.py` implements it:
+What is still owned elsewhere, and what may still never be implemented twice: rtamt owns the
+real-valued monitoring at the `observed` rung and BLACK owns the decision procedure in the
+analysis, and a second monitor, automaton construction or tableau is the thing to refuse if it is
+ever proposed. The property language's contribution to *those two* remains a **syntax mapping** —
+prefix calls, because it parses through Python's `ast`, rendered back into rtamt's infix by
+`engines/observed.to_stl` and into BLACK's by `ltlf.to_ltlf`
+(`test_the_rendered_form_is_rtamt_infix_and_rtamt_monitors_it`). The clauses below are the
+statement those renderings are checked *against*, which is what §4 does when it reports four shapes
+on which the rtamt rendering and this definition part company.
 
+State predicates without temporal operators are evaluated per-record via $\llbracket f \rrbracket^{\text{rec}}(\sigma_i)$ using `rulelang.eval_expression`. The connective and temporal operator denotations over finite traces are stated below, and every one of them is checked against what `rtamt` does on a discrete trace:
+
+#### Connectives
+- $\llbracket \text{not } \phi \rrbracket^{\text{pos}}(\sigma, i) = \neg \llbracket \phi \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \phi_1 \text{ and } \phi_2 \rrbracket^{\text{pos}}(\sigma, i) = \llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) \land \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \phi_1 \text{ or } \phi_2 \rrbracket^{\text{pos}}(\sigma, i) = \llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) \lor \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \text{Implies}(\phi_1, \phi_2) \rrbracket^{\text{pos}}(\sigma, i) = \neg \llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) \lor \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \text{Iff}(\phi_1, \phi_2) \rrbracket^{\text{pos}}(\sigma, i) = (\llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) == \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i))$
+
+#### Temporal Operators
+1. `always(f)`: $\bigwedge_{j=i}^{n-1} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+2. `eventually(f)`: $\bigvee_{j=i}^{n-1} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+3. `next(f)`: $\llbracket f \rrbracket^{\text{pos}}(\sigma, i+1)$ if $i+1 < n$, else $1$ (weak `next`)
+4. `prev(f)`: $\llbracket f \rrbracket^{\text{pos}}(\sigma, i-1)$ if $i > 0$, else $1$ (weak `prev`)
+5. `historically(f)`: $\bigwedge_{j=0}^{i} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+6. `once(f)`: $\bigvee_{j=0}^{i} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+7. `rise(f)`: $\llbracket f \rrbracket^{\text{pos}}(\sigma, 0)$ if $i = 0$, else $\llbracket f \rrbracket^{\text{pos}}(\sigma, i) \land \neg \llbracket f \rrbracket^{\text{pos}}(\sigma, i-1)$
+8. `fall(f)`: $\neg \llbracket f \rrbracket^{\text{pos}}(\sigma, 0)$ if $i = 0$, else $\neg \llbracket f \rrbracket^{\text{pos}}(\sigma, i) \land \llbracket f \rrbracket^{\text{pos}}(\sigma, i-1)$
+9. `until(a, b)`: $\bigvee_{j=i}^{n-1} \left( \llbracket b \rrbracket^{\text{pos}}(\sigma, j) \land \bigwedge_{k=i}^{j-1} \llbracket a \rrbracket^{\text{pos}}(\sigma, k) \right)$
+10. `since(a, b)`: $\bigvee_{j=0}^{i} \left( \llbracket b \rrbracket^{\text{pos}}(\sigma, j) \land \bigwedge_{k=j+1}^{i} \llbracket a \rrbracket^{\text{pos}}(\sigma, k) \right)$
+
+#### Boundary Edge Cases & Empirical `rtamt` Evidence
+
+The finite-trace boundary edge cases are determined by running `rtamt` over discrete traces:
+
+- **`next` at position $n - 1$**: Weak `next` (evaluates to `True`).
+  *Empirical probe*: `next(b >= 0.5)` on $b = [1.0, 0.0]$:
+  ```python
+  spec = rtamt.StlDiscreteTimeSpecification()
+  spec.declare_var('b', 'float')
+  spec.spec = 'next(b >= 0.5)'
+  spec.parse()
+  spec.evaluate({'time': [0, 1], 'b': [1.0, 0.0]})
+  # Output: [[0, -0.5], [1, inf]]  --> robustness +inf at t=1 implies True
+  ```
+- **`prev` at position 0**: Weak `prev` (evaluates to `True`).
+  *Empirical probe*: `prev(b >= 0.5)` on $b = [0.0, 1.0]$:
+  ```python
+  spec.spec = 'prev(b >= 0.5)'
+  spec.evaluate({'time': [0, 1], 'b': [0.0, 1.0]})
+  # Output: [[0, inf], [1, -0.5]]  --> robustness +inf at t=0 implies True
+  ```
+- **`until(a, b)`**: Search interval $[i, n-1]$ is inclusive. If $b$ never holds on $[i, n-1]$, returns `False`.
+  *Empirical probe*: `until(a >= 0.5, b >= 0.5)` on $a = [1, 1], b = [0, 0]$:
+  ```python
+  spec.evaluate({'time': [0, 1], 'a': [1.0, 1.0], 'b': [0.0, 0.0]})
+  # Output: [[0, -0.5], [1, -0.5]] --> robustness -0.5 implies False
+  ```
+- **`since`, `once`, `historically` at position 0**: Evaluated over prefix $[0, 0]$.
+  *Empirical probe*: `since(a >= 0.5, b >= 0.5)` on $a = [0, 1], b = [1, 0]$:
+  ```python
+  spec.evaluate({'time': [0, 1], 'a': [0.0, 1.0], 'b': [1.0, 0.0]})
+  # Output: [[0, 0.5], [1, 0.5]]   --> robustness +0.5 implies True
+  ```
+- **`rise` and `fall` at position 0**: Implicitly assumes initial boundary conditions $f(-1) = 0$ for `rise` and $f(-1) = 1$ for `fall`.
+  *Empirical probe*: `rise(b >= 0.5)` on $b = [1.0, 0.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`), and `fall(b >= 0.5)` on $b = [0.0, 1.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`).
+- **Strictness at threshold $\rho = 0$**: The Boolean verdict follows from strict comparison operator semantics: `>` and `<` evaluate to `False` on the threshold, while `>=` and `<=` evaluate to `True` (`test_strict_comparison_boundary_table`, `test_all_ten_temporal_operators_covered_and_distinguished`, `test_differential_property_shipped_packs_and_systems`, `test_differential_property_random_traces`, `test_missing_numeric_signal_returns_inconclusive`).
+
+One clause `engines/temporal.py` implements for reduction to `proved`:
 ```
 ⟦always(φ)⟧^tr(σ)  =  ⨅_{i < |σ|} ⟦φ⟧^rec(σᵢ)          for φ free of temporal operators
 ```
@@ -594,6 +659,43 @@ reading here either, but the reason is a decision about packs rather than a gap 
 `≤` between two elements of `[0,1]` is perfectly well defined, and the refusal is that a pack
 stating one would be stating a compliance threshold no statute states
 (`test_a_graded_atom_under_arithmetic_or_a_comparison_is_refused`).
+
+### 2.12 The third value, and whose three-valuedness it is
+
+The reference interpreter and `eval_temporal_trace` do not evaluate into `𝔹` but into the **Kleene
+strong three-valued logic** `[@kleene-1952]` on the chain `F < U < T` (`rulelang.UNKNOWN`, `kleene_not`,
+`kleene_and`, `kleene_or`, `kleene_implies`, `kleene_iff`). The tables are Kleene's and no other's:
+
+| `φ` | `¬φ` |   | `∧` | F | U | T |   | `∨` | F | U | T |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| F | T |   | **F** | F | F | F |   | **F** | F | U | T |
+| U | U |   | **U** | F | U | U |   | **U** | U | U | T |
+| T | F |   | **T** | F | U | T |   | **T** | T | T | T |
+
+`φ → ψ` is `¬φ ∨ ψ` and `φ ↔ ψ` is `(φ → ψ) ∧ (ψ → φ)`, both derived rather than tabulated, which
+is why `U ↔ U = U`. `UNKNOWN.__bool__` **raises**: a third value that silently coerced to `False`
+at an `if` would be a two-valued answer wearing a three-valued type.
+
+**Where `U` comes from here, and where it does not.** `U` is this tool's *ignorance about a record*
+— a signal the decision record does not carry a value for, so the atom reading it has no truth
+value at this position. That is the source Bruns & Godefroid `[@bruns-1999]` treat: a partial state
+space, incompletely known. It is **not** the source Bauer, Leucker & Schallhart `[@bauer-2011]`
+treat in LTL₃, which is a *truncated trace* — the prefix seen so far may be extended, and the
+question is whether every extension agrees. The two are different questions with the same arity,
+and this repository answers only the first. [`semantics.md`](semantics.md) §8 states the second as
+**not available from this tool**, and that statement is about LTL₃ and stays true: nothing here
+computes a verdict about the extensions of a trace. Conflating them — in prose or in a value — is
+the mistake this paragraph exists to prevent.
+
+**Kleene is sound for the question and it is not complete for it.** If this evaluation returns `T`
+or `F`, that value holds under *every* assignment of the unknowns, so a verdict read off it is
+never a guess. The converse fails: `φ ∨ ¬φ` evaluates to `U` when `φ` is `U`, although every
+completion makes it true. So `U` means **this evaluation did not determine the formula**, and never
+*no determination is possible*. Supervaluation `[@vanfraassen-1966]` — quantifying over the
+classical completions — is complete for that question and is deliberately not implemented: it costs
+a satisfiability check per formula, and the direction Kleene errs in is the direction this package
+always errs in, reporting *not evaluated* where a sharper procedure would answer. A duty whose
+verdict rests on that gap is therefore reported inconclusive, never satisfied.
 
 ---
 

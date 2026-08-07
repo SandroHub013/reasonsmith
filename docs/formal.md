@@ -1049,11 +1049,24 @@ addition rather than a rewrite.
 - **`[@barthe-2004]`** G. Barthe, P. R. D'Argenio, T. Rezk. *Secure Information Flow by
   Self-Composition.* CSFW 2004, 100–114. — the proof method the counterfactual engine uses (§6.6).
 - **`[@degiacomo-2013]`** G. De Giacomo, M. Y. Vardi. *Linear Temporal Logic and Linear Dynamic Logic
-  on Finite Traces.* IJCAI 2013, 854–860. — the finite-trace semantics this package names and does
-  not reimplement (§2.8).
+  on Finite Traces.* IJCAI 2013, 854–860. — the finite-trace semantics whose clauses
+  [`language.md`](language.md) §2.8 states and `rulelang.eval_temporal_trace` evaluates (§2.7).
 - **`[@bauer-2011]`** A. Bauer, M. Leucker, C. Schallhart. *Runtime Verification for LTL and TLTL.*
   ACM Transactions on Software Engineering and Methodology 20(4):14, 2011. — the three-valued
-  finite-trace distinction this package reports unavailable rather than synthesising (§6.10).
+  finite-trace distinction this package reports unavailable rather than synthesising (§6.10). Its
+  third value is a *truncated trace* and is deliberately not the third value of
+  [`language.md`](language.md) §2.12, which is `[@bruns-1999]`'s.
+- **`[@bruns-1999]`** G. Bruns, P. Godefroid. *Model Checking Partial State Spaces with 3-Valued
+  Temporal Logics.* CAV 1999, LNCS 1633, 274–287. — the source of the third value the reference
+  interpreter computes: ignorance about the state, not truncation of the trace
+  ([`language.md`](language.md) §2.12).
+- **`[@kleene-1952]`** S. C. Kleene. *Introduction to Metamathematics.* North-Holland, 1952, §64.
+  — the strong three-valued tables `rulelang`'s Kleene operators implement
+  ([`language.md`](language.md) §2.12).
+- **`[@vanfraassen-1966]`** B. C. van Fraassen. *Singular Terms, Truth-Value Gaps, and Free Logic.*
+  The Journal of Philosophy 63(17):481–495, 1966. — supervaluation, complete for the question
+  Kleene is only sound for, and deliberately not implemented
+  ([`language.md`](language.md) §2.12).
 - **`[@kupferman-2003]`** O. Kupferman, M. Y. Vardi. *Vacuity detection in temporal model checking.*
   International Journal on Software Tools for Technology Transfer 4(2):224–233, 2003. (First at
   CHARME 1999.) — the vacuity question (§6.10).

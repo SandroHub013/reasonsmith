@@ -410,7 +410,7 @@ def test_a_property_that_cannot_be_decided_on_a_record_is_not_evaluated():
         _duty(),
         spec=(
             "(artifact_logs_notification_latency_days <= 30) and "
-            "(artifact_logs_deleted_reason_count <= 0)"
+            "(artifact_logs_deleted_reason_count <= 10)"
         ),
     )
     result = CertificateEngine.evaluate(unread, sut, sut.decisions())

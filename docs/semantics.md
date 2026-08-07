@@ -2041,15 +2041,22 @@ passes forever.
 - **Every question is asked over a non-empty trace.** BLACK interprets LTLf formulas over non-empty finite traces (length >= 1) natively, where position 0 always exists.
 - **There is a ceiling, and questions over it are refused by name rather than run.** `ltlf.ATOM_BUDGET` is set to 100. BLACK is SAT-based and scales linearly with atom count (n*|AP| literals in pin(sigma)), benchmarking under 50 ms for 200+ atoms. A question carrying more atoms than `ATOM_BUDGET` is refused by name (`test_a_question_over_the_atom_budget_is_refused_by_name`). A pair of duties that is refused is reported **not decided either way**, which is a different fact from "no temporal duty entails another" and never renders as it (`test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared`).
 
-**No three-valued verdict is computed here, and that is a decision.** The runtime-verification
+**No LTL₃ verdict is computed here, and that is a decision.** The runtime-verification
 literature (Bauer, Leucker and Schallhart — `[@bauer-2011]`) distinguishes *satisfied on this
 finite prefix* from
 *satisfied on every extension of it*, and that distinction is real for this package: a decision log
-is a finite trace and §2 already says the trace is a sample. The installed procedure exposes an
-automaton and no monitor construction over it, so the distinction is **not available from the tool**
-and is not synthesised from one — a three-valued verdict this repository computed for itself would
-be the temporal semantics it has just spent this section not implementing. Nothing on the strength
-lattice (§4) moves for it either. A procedure that reports it is what would close this.
+is a finite trace and §2 already says the trace is a sample. The installed procedure answers a
+satisfiability question and exposes no monitor construction, so the distinction is **not available
+from the tool** and is not synthesised from one. Nothing on the strength lattice (§4) moves for it
+either. A procedure that reports it is what would close this.
+
+This is **not** the same third value as the `UNKNOWN` the reference interpreter computes, and the
+two must not be read as one. `UNKNOWN` is ignorance about a *record* — a signal the log carries no
+value for — which is the partial-state-space setting of Bruns & Godefroid `[@bruns-1999]`; LTL₃'s
+third value is truncation of the *trace*, a question about extensions this tool asks of nothing.
+Same arity, different question, and only the first is answered.
+[`language.md`](language.md) §2.12 is the definition, including why Kleene is sound for its
+question and not complete for it.
 
 **The backend is an optional extra and its absence is a note.** `pip install reasonsmith` stays a
 two-command demo; `pip install reasonsmith[ltlf]` adds the procedure. Nothing in `check`, in any

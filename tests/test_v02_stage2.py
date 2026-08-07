@@ -731,10 +731,8 @@ class TestObservedEngine:
         )
         records = [{"signal_a": True}, {"signal_a": float("nan")}]
         result = ObservedEngine.evaluate(req, sut, records)
-        assert result.verdict == Verdict.VIOLATED
-        assert all(
-            score == score for _, score in result.details["evaluation_scores"]
-        ), "a NaN robustness score would also make the report's JSON unparseable"
+        assert result.verdict == Verdict.INCONCLUSIVE
+        assert result.strength is None
 
     @pytest.mark.parametrize(
         "spec",
@@ -811,7 +809,7 @@ class TestRequirementsMeasureTheirDuty:
             {"artifact_logs_decision_record": {"id": "dec-1"},
              "artifact_logs_notification_latency_days": 12},
             {"artifact_logs_decision_record": {"id": "dec-2"},
-             "artifact_logs_notification_latency_days": 45},
+             "artifact_logs_notification_latency_days": 200},
         ]
         result = ObservedEngine.evaluate(req, sut, records)
         assert result.verdict == Verdict.VIOLATED
@@ -863,6 +861,25 @@ class TestRequirementsMeasureTheirDuty:
         result = ObservedEngine.evaluate(req, sut, records)
         assert result.verdict == Verdict.VIOLATED
         assert result.details["violation_step_indices"] == [0, 1]
+
+    def test_ecoa_notice_undetermined_when_latency_30_to_90_counteroffer_absent(self):
+        """When latency is between 31 and 90 days and counteroffer is absent,
+
+        the requirement is NOT EVALUATED (verdict=INCONCLUSIVE, strength=None),
+        naming absent signal.
+        """
+        req = load_pack("ecoa").get_requirement("ecoa_reg_b_1002_9_a_1_timing_of_notice")
+        sut = BaseSUT(set(req.requires))
+        records = [
+            {"artifact_logs_decision_record": {"id": "dec-1"},
+             "artifact_logs_notification_latency_days": 12},
+            {"artifact_logs_decision_record": {"id": "dec-2"},
+             "artifact_logs_notification_latency_days": 45},
+        ]
+        result = ObservedEngine.evaluate(req, sut, records)
+        assert result.verdict == Verdict.INCONCLUSIVE
+        assert result.strength is None
+        assert "artifact_logs_counteroffer_not_accepted" in result.evidence_summary
 
     @pytest.mark.parametrize(
         "unmeasured_latency",
