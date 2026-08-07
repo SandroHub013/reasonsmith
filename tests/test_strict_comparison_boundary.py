@@ -228,6 +228,17 @@ def test_all_ten_temporal_operators_covered_and_distinguished():
     assert eval_temporal_trace(node_rise, r1) == [False, True, False]
     assert eval_temporal_trace(node_fall, r1) == [True, False, True]
 
+    # `rise` at position 0 takes the strong reading — f(-1) is false — while `prev` is the weak
+    # previous. On a trace beginning `b = False` both readings give False at position 0, so the
+    # boundary needs a trace beginning `b = True` to be pinned at all. This is the witness
+    # `docs/language.md` §2.8 states: `rise(b)` and `b and not prev(b)` part company at position 0.
+    r_rise_at_zero = [{"b": True}, {"b": False}]
+    node_rise_spelled_out = parse_property("b and not prev(b)")
+    assert eval_temporal_trace(node_rise, r_rise_at_zero) == [True, False]
+    assert eval_temporal_trace(node_prev, r_rise_at_zero) == [True, True]
+    assert eval_temporal_trace(node_rise_spelled_out, r_rise_at_zero) == [False, False]
+    assert eval_temporal_trace(node_fall, [{"b": False}, {"b": True}]) == [True, False]
+
     # 5. until vs since
     node_until = parse_property("until(a, b)")
     node_since = parse_property("since(a, b)")

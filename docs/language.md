@@ -477,7 +477,7 @@ presented as the regulation's (`test_a_graded_comparison_the_author_wrote_is_sti
 
 ### 2.8 Temporal formulas denotation over finite traces
 
-For a trace $\sigma$ of length $n = |\sigma| > 0$ and a position $i \in \{0, \dots, n-1\}$, $\llbracket \phi \rrbracket^{\text{pos}}(\sigma, i)$ defines the semantics of every temporal formula $\phi$ at position $i$. The trace verdict is evaluated at position 0: $\llbracket \phi \rrbracket^{\text{tr}}(\sigma) = \llbracket \phi \rrbracket^{\text{pos}}(\sigma, 0)$ (§2.9). The **future** clauses are the standard finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and linear dynamic logic on finite traces* (IJCAI 2013 — `[@degiacomo-2013]`). The **past** clauses are not the mirror images of those, and this document does not claim they are: their conventions at position 0 are **rtamt's**, adopted deliberately. rtamt is the monitor that computes the robustness reported beside every `observed` verdict, and a denotation that diverged from it at the boundary would make the documented semantics and the executed semantics disagree, which is worse than adopting a convention this section can simply state. Each one was read off the monitor, and the probes are recorded below.
+For a trace $\sigma$ of length $n = |\sigma| > 0$ and a position $i \in \{0, \dots, n-1\}$, $\llbracket \phi \rrbracket^{\text{pos}}(\sigma, i)$ defines the semantics of every temporal formula $\phi$ at position $i$. The trace verdict is evaluated at position 0: $\llbracket \phi \rrbracket^{\text{tr}}(\sigma) = \llbracket \phi \rrbracket^{\text{pos}}(\sigma, 0)$ (§2.9). The **future** clauses are the standard finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and linear dynamic logic on finite traces* (IJCAI 2013 — `[@degiacomo-2013]`). The **past** clauses are not the mirror images of those, and this document does not claim they are: their conventions at position 0 are **rtamt's**, adopted deliberately. rtamt is the monitor that computes the robustness reported beside every verdict `engines/observed.py` produces — the `observed` verdicts of `engines/record.py` run no monitor and carry none — and a denotation that diverged from it at the boundary would make the documented semantics and the executed semantics disagree, which is worse than adopting a convention this section can simply state. Each one was read off the monitor, and the probes are recorded below.
 
 They are **restated here rather than named**, and the reason is a change in the code that this
 section is the contract for. `rulelang.eval_temporal_trace` evaluates these clauses directly, over
@@ -582,7 +582,10 @@ therefore $1$. Neither is wrong and neither is a defect — they are two operato
 and this paragraph exists so that a pack author does not write one meaning the other.
 `historically`, `once` and `since` raise no such question: they quantify over the prefix $[0, i]$,
 which at $i = 0$ is $[0, 0]$ and asks for no value at $-1$. The three conventions are pinned by
-`test_all_ten_temporal_operators_covered_and_distinguished`.
+`test_all_ten_temporal_operators_covered_and_distinguished`, which asserts the witness above as
+well as the boundary values: a trace beginning `b = False` cannot pin `rise` at position 0, because
+the strong reading and the weak-previous one agree there, so the pin needs a trace beginning
+`b = True` and carries one.
 
 One clause `engines/temporal.py` implements for reduction to `proved`:
 ```
