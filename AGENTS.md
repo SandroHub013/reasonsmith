@@ -460,6 +460,38 @@ passes every contrast check and still destroys the distinction. `demo.py` carrie
 stylesheet for the key-finding section that `docs/build_example.py` composes in, and it is subject
 to all three rules.
 
+`docs/build_showcase.py` is the third generated page and the only builder writing **three** files
+from one run: `docs/assets/showcase-figure.svg`, `docs/assets/showcase-cast.svg` and
+`docs/showcase.html`. It exists because the other two generated pages are *outputs* — they render a
+conformance run to someone who already knows what one is — and nothing introduced the tool
+visually, so the project's own result arrived as a paragraph above a forty-line transcript. The run
+is `demo.key_finding_report()`, the same one `docs/build_example.py` composes its key finding from,
+so the figure, the cast, the showcase page and the dossier cannot disagree about how many reasons
+the decision used. Four things must not be undone. **Nothing on either figure is a literal** —
+`test_the_figure_states_only_the_run_s_own_numbers` asserts every reason label is in the SVG *and*
+absent from the builder's source, because a typed label looks identical and outlives the
+measurement. **The cast is real stdout**: `_terminal_lines` runs the CLI in-process, wraps at
+`COLUMNS` the way a terminal does and never rewraps at word boundaries, elides only whole lines and
+counts what it elided, and `_select` raises for a rule matching nothing —
+`docs/build_readme_transcripts.py`'s defect in the shape it takes here. Every timing is synthesised
+from the row index, which is the whole reason the cast can be byte-pinned at all; a hand-recorded
+one cannot. **The cast is a deliberate placeholder** for the TUI proposed in
+[#120](https://github.com/eduardstan/reasonsmith/pull/120) and is built to be swapped: one function
+and one constant. And the two SVGs carry their **own** palette, which is not a second design system
+— they are embedded in `README.md` on GitHub, outside any stylesheet this repository controls, so
+they must state their values; every class in them is prefixed `rs-fig-`/`rs-cast-` because an
+inline SVG `<style>` is document-scoped once the page inlines it, and
+`test_the_figures_style_nothing_but_themselves` is what stops a figure restyling the report beneath
+it. Regenerate with `python docs/build_showcase.py`; `tests/test_docs_showcase.py` holds all three
+files byte-for-byte.
+
+The README's first screen is that result: the figure, the sentence that makes it bite, `pip
+install` plus one command, and the cast. The full unprojected transcript that used to sit there is
+`docs/example-output.md` **§3** — the one committed transcript whose run exits 2 — and
+`REPORTING_EXIT_CODES` in `tests/test_docs_example_output.py` is what admits it. Nothing was
+deleted in that move; the theory sections, the four things this tool cannot do, and both preview
+images live below the fold and must not be moved back above the demonstration.
+
 `ConformanceReport.to_dict()` leads with `schema_version` (`report.JSON_SCHEMA_VERSION`), the
 `--json` envelope's shape version. It is not the package version, it increments only when a key is
 removed, renamed or changes type or meaning, and `tests/test_json_schema_version.py` writes out the
