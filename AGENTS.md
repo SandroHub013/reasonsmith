@@ -229,6 +229,16 @@ declares one. For the same reason the protected argument is the one name
 creditor whose log carries a prohibited basis for nobody unattainable and tell it to start logging
 one per decision. The name stays in `requires` because it is what the engine names as missing when a
 system's declared logic has no notion of it.
+The two rungs do not range over the same object — the proof quantifies over the *declared rules* on
+the *declared input space*, the replay runs the *implementation* on the *logged* cases — so the
+lower rung is run whenever the higher one reached a verdict and `cross_rung_signal` reports what
+their disagreement **eliminates**, never that they disagree: `proved` violated with `probed`
+satisfied is the relation holding and names the log, while the other direction discharges `R ⊆ P`
+first, by evaluating the declared constraints on the replayed pair, so a pair the declared space
+does not admit is named as such and only a pair inside it leaves the residual finding that
+`decide()` does not implement the declared `logic()`. It moves no verdict, no strength and no
+witness; `docs/formal.md` §6.6 is the claim and its contrapositive, and
+`tests/test_counterfactual_invariance.py` carries a witness per direction.
 `applicant_prohibited_basis` is the first shipped signal outside the paper's four Section 6.3
 categories; `test_exactly_one_shipped_signal_is_outside_the_paper_s_taxonomy` keeps it the only one.
 Read `docs/semantics.md` §3 (*counterfactual*) and the `docs/refinement.md` row before touching any
