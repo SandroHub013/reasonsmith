@@ -1021,6 +1021,102 @@ check one against the other. That is what `verbatim_text` and `drift.py` are for
 `src/reasonsmith/table7.toml` is a verbatim transcription of Table 7 of `[@stan-2026]` rather than an
 improvement on it (`test_pack_matches_table7_transcription`).
 
+### 6.11 A trace, pinned into a satisfiability question
+
+Satisfiability is the only question the installed procedure is ever asked. `ltlf.accepts(φ, σ)` —
+whether **one concrete trace** satisfies a formula — is therefore not asked of it directly: it is
+re-encoded as satisfiability over a formula built from σ that admits σ and no other trace. That
+re-encoding is the whole of the argument that an `accepts` answer is an answer about the trace it
+was handed, and it is the one proposition the finite-trace decision procedure rests on, which is
+why it is stated here rather than left in the module.
+
+The move itself is the bounded-model-checking one of `[@biere-1999]`: a bounded run is written as a
+propositional constraint and given to a satisfiability procedure, rather than the property being
+walked over the run by a monitor. What is bounded here is not a search depth but the trace, which
+was already finite.
+
+**Setting.** LTLf over finite non-empty traces `σ = σ₀ … σ_{n−1}`, `n ≥ 1`, with `σᵢ ⊆ AP` — the
+semantics of `[@degiacomo-2013]`, which BLACK implements in the finite-trace mode `[@geatti-2021]`
+adds to the tableau of `[@geatti-2019]`. `X` is the **strong** next, so `σ, i ⊨ X φ` requires
+`i + 1 < n`, and `Last := ¬X⊤` holds at exactly one position, `n − 1`. `AP` is not a global
+vocabulary: `accepts` derives it per question, as the atoms occurring in the rendered formula
+together with every key any position of the given trace carries, and reads a key a position omits
+as false. This is the propositional abstraction of §6.10 — every comparison of magnitudes is one
+opaque letter — so a *position* here is a decision record of §1.1 seen through that abstraction.
+
+**Definition (complete literal).** For a position `σᵢ ⊆ AP`:
+
+```
+λᵢ  :=  ⋀_{a ∈ σᵢ} a  ∧  ⋀_{a ∈ AP \ σᵢ} ¬a
+```
+
+The conjunction ranges over **all** of `AP`, and the completeness is load-bearing rather than tidy.
+A `λᵢ` naming only the atoms a valuation happens to carry leaves every other atom free at that
+position; the conjunction below is then satisfied by traces other than σ, and `accepts` answers
+about a set of traces while reporting an answer about the one it was given. That is a property of
+the formula the code builds and is decided before any solver reads it, so it is checked without one
+(`test_the_pinning_formula_states_every_atom_at_every_position`).
+
+**Definition (characteristic formula).**
+
+```
+pin(σ)  :=  ⋀_{i=0}^{n−1} Xⁱ λᵢ  ∧  X^{n−1} Last
+```
+
+> **Proposition.** `L(pin(σ)) = {σ}` over the alphabet `2^AP`.
+
+*Proof.* (⊇) Position `i` exists in σ for every `i < n` and `λᵢ` holds there by construction, so
+`σ ⊨ Xⁱ λᵢ`; position `n − 1` exists and has no successor, so `σ ⊨ X^{n−1} Last`. (⊆) Let
+`τ ⊨ pin(σ)` with `|τ| = m`. `X^{n−1} Last` requires position `n − 1` to exist, so `m ≥ n`; `Last`
+there requires that position to have no successor, so `m = n`. Each `Xⁱ λᵢ` then forces `τᵢ = σᵢ`,
+because `λᵢ` decides every atom of `AP` at that position. Hence `τ = σ`. ∎
+
+> **Corollary.** For `σ ≠ ε`, `accepts(φ, σ) ⟺ SAT(φ ∧ pin(σ))`.
+
+> **Corollary.** `entails(l, r) ⟺ ¬SAT(l ∧ ¬r)`, over the same non-empty finite traces; the
+> equivalence `analysis.Relation` reports is that asked in both directions.
+
+Neither corollary is a claim about the *pack* in the negative direction: the abstraction is sound
+for the entailments it reports and incomplete for the ones it does not, which is why §6.10 reports
+satisfiability only in the affirmative and `LTLF_ABSTRACTION_LIMIT` rides on every answer.
+
+**The non-emptiness the proposition assumes is the semantics', not a guard's.** The previous backend
+conjoined a `NON_EMPTY` formula and 0.8.0 deleted it; nothing replaced it and nothing had to,
+because BLACK's finite-trace mode interprets a formula over traces of length at least one, so the
+empty trace is not among the traces quantified over at all
+(`test_black_non_empty_semantics_g_false_is_unsat`, which asks the procedure whether `G(⊥)` is
+satisfiable and requires the answer to be no; and
+`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable` at the mapping's
+own surface). The assumption is load-bearing in exactly one shape, and it is a reachable one rather
+than a corner: where `AP = ∅` every `λᵢ` is the empty conjunction and `pin(σ)` reduces to
+`X^{n−1} Last`, which at `n = 1` is `¬X⊤` — a formula the empty trace satisfies under any semantics
+admitting it. `accepts` builds that shape whenever the rendered formula carries no atom. The trace
+σ = ε is refused one step earlier still, without the procedure being asked anything
+(`test_an_empty_trace_is_refused_before_the_solver_is_asked`), which is §2.6's `⟦φ⟧^tr(ε) = ↑`
+restated at this boundary.
+
+**What the encoding costs, and what `ATOM_BUDGET` therefore bounds.** `pin(σ)` introduces **no new
+atom**: `AP` is exactly the atoms of the rendered formula together with the trace's own keys, so a
+question's distinct-atom count — which is what `ATOM_BUDGET` counts and `_decide` refuses on — does
+not grow with `n` at all. What grows is the formula: `n·|AP|` literal occurrences, and a rendered
+string quadratic in `n` because `Xⁱ` is written as nested prefixes. Neither is exponential in
+`|AP|`, which the replaced powerset-DFA construction was and which the flloat-era budget of six was
+set around. The budget remains an **unmeasured** bound and is stated as one: LTLf satisfiability is
+PSPACE-complete `[@degiacomo-2013]` and the tableau is worst-case exponential in the formula, so no
+atom count is a runtime guarantee, and it is the only bound `_decide` has because there is no wall
+clock anywhere in this package (`test_a_question_over_the_atom_budget_is_refused_by_name`). It
+bounds the questions that route through `_decide` — `satisfiable` and `entails`, which are the
+questions `analysis.py` asks — and not `accepts`, which calls the procedure directly and which no
+analysis path reaches.
+
+The proposition is pinned behaviourally as well as structurally, because a proof about a formula the
+code does not build is worth nothing: `test_pin_characteristic_formula_accepts_sigma_and_rejects_neighbors`
+constructs `pin(σ)`, asks the procedure for σ itself, for **every** trace one Hamming step from σ —
+one flipped atom at one position, `n·|AP|` of them — and for both length neighbours `n − 1` and
+`n + 1`, and requires σ to be the only acceptance. Like every question for the solver it is skipped
+where the optional extra is absent, so on a machine without the binary the encoding is held by the
+structural check alone.
+
 ---
 
 ## Bibliography
@@ -1086,7 +1182,15 @@ addition rather than a rewrite.
   single-occurrence replacement formulation §6.10 implements.
 - **`[@geatti-2019]`** L. Geatti, N. Gigante, A. Montanari. *A SAT-based encoding of the one-pass and
   tree-shaped tableau system for LTL.* TABLEAUX 2019, LNCS 11714, 3–20. — the procedure behind
-  BLACK, the temporal decision procedure behind the `ltlf` extra (§2.7, §4, §6.10).
+  BLACK, the temporal decision procedure behind the `ltlf` extra (§2.7, §4, §6.10, §6.11).
+- **`[@geatti-2021]`** L. Geatti, N. Gigante, A. Montanari, G. Venturato. *Past Matters: Supporting
+  LTL+Past in the BLACK Satisfiability Checker.* TIME 2021, LIPIcs 206, 8:1–8:17. — the past
+  operators and the finite-trace interpretation that mode of BLACK implements; the source of the
+  non-emptiness §6.11's proposition assumes and no guard formula supplies.
+- **`[@biere-1999]`** A. Biere, A. Cimatti, E. M. Clarke, Y. Zhu. *Symbolic Model Checking without
+  BDDs.* TACAS 1999, LNCS 1579, 193–207. — bounded model checking: writing a bounded run as a
+  constraint and handing it to a satisfiability procedure, which is the move `pin(σ)` makes on a
+  trace that is already finite (§6.11).
 - **`[@flloat]`** M. Favorito, R. Cipollone. *flloat*, a pure-Python LTLf/LDLf-to-DFA library,
   https://github.com/whitemech/flloat — the previous temporal decision procedure behind the
   `ltlf` extra, priced against BLACK and replaced by it (§6.10). Cited as software: it publishes no paper, which is why the key
