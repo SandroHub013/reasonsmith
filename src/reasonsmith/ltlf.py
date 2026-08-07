@@ -64,6 +64,10 @@ Atom ceiling:
   literals in pin(sigma)), unlike flloat's exponential powerset DFA construction.
 
 What a reader must not break:
+  - **Every backend adapter certifies that it consumed the whole rendered formula and produced
+    exactly one property, or the requirement is reported `not evaluated`.** For LTLf, `to_ltlf`
+    parses `spec` via `rulelang.parse_property`, which validates that the requirement's spec is
+    a single well-formed AST expression before rendering.
   - **rtamt keeps every magnitude; this keeps every qualitative question.** The two backends are
     not interchangeable, and the split is not a preference. rtamt monitors a real-valued signal and
     scores robustness; LTLf is propositional, so every comparison of magnitudes here becomes one

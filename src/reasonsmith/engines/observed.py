@@ -15,6 +15,10 @@ What this module is for:
   and proof engines rather than a second definition living inside an STL string.
 
 What a reader must not break:
+  - Every backend adapter certifies that it consumed the whole rendered formula and produced
+    exactly one property, or the requirement is reported `not evaluated`. For rtamt, `_monitor`
+    installs a strict lexer (F1) to raise on bad tokens and asserts `len(spec.ast.specs) == 1` (F2)
+    after parsing.
   - If rtamt cannot express a formula or trace is shorter than `MINIMUM_TRACE_LENGTH`, report
     `NOT EVALUATED` (`verdict=INCONCLUSIVE`, `strength=None`), NEVER `satisfied`.
     Why this matters: STL monitors require sufficient trace points to establish time bounds; an
@@ -339,11 +343,33 @@ def _always_body(spec: str) -> str | None:
 def _monitor(spec_text: str, name: str, spec_vars: set[str], time_series: dict) -> list:
     """Robustness of `spec_text` at every time step of `time_series`."""
     spec = rtamt.StlDiscreteTimeSpecification()
+
+    # Backend adapter contract: Every backend adapter certifies that it consumed the whole
+    # rendered formula and produced exactly one property, or the requirement is reported
+    # `not evaluated`.
+    # F1 — supply a strict lexer: install rtamt's raising error listener on the lexer.
+    BaseLexer = spec.ast.antrlLexerType
+    ErrorListener = spec.ast.parserErrorListenerType
+
+    class StrictLexer(BaseLexer):
+        def __init__(self, input_stream):
+            super().__init__(input_stream)
+            self._listeners = [ErrorListener()]
+
+    spec.ast.antrlLexerType = StrictLexer
+
     spec.name = name
     for var in spec_vars:
         spec.declare_var(var, "float")
     spec.spec = spec_text
     spec.parse()
+
+    # F2 — assert the postcondition: backend parser produced exactly one statement.
+    if len(spec.ast.specs) != 1:
+        raise ValueError(
+            f"Expected backend parser to produce exactly 1 statement, got {len(spec.ast.specs)}"
+        )
+
     return spec.evaluate(time_series)
 
 

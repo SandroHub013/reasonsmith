@@ -13,6 +13,11 @@ releases before it predate the file and are not reconstructed here.
 - **Replaced `flloat` with BLACK solver behind a subprocess boundary in `src/reasonsmith/ltlf.py`.**
   The finite-trace decision procedure for temporal formulas now invokes `BLACK` (`https://www.black-sat.org`, MIT licensed) via a subprocess call rather than depending on `flloat` (LGPLv3+). `accepts(φ, σ)` is re-encoded as satisfiability over `pin(σ)`, standard LTLf non-empty trace semantics are used natively, and `ATOM_BUDGET` is updated to 100 based on SAT-based performance measurements.
 
+### Fixed
+
+- **Silent wrong answers closed in the temporal backend.**
+  A temporal formula that the backend parser did not read whole (due to dropped lexer tokens like `%` or multi-statement inputs like `'a b > 1'`) is now reported `not evaluated` (`verdict=INCONCLUSIVE`) rather than answered from an incomplete parse. Implemented via a strict lexer subclass (`F1`) that attaches rtamt's raising error listener to the lexer and a postcondition assertion (`F2`) that the backend parser produced exactly one statement. Every formula in every shipped pack was swept and verified to parse to rendering exactly one statement.
+
 ### Added
 
 - **The mathematics is stated once, and the repository has a bibliography that the build enforces.**
