@@ -183,11 +183,16 @@ A log a notice service could plausibly export: two adverse actions, five fields 
 `decision_id` is not a pack signal — it is what lets a violated finding name the record it is about
 instead of a step index.
 
-```sh
-cat > decisions.jsonl <<'EOF'
+`decisions.jsonl`, one JSON object per line:
+
+```jsonl
 {"decision_id": "APP-2201", "artifact_logs_decision_record": {"id": "APP-2201", "result": "adverse_action"}, "artifact_logs_reason_explanation": "Your application failed to achieve a qualifying score on our credit scoring system.", "provenance_model_version": "notice-svc-2026.06", "artifact_logs_notification_latency_days": 9}
 {"decision_id": "APP-2202", "artifact_logs_decision_record": {"id": "APP-2202", "result": "adverse_action"}, "artifact_logs_reason_explanation": "Debt-to-income ratio above the policy limit for the amount requested.", "provenance_model_version": "notice-svc-2026.06", "artifact_logs_notification_latency_days": 14}
-EOF
+```
+
+Save it beside the command and run:
+
+```sh
 python -m reasonsmith.cli check --system decisions.jsonl --pack ecoa --system-name notice-service --system-domain consumer-credit
 ```
 
@@ -245,13 +250,17 @@ Six duties, one answered. The run exits **0**, and nothing on it is a finding ag
   holds a second one. More log will not help; a replayable `decide()` would.
 - **one `observed` satisfied** — over the two decisions supplied and no further.
 
-Now supply one more field, `scope_statements_local_vs_global`, and change nothing else:
+Now supply one more field, `scope_statements_local_vs_global`, in the same file and change
+nothing else:
 
-```sh
-cat > decisions.jsonl <<'EOF'
+```jsonl
 {"decision_id": "APP-2201", "artifact_logs_decision_record": {"id": "APP-2201", "result": "adverse_action"}, "artifact_logs_reason_explanation": "Your application failed to achieve a qualifying score on our credit scoring system.", "provenance_model_version": "notice-svc-2026.06", "artifact_logs_notification_latency_days": 9, "scope_statements_local_vs_global": "local"}
 {"decision_id": "APP-2202", "artifact_logs_decision_record": {"id": "APP-2202", "result": "adverse_action"}, "artifact_logs_reason_explanation": "Debt-to-income ratio above the policy limit for the amount requested.", "provenance_model_version": "notice-svc-2026.06", "artifact_logs_notification_latency_days": 14, "scope_statements_local_vs_global": "local"}
-EOF
+```
+
+Same command again:
+
+```sh
 python -m reasonsmith.cli check --system decisions.jsonl --pack ecoa --system-name notice-service --system-domain consumer-credit
 ```
 
