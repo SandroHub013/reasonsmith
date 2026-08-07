@@ -134,6 +134,7 @@ from reasonsmith.rulelang import (
     eval_expression,
     implication_antecedent,
     is_unknown,
+    kleene_value,
     parse_property,
     signal_names,
 )
@@ -464,7 +465,10 @@ class CertificateEngine:
                         },
                     )
                 held = bool(val)
-                if antecedent_node is not None and eval_expression(antecedent_node, env) is True:
+                if (
+                    antecedent_node is not None
+                    and kleene_value(eval_expression(antecedent_node, env)) is True
+                ):
                     triggered_at.add(index)
             except Exception as exc:  # noqa: BLE001 — reported, never swallowed
                 return _result(

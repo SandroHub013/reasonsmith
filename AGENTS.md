@@ -191,7 +191,13 @@ could catch the same empty claim. Every rung asks it on the *satisfied* path alo
 witness whose antecedent fired. What this cost is stated in `docs/semantics.md` §4 and must not be
 quietly undone: a creditor lawfully on the 12 CFR 1002.9(a)(2)(ii) disclosure branch is now neither
 accused nor cleared, because `not applicable` per decision is the honest verdict and the result model
-has no per-record applicability.
+has no per-record applicability. Whether a trigger *fired* is a truth value and never an identity: a
+rung testing `eval_expression(...) is True` reads the record's raw object, so a flag logged as `1`
+counted as never fired and the duty left the audit on the Python type of a logged value. Read it
+through `rulelang.kleene_value` first. `tests/test_trigger_counting_is_differential.py` holds every
+trigger-counting rung to one trace, in the shape `test_the_solvers_fold_is_the_interpreters_fold`
+gives `contains()` — a test pinning one engine would not have caught it, because the sibling site was
+already right and what was wrong was that the two disagreed.
 
 `counterfactual` is the fourth fragment and the only **relational** one — a property of a *pair* of
 executions. `counterfactually_invariant(outcome, protected)` is its single atom, it is the whole of

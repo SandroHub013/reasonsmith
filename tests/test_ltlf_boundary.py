@@ -21,6 +21,7 @@ import subprocess
 import pytest
 
 from reasonsmith import ltlf
+from reasonsmith.rulelang import UnsupportedConstructError
 
 
 def _top_level_conjuncts(formula: str) -> list[str]:
@@ -114,7 +115,7 @@ def test_anything_but_an_unambiguous_answer_is_a_refusal_and_never_a_guess(monke
         "run",
         lambda *a, **kw: subprocess.CompletedProcess(a[0], 0, stdout=stdout, stderr=""),
     )
-    with pytest.raises(RuntimeError, match="Unexpected output"):
+    with pytest.raises(UnsupportedConstructError, match="unexpected output"):
         ltlf._run_black("p0")
 
 
@@ -126,7 +127,7 @@ def test_a_nonzero_exit_is_a_refusal_rather_than_an_unsat(monkeypatch):
         "run",
         lambda *a, **kw: subprocess.CompletedProcess(a[0], 2, stdout="", stderr="parse error"),
     )
-    with pytest.raises(RuntimeError, match="exit code 2"):
+    with pytest.raises(UnsupportedConstructError, match="exit code 2"):
         ltlf._run_black("p0")
 
 
@@ -138,3 +139,51 @@ def test_an_empty_trace_is_refused_before_the_solver_is_asked(monkeypatch):
         lambda formula, **kw: (_ for _ in ()).throw(AssertionError("solver was asked")),
     )
     assert ltlf.accepts("p0", []) is False
+
+
+# --------------------------------------------------------------------------------------------
+# A refusal costs the question it was asked, and nothing else
+# --------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("label", "completed"),
+    [
+        ("both answers", (0, "SAT\nUNSAT", "")),
+        ("no answer", (0, "", "")),
+        ("died on a signal", (-9, "", "")),
+    ],
+)
+def test_a_misbehaving_solver_is_skipped_and_the_rest_of_the_analysis_survives(
+    monkeypatch, label, completed
+):
+    """The refusals above were `RuntimeError`, and nothing caught one.
+
+    A binary that passes identification and then misbehaves therefore did not refuse a question —
+    it exited `validate-pack --analyse` with a traceback, taking down the Z3 half of the analysis
+    that never touched the solver at all. The module's own docstring called these refusals; this is
+    what makes them ones. Nothing here asserts on a traceback: what is asserted is that the
+    analysis completes, names the solver's failure among the questions it skipped, and still
+    reports the parts that never needed it.
+    """
+    returncode, stdout, stderr = completed
+    monkeypatch.setattr(ltlf, "_get_black_path", lambda: "/nonexistent/black-sat")
+    monkeypatch.setattr(
+        ltlf.subprocess,
+        "run",
+        lambda *a, **kw: subprocess.CompletedProcess(
+            a[0], returncode, stdout=stdout, stderr=stderr
+        ),
+    )
+
+    from reasonsmith.analysis import analyse_pack
+    from reasonsmith.spec import load_pack
+
+    analysis = analyse_pack(load_pack("ecoa"))
+
+    # The Z3 half never touched the solver, so it must still have an answer.
+    assert analysis.satisfiable is not None
+    # And the temporal half is a named skip rather than a crash.
+    assert any("BLACK solver" in reason for reason in analysis.skipped), (
+        f"{label}: no skip names the solver; skipped = {analysis.skipped}"
+    )

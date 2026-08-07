@@ -281,10 +281,26 @@ one witness per row and fails if a row here has no witness or a witness here has
 | `R-TEMPORAL-BOOLEAN-COMPARISON` | `== `/`!=` against a Boolean literal inside the temporal fragment |
 
 `test_every_documented_refusal_is_refused` and `test_every_refusal_the_grammar_test_knows_is_named_here`
-are the two halves of that pin. One refusal in `rulelang` has no row and cannot have one: the walk
-refuses a Boolean operator outside `and` and `or`, and CPython's grammar produces no third — `&`
-and `|` are binary operators and are refused as those. It is a defensive branch with no witness,
-and a table row with no witness is what this pin exists to catch.
+are the two halves of that pin, and what they hold is stated exactly: **this table is the refusals
+reachable from `classify_fragment`** — the rewriter, the parse, the whitelist walk, and
+`validate_temporal_property` — which is the entry point every witness runs through. It is not every
+refusal `rulelang` raises.
+
+One refusal on that path has no row and cannot have one: the walk refuses a Boolean operator
+outside `and` and `or`, and CPython's grammar produces no third — `&` and `|` are binary operators
+and are refused as those. It is a defensive branch with no witness, and a table row with no witness
+is what this pin exists to catch.
+
+Three refusals are **outside this table's scope** rather than missing from it, and they are not
+defensive branches: `classify_fragment` *accepts* each of these specifications and assigns it a
+fragment, and the refusal fires later, when an engine evaluates the formula against a decision
+record. They are `counterfactually_invariant()`, `undetermined()` and `degree()` reached by
+`eval_expression`. The first is the whole of the guarantee that no rung ever reads the relational
+atom off a trace (`docs/semantics.md` §3, *counterfactual*); the other two are the two open-texture
+constructs, which reach no engine at all. What each of them means, and what it costs, is stated in
+`docs/semantics.md` §3 and §9. No row is added for them here: a witness for one would have to run
+through an engine rather than through `classify_fragment`, so a row would be a rule this pin cannot
+check, which is the hollow pin this section exists to prevent.
 
 ### 1.8 The grammar is checked
 

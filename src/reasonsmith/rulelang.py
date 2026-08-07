@@ -206,8 +206,12 @@ def is_present(value: Any) -> bool:
     emitted nothing for that signal. Only the first of those is caught by a key check,
     and only the first two by a truthiness check on `str(value)` — `str([])` is `"[]"`,
     which is why an empty reason list would otherwise pass as a reason given.
+
+    UNKNOWN is the language's own name for *no value was determined*, so it is absent here
+    too: otherwise `present(x)` would answer true where a bare `x` answers unknown, and the
+    two atoms would disagree about the same object.
     """
-    if value is None:
+    if value is None or is_unknown(value):
         return False
     if isinstance(value, str):
         return bool(value.strip())
@@ -616,7 +620,11 @@ def preprocess_spec(spec: str) -> str:
 
 
 def _normalize_tokens_for_read_whole(text: str) -> list[str]:
-    """Extract code tokens from expression text, skipping parens and newline/encoding tokens."""
+    """Extract code tokens from expression text, skipping the pure syntax `unparse` normalises.
+
+    Parens and a trailing comma carry no meaning and are normalised away by `ast.unparse`, so
+    counting them would refuse an idiomatic multi-line call as truncated.
+    """
     tokens = []
     try:
         for tok in tokenize.generate_tokens(io.StringIO(text).readline):
@@ -628,7 +636,7 @@ def _normalize_tokens_for_read_whole(text: str) -> list[str]:
             ):
                 continue
             val = tok.string
-            if val in ("(", ")"):
+            if val in ("(", ")", ","):
                 continue
             tokens.append(val)
     except Exception as exc:
@@ -1227,10 +1235,6 @@ def classify_fragment(spec: str) -> str:
         validate_temporal_property(node)
         return "temporal"
     return "record" if presence_atoms(node) is not None else "logical"
-
-
-def _implies(antecedent: Any, consequent: Any) -> bool:
-    return (not antecedent) or bool(consequent)
 
 
 class _UnknownType:
