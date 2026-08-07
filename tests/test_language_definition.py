@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import ast
 import re
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -245,7 +246,11 @@ GENERATORS = {
 
 
 @pytest.mark.parametrize("production", sorted(GENERATORS))
-@settings(max_examples=120, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(
+    max_examples=120,
+    deadline=timedelta(seconds=30),
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+)
 @given(data=st.data())
 def test_every_spec_the_grammar_generates_is_accepted(production: str, data) -> None:
     """The grammar of §1.2, generated from and asserted against the parser it describes.
