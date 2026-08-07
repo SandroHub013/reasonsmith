@@ -904,6 +904,43 @@ Neither rung ever takes `p`'s value from the trace
 result: this is a property of a *pair* and says nothing about a proxy or about effects across a
 population. Group-statistical fairness is unreachable on this evidence model.
 
+**The two rungs do not range over the same object**, so a disagreement between them is evidence in
+its own right rather than a contradiction to be resolved by trusting the higher one. Write
+`D = { x : x ⊨ constraints }` for the declared input space and
+`P = { (x, x′) ∈ D × D : x and x′ agree off p }` for the pairs the proof rung quantifies over; write
+`R` for the pairs the replay rung actually ran, each built from a logged decision by setting `p` to
+two values enumerated from `constraints`. The proof rung decides `∀ (x, x′) ∈ P . o_L(x) = o_L(x′)`
+over the *declared rules*; the replay rung decides `∀ (y, y′) ∈ R . decide_S(y) = decide_S(y′)` over
+the *implementation*.
+
+> **Claim.** If (a) `R ⊆ P` and (b) `decide_S` agrees with `o_L` on `D`, then
+> `probed = violated` implies `proved = violated`.
+>
+> **Contrapositive.** `proved = satisfied` together with `probed = violated` implies `¬(a)` or
+> `¬(b)`.
+
+Neither hypothesis is free here. (a) fails whenever a logged decision lies outside `D`: `p`'s two
+values are enumerated from `constraints`, but every other field of a replayed case comes from the
+trace and no rung tests it against them. (b) fails when the system's `decide()` does not implement
+the `logic()` it declared — which the proof rung cannot see, because a `satisfied` verdict there is
+an `unsat` and an `unsat` replays nothing.
+
+So the lower rung is run whenever the higher one reached a verdict, and a disagreement is reported
+as the **disjunct it eliminates** rather than as the bare fact that two rungs differ
+(`engines.counterfactual.cross_rung_signal`). Direction 1 — `proved = violated` with
+`probed = satisfied` — is the relation holding rather than a defect in either rung, and what it
+names is the log: it does not exercise what the rules permit
+(`test_a_proof_the_log_does_not_reach_names_the_log`). Direction 2 discharges (a) first, which is
+decidable by evaluating `constraints` on the replayed pair: a pair outside `D` is reported as such
+and nothing is said about the declaration
+(`test_a_replay_outside_the_declared_input_space_is_named_before_the_declaration_is`), a pair inside
+it leaves `¬(b)` as the residual and the finding is that the declaration is unfaithful to the
+implementation (`test_a_declaration_its_own_decide_does_not_implement_is_the_residual`), and a
+record leaving a declared constraint unsettled eliminates neither
+(`test_a_record_that_leaves_a_declared_constraint_unsettled_eliminates_neither`). The signal moves
+no verdict, no strength and no witness
+(`test_the_signal_moves_no_verdict_no_strength_and_no_witness`).
+
 ### 6.7 The premise every artefact rung declares
 
 The reason-deletion probe is **one-directional** — it switches a fact off, never on — so `deleted`
