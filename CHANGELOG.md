@@ -8,6 +8,8 @@ releases before it predate the file and are not reconstructed here.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-07
+
 ### Changed
 
 - **Replaced `flloat` with BLACK solver behind a subprocess boundary in `src/reasonsmith/ltlf.py`.**
