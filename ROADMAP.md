@@ -43,8 +43,8 @@ returns no `RequirementResult` and occupies no rung, so it establishes nothing a
 system's logic admits. The condition still stands unchanged: a duty using the operator first, and
 then a design answer for what would discharge it, on the same terms as objective 2.
 `docs/semantics.md` §8 states what the backend does answer, and the two limits it arrived with — a
-propositional reading of every magnitude, and no three-valued finite-trace verdict, because the
-procedure exposes no monitor construction and this repository will not synthesise one.
+propositional reading of every magnitude, and no LTL₃ verdict, because the procedure exposes no
+monitor construction and this repository will not synthesise one.
 
 ## 2. `until` and `since` in the temporal fragment — **met, and one half of it is a reversal**
 

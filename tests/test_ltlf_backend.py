@@ -23,7 +23,6 @@ What a reader must not break:
 from __future__ import annotations
 
 import ast
-import os
 import random
 
 import pytest
@@ -166,19 +165,8 @@ def test_black_non_empty_semantics_g_false_is_unsat():
     assert ltlf._run_black("G(False)") is False
 
 
-def test_decoy_black_on_path_is_rejected(tmp_path, monkeypatch):
-    """A decoy executable named `black` (e.g. code formatter) is rejected rather than invoked."""
-    decoy = tmp_path / "black"
-    decoy.write_text("#!/bin/sh\necho 'black, version 24.4.2'\n", encoding="utf-8")
-    decoy.chmod(0o755)
-
-    monkeypatch.setenv("PATH", f"{tmp_path}:{os.environ.get('PATH', '')}")
-    monkeypatch.delenv("BLACK_SAT_PATH", raising=False)
-    monkeypatch.delenv("BLACK_PATH", raising=False)
-    monkeypatch.delenv("BLACK_EXECUTABLE", raising=False)
-
-    assert ltlf._verify_black_binary(str(decoy)) is False
-    assert ltlf._get_black_path() != str(decoy)
+# `test_decoy_black_on_path_is_rejected` lives in `test_ltlf_boundary.py`: it is about a machine
+# where BLACK is absent, so this module's `skipif` was the one gate it must not sit behind.
 
 
 def test_pin_characteristic_formula_accepts_sigma_and_rejects_neighbors():

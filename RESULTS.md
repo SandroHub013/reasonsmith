@@ -503,3 +503,12 @@ pytest -q && ruff check .
 installed. The count includes the 29 tests of `tests/test_ltlf_backend.py` and supersedes the
 `681 passed` above as the current-suite figure. With the extra *absent* the analysis reports it and
 that module's tests skip, which is the arrangement `pip install reasonsmith` has to keep working.
+
+> **This figure is the `flloat`-era suite record, taken when the `ltlf` extra installed a
+> pure-Python wheel.** The extra now declares no Python dependency and what makes the procedure
+> available is the BLACK binary on `PATH`, so "with the `ltlf` extra installed" no longer names the
+> arrangement it was measured under, and the suite has grown past this count. It is **not
+> re-measured here**, for the reason the temporal block above states: BLACK is absent on this
+> machine, and a suite figure quoted for a configuration that was never run is what this file exists
+> not to do. Run `pytest -q` yourself for the current count, as the note under section 2's table
+> already says.

@@ -384,9 +384,9 @@ two components; named as what they are, those tests are this document's conforma
 
 | Implementation | `M` | `A` | Conformance evidence |
 |---|---|---|---|
-| `rulelang.eval_expression` | `O(σ)`, one record | `𝔹` | it *is* the reference |
+| `rulelang.eval_expression` | `O(σ)`, one record | the Kleene chain `F < U < T` ([`language.md`](language.md) §2.12) | it *is* the reference |
 | `engines/proved._ast_to_z3` | `D(L)` | `𝔹` | `test_the_encoder_and_the_interpreter_answer_the_same` |
-| `engines/observed.to_stl` + rtamt | `O(σ)` | `𝔹` via robustness sign | `test_the_monitor_agrees_with_the_reference_reading` |
+| `engines/observed.to_stl` + rtamt | `O(σ)` | `𝔹` via robustness sign — the margin the rung reports, not its verdict (§6.2) | `test_the_monitor_agrees_with_the_reference_reading` |
 | `ltlf.to_ltlf` + BLACK `[@geatti-2019]` | a propositional abstraction of `O(σ)` | `𝔹` | `test_the_ltlf_backend_agrees_with_the_monitor` |
 
 `manyvalued.degree_of` is not a fifth implementation but the reference interpreter at a different
@@ -777,17 +777,21 @@ present, and a duty wanting more than presence has to say so with `contains()`.
 
 ### 6.2 `observed`
 
-> **satisfied at `observed`:** the rtamt discrete-time STL monitor for `spec` returned non-negative
-> robustness at every position of the trace it was given, where position *t* is the record at index
-> *t* (`test_temporal_satisfied`).
+> **satisfied at `observed`:** `⟦spec⟧^tr(σ)` is `T` over the trace it was given — the finite-trace
+> clauses of [`language.md`](language.md) §2.8, evaluated in the Kleene chain that document's §2.12
+> defines — where position *t* is the record at index *t* (`test_temporal_satisfied`).
 >
-> **violated at `observed`:** robustness went negative at at least one position, and the result names
+> **violated at `observed`:** `⟦spec⟧` is `F` at at least one position, and the result names
 > those indices and carries the offending records
 > (`test_temporal_violated_returns_offending_segment`).
 
-The monitor's time axis is the record index, so a bound reads as a count of decisions and never as
-wall-clock time. A trace shorter than two records is *not evaluated*: a discrete-time monitor cannot
-read a sampling period off one sample.
+The verdict is that denotation and not the sign of the rtamt robustness signal, which is reported
+beside it as a margin. `ρ > 0` implies satisfaction and `ρ < 0` implies violation, but `ρ = 0`
+implies neither and `ρ` does not represent strictness — `ρ(x > c) = ρ(x ≥ c)` — so a Boolean
+question answered from `ρ` is unsound at exactly the boundary
+(`test_strict_comparison_boundary_table`). The monitor's time axis is the record index, so a bound
+reads as a count of decisions and never as wall-clock time. A trace shorter than two records is
+*not evaluated*: a discrete-time monitor cannot read a sampling period off one sample.
 
 ### 6.3 `probed`
 
@@ -999,10 +1003,13 @@ reported **only in the affirmative** and `LTLF_ABSTRACTION_LIMIT` rides on every
 question is asked over a non-empty trace, which is §2.6's refusal of `⨅ ∅` restated in the object
 logic — a clause inherited from BLACK's own finite-trace semantics rather than conjoined as a guard
 formula. Past
-operators are LTLf-inexpressible and are skipped by name. **No three-valued finite-trace verdict is
-computed**: the installed procedure answers a satisfiability question and exposes no monitor
-construction, so the distinction `[@bauer-2011]` draws between *satisfied on this prefix* and
-*satisfied on every extension* is reported unavailable rather than synthesised. BLACK was priced
+operators are LTLf-inexpressible and are skipped by name. **No LTL₃ verdict is computed**: the
+installed procedure answers a satisfiability question and exposes no monitor construction, so the
+distinction `[@bauer-2011]` draws between *satisfied on this prefix* and *satisfied on every
+extension* is reported unavailable rather than synthesised. That is a different third value from the
+`U` of the Kleene chain the reference interpreter evaluates in — ignorance about a *record*, not
+truncation of a *trace* — and [`language.md`](language.md) §2.12 states why the two must not be read
+as one. BLACK was priced
 against `flloat` `[@flloat]`, the previous backend, which is pure Python on PyPI but has no past
 operators and an exponential powerset DFA construction; BLACK publishes no wheel, so the extra is a
 binary a user installs by hand and its absence is reported rather than worked around.

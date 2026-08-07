@@ -754,9 +754,9 @@ agreed on the cases we tried*, and a semantics says *here is the definition and 
 
 | Implementation | `M` | `A` | Rung | Conformance evidence |
 |---|---|---|---|---|
-| `rulelang.eval_expression` | `O(σ)`, one record at a time | `𝔹` | reference | — it *is* the reference |
+| `rulelang.eval_expression` | `O(σ)`, one record at a time | the Kleene chain `F < U < T` of §2.12 | reference | — it *is* the reference |
 | `engines/proved._ast_to_z3` | `D(L)` | `𝔹` | `proved` | `test_the_encoder_and_the_interpreter_answer_the_same`, `test_the_encoder_and_the_interpreter_compute_the_same_number`, `test_the_solvers_fold_is_the_interpreters_fold`, `test_the_solvers_blank_string_is_pythons_blank_string` |
-| `engines/observed.to_stl` + rtamt | `O(σ)` | `𝔹` (via robustness sign) | `observed` | `test_the_monitor_agrees_with_the_reference_reading`, and §4 |
+| `engines/observed.to_stl` + rtamt | `O(σ)` | `𝔹` (via robustness sign) — the **margin** the rung publishes, no longer its verdict (§2.8) | `observed` | `test_the_monitor_agrees_with_the_reference_reading`, and §4 |
 | `ltlf.to_ltlf` + BLACK | a propositional abstraction of `O(σ)` | `𝔹` | none — it answers about *packs* | `test_the_ltlf_backend_agrees_with_the_monitor` |
 
 `manyvalued.degree_of` is not a fifth implementation but the same reference interpreter at a
@@ -766,7 +766,8 @@ to `1.0`/`0.0`, so the crisp parts of a graded formula mean exactly what they me
 
 ### 3.1 The reference interpreter
 
-`rulelang.eval_expression` at `A = 𝔹`, `M = O(σ)`, one record at a time. It is the reference because
+`rulelang.eval_expression` at `A` = the Kleene chain of §2.12, `M = O(σ)`, one record at a time. It
+is the reference because
 it is the only implementation that is a direct transcription of §2.5–§2.7 with no encoding step
 between, and because every other engine's cross-check is run against it — including the proof
 rung's, which replays the interpreter on the witness the solver chose before any verdict is read off
@@ -805,8 +806,13 @@ words and the runtime cross-check is what stands in the way of it becoming a wro
 
 ### 3.3 rtamt, at the observation structure
 
-`engines/observed.py` renders the property in rtamt's syntax and reads the sign of the robustness
-signal as the Boolean verdict. Two clauses of §2.6 could not be handed to rtamt at all — it reasons
+`engines/observed.py` renders the property in rtamt's syntax and monitors it for the **robustness
+margin** it publishes in `details['evaluation_scores']`. It does not read the sign of that signal as
+the verdict — the verdict is `rulelang.eval_temporal_trace` over the clauses of §2.8 and the chain
+of §2.12 (§2.8 for why, §4 for what the refusals still protect). What this section names as an
+implementation of §2 is therefore the *rendering*, and
+`test_the_monitor_agrees_with_the_reference_reading` is what holds it to the denotation.
+Two clauses of §2.6 could not be handed to rtamt at all — it reasons
 over real-valued signals and nothing else — so `present(x)` and `contains(x, "p")` are evaluated in
 Python per record and reach the monitor as **synthetic flags**. That is what keeps their meaning the
 one meaning of §2.6 instead of a second definition living inside an STL string.
@@ -859,8 +865,9 @@ moved when the refusal landed.
 
 Each row is pinned twice: `test_the_monitor_agrees_with_the_reference_reading` excludes it by name,
 and `test_the_four_named_shapes_are_still_what_the_document_records` asserts a concrete witness on
-which rtamt and the reference reading still disagree *behind* the refusal — so the exclusion list
-can neither grow silently nor keep a refusal whose reason has gone.
+which rtamt and the reference reading still disagree *behind* the refusal — or, for a refused row
+the strict lexer now makes rtamt raise on, that it raises there rather than being read differently
+— so the exclusion list can neither grow silently nor keep a refusal whose reason has gone.
 
 **What the refusal protects, now that the verdict is not the monitor's.** §2.8 records the change
 this rationale has to be restated against: `engines/observed.py` takes its verdict from
@@ -876,10 +883,15 @@ record says the margin is about another formula, and a reader has no way to tell
 refused, the four rows stay, and neither pin moves.
 
 **1. The remainder operator, `%`.** rtamt's lexer has no `%`. ANTLR **error-recovers by dropping the
-token** and `spec.parse()` does not raise, so the monitor answered about a formula nobody wrote, with
-a token-recognition line on stderr as the only trace. Witness: `count_a % count_b > 1` at
-`count_a = -2, count_b = 2`. The reference reading is `-2 % 2 = 0`, so the formula is false; the
-monitor scores robustness `+1.0` and would report **satisfied**. This is the exact failure mode
+token**, and on rtamt's default lexer `spec.parse()` did not raise, so the monitor answered about a
+formula nobody wrote, with a token-recognition line on stderr as the only trace. `_monitor` now
+installs rtamt's own raising error listener on the lexer and asserts the parse produced exactly one
+statement, so a dropped token is a raise rather than a silent answer — `RTAMT_BEHAVIOUR` records
+this row as *raises* for that reason, and the refusal below is kept in front of it rather than
+resting on the listener. Witness: `count_a % count_b > 1` at
+`count_a = -2, count_b = 2`. The reference reading is `-2 % 2 = 0`, so the formula is false; on the
+default lexer the monitor scored robustness `+1.0` and would have reported **satisfied**. This is
+the exact failure mode
 `rulelang`'s own module docstring names — a silently dropped construct makes an engine answer about
 logic the author did not write — arriving through a dependency's error recovery rather than through
 this package's whitelist. It is the row that mattered most, because it was the only one the engine's
@@ -903,12 +915,14 @@ reach the same refusal in the same words
 (`test_both_spellings_of_equivalence_reach_the_same_refusal`). **Refused.**
 
 **4. The exact tie** — already known, already documented, listed for completeness, and **not
-refused**. rtamt scores a comparison that holds with no margin as robustness `0`, and the engine
-breaches only on a negative score, so a strict comparison satisfied nowhere by the reference reading
-is reported satisfied at the boundary. Every shipped duty uses `<=`, and at a tie `<=` *is*
-satisfied, so this is a boundary convention rather than a defect.
-`test_a_declared_deviation_exactly_equal_to_the_margin_is_reported_satisfied` is where that already
-lives.
+refused**. rtamt scores a comparison that holds with no margin as robustness `0`, and `ρ` does not
+represent strictness at all: `ρ(x > c) = ρ(x >= c)`, so the score cannot tell the two apart. This is
+now a divergence of the **margin alone**. The verdict is not read off the score, so a strict
+comparison satisfied nowhere by the reference reading is reported **violated** at the boundary —
+`always(b > 0)` on a trace of `b = 0.0` is violated and `always(b >= 0)` satisfied
+(`test_strict_comparison_boundary_table`). Every shipped duty uses `<=`, and at a tie `<=` *is*
+satisfied, so no shipped verdict turns on this;
+`test_a_declared_deviation_exactly_equal_to_the_margin_is_reported_satisfied` is that duty's case.
 
 **Why the fix is a refusal and not a repair.** §2 is the reading, and three encodings — the
 interpreter, the Z3 encoding and the finite-trace rendering — implement it. One backend disagreeing

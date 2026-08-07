@@ -333,7 +333,8 @@ Two things about the encoding are this project's own and are load-bearing:
   magnitude. For such a variable, Boolean values become 1.0/0.0, any other present non-numeric
   value becomes 1.0, an absent or non-finite value becomes 0.0, and a finite numeric value remains
   that number. A signal used directly as a bare Boolean atom must carry `True` or `False` in every
-  record; true becomes 1.0 and false becomes -1.0 so false has negative robustness and is a breach
+  record; for the monitor's margin true becomes 1.0 and false becomes -1.0, and a false atom is a
+  breach because the property reads false, not because that margin is negative
   (`test_a_false_bare_boolean_atom_is_violated`). If the trace does not establish that Boolean
   kind, the property is not evaluated (`test_a_bare_boolean_atom_without_an_established_kind_is_not_evaluated`).
   This truth reading is distinct from presence: `present(x)` is true when a record carries `False`,
@@ -471,9 +472,17 @@ observed zero decisions is not evidence that a requirement holds
 
 ### `observed` — `engines/observed.py`
 
-> **If the observed engine reports `satisfied` at strength `observed`, then:** the rtamt discrete-time
-> STL monitor for `req.spec` returned non-negative robustness at every time step of the trace it was
-> given, where step *t* is the record at position *t* (`test_temporal_satisfied`).
+> **If the observed engine reports `satisfied` at strength `observed`, then:** `req.spec` evaluated
+> *true* over the trace it was given, under the finite-trace clauses and the three-valued chain of
+> [`language.md`](language.md) §2.8 and §2.12, where position *t* is the record at position *t*
+> (`test_temporal_satisfied`).
+
+The verdict is that evaluation and **not** the sign of a robustness score. rtamt still monitors the
+property, and its score travels beside the verdict in `details['evaluation_scores']` as the
+quantitative margin; it is a margin and not an answer, because `ρ = 0` decides nothing and `ρ` does
+not represent strictness at all — `ρ(x > c) = ρ(x >= c)`. So a strict comparison is breached at its
+boundary and a non-strict one is not (`test_strict_comparison_boundary_table`), and a shape the
+monitor renders differently is refused rather than answered ([`language.md`](language.md) §4).
 
 *What it does not tell you.* Nothing about any execution of the system that is not in that trace.
 "Held for every step we monitored" is a statement about a finite, supplied sequence. Nothing about
@@ -481,17 +490,18 @@ wall-clock time: the monitor's time axis is the record index, so a bound reads a
 decisions. And the flag/magnitude reading of §2 is a modelling choice — a pack author who writes
 `x >= 0.5` meaning a threshold on a measured quantity gets a presence test.
 
-> **If it reports `violated` at strength `observed`, then:** robustness went negative at at least one
-> step, and the result names those step indices and carries the offending records
+> **If it reports `violated` at strength `observed`, then:** `req.spec` evaluated *false* at at least
+> one position, and the result names those step indices and carries the offending records
 > (`test_temporal_violated_returns_offending_segment`).
 
 Not evaluated, never satisfied, when: the trace is shorter than two records, because a discrete-time
 monitor cannot read a sampling period off one sample
 (`test_trace_too_short_names_the_trace_not_the_formula`); rtamt cannot parse the formula
 (`test_unexpressible_formula_reports_not_evaluated`); any record carries no finite real number for
-a variable the formula treats as a magnitude (`test_quantitative_bound_needs_a_measurement`); or the
-property is an implication whose antecedent scored below zero at every position, because a trace
-that never reaches the trigger scores non-negative for every system alike
+a variable the formula treats as a magnitude, so the property evaluates to the third value
+(`test_quantitative_bound_needs_a_measurement`); or the property is an implication whose antecedent
+was false at every position, or was never true and unknown at some position, because a trace that
+never reaches the trigger says nothing about this system in particular
 (`test_an_antecedent_false_at_every_position_is_not_evaluated_at_observed`, and §4 for the rule).
 
 The two-record floor is what holding an either/or costs `ecoa_reg_b_1002_9_a_2_written_statement`.
@@ -523,14 +533,14 @@ duty can flag. Nothing about decisions outside the trace. And nothing about the 
 the system's own decision margin, not a figure Recital 71 states, and no number in this duty comes
 from the regulation (`test_the_deviation_duty_is_interpretive_and_not_class_limited`).
 
-Nor does `satisfied` exclude a decision that turns on an exact boundary tie. Where deviation and
-margin are equal, robustness is zero: rtamt's quantitative semantics score `<` and `<=` alike at
-that boundary, and the observed engine treats only negative robustness as a breach. In the
-threshold-facing case the claimed oracle value sits exactly on the decision threshold, but whether
-the decision would have differed depends on the system's own tie-break, which this record does not
-carry. This duty therefore reports an exact tie satisfied and does not detect a decision that turns
-on one. Closing that gap would require signed evidence and a strict-boundary reading the shared
-observed engine does not have; no engine was changed here
+Nor does `satisfied` exclude a decision that turns on an exact boundary tie. The property this duty
+states is non-strict, and where deviation and margin are equal it *holds* — that is the comparison,
+not a rounding of a margin, and the engine reads strict and non-strict comparisons apart at their
+boundary (`test_strict_comparison_boundary_table`). In the threshold-facing case the claimed oracle
+value sits exactly on the decision threshold, but whether the decision would have differed depends
+on the system's own tie-break, which this record does not carry. This duty therefore reports an
+exact tie satisfied and does not detect a decision that turns on one. Closing that gap would require
+signed evidence and a stricter reading of the clause than the pack states; no duty was changed here
 (`test_a_declared_deviation_exactly_equal_to_the_margin_is_reported_satisfied`).
 
 > **If it reports `violated` at strength `observed`, then:** at least one record declared a deviation
@@ -1601,11 +1611,11 @@ the domain it quantifies over, and the domain travels on the result:
 | `proved` | every input the declared logic and constraints admit — the solver is asked whether premises ∧ antecedent is satisfiable, which is the premise check one quantifier deeper | `test_an_antecedent_no_admissible_input_reaches_is_not_evaluated_at_proved` |
 | `proved`, over a trace | the same domain: `always(f)` is decided by deciding `f`, so the reduction inherits the refusal rather than repeating it | `test_the_temporal_reduction_inherits_the_refusal` |
 | `probed` | the decisions the search replayed — the interpreter already evaluates the antecedent to answer the implication, so it is counted in the same walk | `test_a_search_that_never_reached_the_antecedent_is_not_evaluated_at_probed` |
-| `observed` | the decisions of the supplied trace — the antecedent is monitored as a sub-formula, at the same threshold satisfaction is read at | `test_an_antecedent_false_at_every_position_is_not_evaluated_at_observed` |
+| `observed` | the decisions of the supplied trace — the antecedent is evaluated as a sub-formula at every position, by the same reading satisfaction is decided by, and an antecedent the trace leaves unknown is not a trigger that fired | `test_an_antecedent_false_at_every_position_is_not_evaluated_at_observed`, `test_unknown_antecedent_returns_inconclusive` |
 | `probed`, over certificates | the certified decisions of the trace — the antecedent is counted in the same walk that decides the property against the measured count | `test_a_certified_trace_that_never_reached_the_antecedent_is_not_evaluated` |
 
 **Why the argument for tolerating it did not survive.** It was a trace argument: reporting the
-vacuous case `satisfied` is literally true of what was monitored — the observed engine's claim is
+vacuous case `satisfied` is literally true of what was monitored — the observed engine's claim was
 non-negative robustness at every step, which held — and misleading only about what was learned.
 That reading does not exist at `proved`, where there is no monitor, no record and no robustness,
 and the claim is universal over the whole declared input space. A creditor whose rules state no
@@ -1751,11 +1761,11 @@ Two consequences of that report text, followed by a separate package-level termi
 | An absent or blank signal in an observed record is a violation, naming it | `test_record_engine_violated_on_blank_field`, `test_a_declared_signal_absent_from_the_trace_is_a_violation` |
 | Presence means non-empty, not merely keyed, in every engine | `test_a_present_but_empty_signal_does_not_count_as_evidence`, `test_a_falsy_but_real_signal_value_counts`, `test_temporal_presence_agrees_with_record_presence_for_falsy_values` |
 | An empty trace is not evaluated, never satisfied | `test_an_empty_trace_is_not_evidence` |
-| `observed satisfied` ⇒ non-negative STL robustness at every step of the supplied trace | `test_temporal_satisfied` |
+| `observed satisfied` ⇒ the property evaluated true over the supplied trace, and never merely a non-negative robustness score | `test_temporal_satisfied`, `test_strict_comparison_boundary_table` |
 | A temporal violation names the record positions that breached | `test_temporal_violated_returns_offending_segment` |
 | A trace too short to monitor is not evaluated, and the trace is blamed, not the formula | `test_trace_too_short_names_the_trace_not_the_formula` |
 | A formula rtamt cannot parse is not evaluated | `test_unexpressible_formula_reports_not_evaluated` |
-| Bare Boolean atoms use Boolean trace values, false has negative robustness, and unknown kinds are not evaluated | `test_a_false_bare_boolean_atom_is_violated`, `test_a_bare_boolean_atom_without_an_established_kind_is_not_evaluated` |
+| Bare Boolean atoms use Boolean trace values, a false atom is a breach, and unknown kinds are not evaluated | `test_a_false_bare_boolean_atom_is_violated`, `test_a_bare_boolean_atom_without_an_established_kind_is_not_evaluated` |
 | Presence and Boolean truth remain distinct for a recorded `False` value | `test_presence_and_bare_boolean_atoms_keep_distinct_false_semantics`, `test_temporal_presence_agrees_with_record_presence_for_falsy_values` |
 | Boolean literals are refused as atoms but remain valid comparison operands in state properties | `test_the_loader_refuses_boolean_constants_as_atoms`, `test_a_boolean_constant_remains_valid_as_a_comparison_operand`, `test_a_logical_boolean_constant_comparison_still_reaches_proved` |
 | Temporal Boolean-constant comparisons are refused in favour of sound bare Boolean atoms | `test_the_loader_refuses_temporal_boolean_constant_comparisons`, `test_a_direct_temporal_boolean_comparison_is_not_evaluated`, `test_a_bare_boolean_atom_is_monitored_for_true_and_false_traces` |
@@ -2039,7 +2049,7 @@ passes forever.
   semantics (`test_a_past_operator_is_skipped_by_name_rather_than_rendered`). No shipped duty uses
   one.
 - **Every question is asked over a non-empty trace.** BLACK interprets LTLf formulas over non-empty finite traces (length >= 1) natively, where position 0 always exists.
-- **There is a ceiling, and questions over it are refused by name rather than run.** `ltlf.ATOM_BUDGET` is set to 100. BLACK is SAT-based and scales linearly with atom count (n*|AP| literals in pin(sigma)), benchmarking under 50 ms for 200+ atoms. A question carrying more atoms than `ATOM_BUDGET` is refused by name (`test_a_question_over_the_atom_budget_is_refused_by_name`). A pair of duties that is refused is reported **not decided either way**, which is a different fact from "no temporal duty entails another" and never renders as it (`test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared`).
+- **There is a ceiling, and questions over it are refused by name rather than run.** `ltlf.ATOM_BUDGET` is set to 100, and it is an **unmeasured** bound stated as one: LTLf satisfiability is PSPACE-complete and BLACK's tableau is worst-case exponential, so no atom count is a runtime guarantee. What moved it off the `flloat`-era 6 is the encoding — `pin(σ)` grows linearly in `n·|AP|` where the previous backend built a powerset automaton — and not a benchmark. There is no wall clock anywhere in this package, so the budget is the only bound `_decide` has, and a question carrying more atoms than `ATOM_BUDGET` is refused by name (`test_a_question_over_the_atom_budget_is_refused_by_name`). A pair of duties that is refused is reported **not decided either way**, which is a different fact from "no temporal duty entails another" and never renders as it (`test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared`).
 
 **No LTL₃ verdict is computed here, and that is a decision.** The runtime-verification
 literature (Bauer, Leucker and Schallhart — `[@bauer-2011]`) distinguishes *satisfied on this

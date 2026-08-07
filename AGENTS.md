@@ -163,7 +163,13 @@ the asymmetry between a universal satisfied verdict and an existential violated 
 result as `TRACE_SEMANTICS` (`docs/semantics.md` §3, *`proved`, over a trace*). Two limits of the trace
 rung are stated rather than silent: rtamt cannot render a comparison against a Boolean constant, and
 it reads the `spec` as written, so implication in a pack must be spelled `->` and never
-`Implies(...)`. Read `docs/semantics.md` §2 and §3.5 before editing any of it — they state the rule,
+`Implies(...)`. What the rung's **verdict** is has moved and the rest of it has not: it is
+`rulelang.eval_temporal_trace` over the finite-trace clauses, and rtamt's robustness is the *margin*
+reported beside it — `ρ = 0` decides nothing and `ρ(x > c) = ρ(x >= c)`, so any Boolean question
+answered by comparing a score is a defect. The interpreter evaluates in the Kleene chain `F < U < T`
+and `U` is ignorance about a record, never truncation of a trace; `docs/language.md` §2.12 is the
+definition and the only place the tables belong.
+Read `docs/semantics.md` §2 and §3.5 before editing any of it — they state the rule,
 the atom encodings, and the one case the ladder does not resolve (exposed logic disagreeing with the
 trace).
 
@@ -175,7 +181,7 @@ names the subtree (stripping a top-level `always`, never an `eventually`) and
 `report.not_evaluated_for_unreachable_trigger` words the refusal once against the result model. Each
 rung then answers it with what it already holds — `proved` checks premises ∧ antecedent satisfiable
 (the premise check one quantifier deeper), `temporal` inherits it through the reduction, `observed`
-monitors the antecedent per position, `probed` counts the replays that reached it, and
+evaluates the antecedent per position, `probed` counts the replays that reached it, and
 `certificate` counts the certified decisions that reached it in the walk that already decides the
 property against the measured count — and `probed` is
 in that list because the ladder falls to it, so guarding the proof rung alone only moves a vacuous
@@ -380,9 +386,10 @@ error is `gdpr_recital71_error_risk_minimised`. It compares
 `scope_statements_declared_deviation` against `artifact_logs_decision_margin`, so a nonzero declared
 error fails when it is larger than the decision's own margin. The bound is the system's own margin
 on purpose — no threshold in a shipped pack may be a number invented for it and presented as the
-regulation's. Exact equality is a checked limit, not a breach: rtamt gives it zero robustness and
-the observed engine breaches only on negative robustness. What the verdict does and does not claim
-is in `docs/semantics.md` §3; why it exists is finding 1 of `docs/findings-nesyarena.md`.
+regulation's. Exact equality is a checked limit, not a breach, because the clause's own comparison
+is non-strict — not because a margin came back zero: the rung's verdict is the property's value over
+the trace and the robustness score is only the margin reported beside it.
+What the verdict does and does not claim is in `docs/semantics.md` §3; why it exists is finding 1 of `docs/findings-nesyarena.md`.
 
 `docs/example-output.md` is derived too. `tests/test_docs_example_output.py` re-runs every command
 block in it and compares stdout byte-for-byte, and cross-checks the header's line count and
@@ -621,16 +628,19 @@ and must not be re-explained as policy: no many-valued reading of a temporal ope
 graded atom under one), no value at the empty trace (the lattice top is the vacuous `satisfied`
 rewritten as a number), and unawareness as `unattainable` (the relational atom quantifies over pairs
 of admissible inputs, and an unaware system admits none). §4 reports **four shapes where the rtamt
-rendering and the definition disagree** — `%` (ANTLR error-recovers by dropping the token and
-`spec.parse()` does not raise), a chained comparison (rtamt left-associates over robustness where
+rendering and the definition disagree** — `%` (ANTLR error-recovers by dropping the token; `_monitor`
+now installs rtamt's raising error listener, so this one raises rather than being read differently),
+a chained comparison (rtamt left-associates over robustness where
 the language conjoins), `<->` (rtamt's `iff` robustness is negative whenever the two margins
 differ), and the known exact tie. The first three are **refused in the rendering** —
 `engines/observed._refuse_shapes_the_monitor_misreads`, asked of the parsed formula so that `<->`
 and `<=>` reach one refusal — so a duty writing one is *not evaluated* naming the construct rather
-than answered off a misread formula; the tie is a boundary convention and is deliberately untouched.
+than answered off a misread formula; the tie is a divergence of the *margin* alone, since the
+verdict no longer reads the score.
 All four stay latent, `MONITOR_DIVERGENCES` is the exclusion list, and it is pinned twice: every row
-must still diverge *behind* its refusal and no shipped spec may use one, so a refusal whose reason
-has gone loses a duty a rung for nothing. Three things must not be undone: the refusal list is three
+must still diverge (or raise) *behind* its refusal and no shipped spec may use one, so a refusal
+whose reason has gone loses a duty a rung for nothing.
+Three things must not be undone: the refusal list is three
 constructs long only because rtamt **raises** for every other construct this language admits and it
 does not support (`!=`, `min`, `max`, `Implies(...)`, `<=>`), which is why
 `test_rtamt_still_behaves_the_way_the_refusals_assume` probes each one and asserts which of
@@ -715,9 +725,12 @@ is asked over a non-empty trace, on which an `always` duty cannot hold vacuously
 own finite-trace semantics supplies rather than a guard formula conjoined here; a past operator (`once`, `historically`, `prev`, `since`, `rise`, `fall`) is
 LTLf-inexpressible and is skipped **by name**; `ATOM_BUDGET` is checked before the solver is called
 because there is no wall clock anywhere in this package, and "no pair entails another" must never
-render for "no pair was decided"; and **no three-valued finite-trace verdict is computed** — the
+render for "no pair was decided"; and **no LTL₃ verdict is computed** — the
 tool exposes no monitor construction, so the Bauer/Leucker/Schallhart distinction is reported
-unavailable rather than synthesised, and the strength lattice did not move. The acceptance test is
+unavailable rather than synthesised, and the strength lattice did not move. That is not the `U` of
+the Kleene chain `rulelang` evaluates in (`docs/language.md` §2.12): ignorance about a record is a
+different question from truncation of a trace, and the two must not be conflated in prose or in a
+value. The acceptance test is
 `test_the_ltlf_backend_agrees_with_the_monitor`: the two backends may not disagree about any shipped
 temporal duty, in the shape `test_the_solvers_fold_is_the_interpreters_fold` gives `contains()`.
 `docs/semantics.md` §8 (*The temporal fragment, decided as a finite-trace formula*) is the contract.
