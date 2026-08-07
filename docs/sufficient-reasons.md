@@ -6,7 +6,10 @@ implementation one: the instrument asked a question about *single facts* and rep
 about *reasons*, and the two are not the same question.
 
 Read [`semantics.md`](semantics.md) §3 (`certificate`, and *The inference artefact*) first — it
-states what the certificate's verdicts mean. This document states what a `deleted` reason **is**.
+states what the certificate's verdicts mean. This document states what a `deleted` reason **is**,
+and why each choice in the definition was made. [`formal.md`](formal.md) §3 restates the
+definitions in the repository's one notation, and its *Bibliography* is where the sources of §9
+now live.
 
 ---
 
@@ -49,7 +52,8 @@ Fix one decision.
 - `tol` — the certificate's tolerance, `1e-9` by default.
 
 This is not a classifier over a feature space, which is the setting the published formal-XAI
-definitions are stated in (§9). Two things differ and both matter:
+definitions are stated in (`[@ignatiev-2019]`, `[@darwiche-2020]`). Two things differ and both
+matter:
 
 1. **The decision is a probability, not a label.** There is no `f(v) = c` to preserve. What is
    preserved is the engine's *answer*, up to `tol`.
@@ -84,9 +88,10 @@ instrument is a measure over a shrinking set of worlds.
 
 ## 3. The definitions
 
-The shape is Ignatiev, Narodytska and Marques-Silva's abductive explanation (AXp) and its
-contrastive dual (CXp), with the feature space replaced by the deletion lattice and "same
-prediction" replaced by "same answer within `tol`".
+The shape is Ignatiev, Narodytska and Marques-Silva's abductive explanation
+(AXp — `[@ignatiev-2019]`) and its contrastive dual (CXp), with the feature space replaced by the deletion lattice and "same
+prediction" replaced by "same answer within `tol`". The vocabulary of a sufficient reason is
+`[@darwiche-2020]`, and its prime-implicant reading `[@shih-2018]`.
 
 > **Definition 3 (deletion-sufficient set).** `S ⊆ A_q` is **sufficient** for the engine's answer at
 > `β` iff for every `D ⊆ A_q \ S`, `¬MOVED(D)`.
@@ -138,9 +143,9 @@ is not two premises, it is one.
 > **Theorem (minimal-hitting-set duality).** The AXps are exactly the minimal hitting sets of the
 > CXps, and the CXps are exactly the minimal hitting sets of the AXps.
 >
-> This is Reiter's 1987 duality between conflicts and diagnoses, as related to abductive and
-> contrastive explanations by Ignatiev, Narodytska, Asher and Marques-Silva (§9). Lemma 2 is the only
-> thing specialising it to the deletion lattice.
+> This is Reiter's 1987 duality between conflicts and diagnoses (`[@reiter-1987]`), as related to
+> abductive and contrastive explanations by Ignatiev, Narodytska, Asher and Marques-Silva
+> (`[@ignatiev-2020]`). Lemma 2 is the only thing specialising it to the deletion lattice.
 
 > **Corollary 1.** `⋃ AXps = ⋃ CXps`. A fact is relevant iff it belongs to some CXp.
 >
@@ -254,13 +259,13 @@ gap is not a `Δ` at all. No rendering here adds per-reason drops up, and none m
 ## 7. Cost, budget, and what a partial enumeration may claim
 
 Deciding relevance is hard, and the honest statement of how hard is Wäldchen, MacDonald, Hauch and
-Kutyniok's: deciding whether a set of features suffices for a classifier decision is
-`NP^PP`-complete, and this setting is a probabilistic one of exactly that shape. Here the engine is a
+Kutyniok's (`[@waldchen-2021]`): deciding whether a set of features suffices for a classifier
+decision is `NP^PP`-complete, and this setting is a probabilistic one of exactly that shape. Here the engine is a
 black box, so the only oracle is a probe, and the search is over `2^|A_q|` deletion patterns where
 the old probe was linear in reasons.
 
-**The search.** CXps are enumerated by the MARCO loop of Liffiton, Previti, Malik and Marques-Silva,
-with Z3 as the NP oracle over the subset lattice — a Boolean `x_a` per searchable fact, blocking
+**The search.** CXps are enumerated by the MARCO loop of Liffiton, Previti, Malik and Marques-Silva
+(`[@liffiton-2016]`), with Z3 as the NP oracle over the subset lattice — a Boolean `x_a` per searchable fact, blocking
 clauses recording what has been covered — and the *engine* as the membership oracle:
 
 - **Space.** `A_q` minus every fact the per-fact probe already found singleton-moving (Corollary 2).
@@ -330,27 +335,22 @@ invariant to keep when tuning it.
 ## 9. Sources
 
 Published work only, and every definition above is a specialisation of one of these rather than a
-new one.
+new one. This section used to carry its own reference list; it was the only one in the repository,
+and a list nothing checked is a list that rots. The references now live in one place —
+[`formal.md`](formal.md), *Bibliography* — as a registry the build enforces: every key cited above
+resolves to an entry there, every entry there is cited by at least one claim, and a source named
+without a key fails the build.
 
-- R. Reiter. *A Theory of Diagnosis from First Principles.* Artificial Intelligence 32(1):57–95,
-  1987. — the conflict/diagnosis minimal-hitting-set duality the Theorem in §4 specialises.
-- A. Shih, A. Choi, A. Darwiche. *A Symbolic Approach to Explaining Bayesian Network Classifiers.*
-  IJCAI 2018, 5103–5111. — prime-implicant explanations of a decision, and the reading of an
-  explanation as a minimal sufficient subset of an instantiation.
-- A. Ignatiev, N. Narodytska, J. Marques-Silva. *Abduction-Based Explanations for Machine Learning
-  Models.* AAAI 2019, 1511–1519. — the abductive explanation (AXp): a subset-minimal set of literals
-  that, with the model, entails the prediction. Definitions 3 and 4 are this over the deletion
-  lattice.
-- A. Ignatiev, N. Narodytska, N. Asher, J. Marques-Silva. *From Contrastive to Abductive
-  Explanations and Back Again.* AIxIA 2020, LNCS 12414, 335–355. — the AXp/CXp minimal-hitting-set
-  duality, on which §4 rests.
-- A. Darwiche, A. Hirth. *On the Reasons Behind Decisions.* ECAI 2020, 712–720. — sufficient reasons
-  as prime implicants of a decision, and the vocabulary of §3.
-- M. Liffiton, A. Previti, A. Malik, J. Marques-Silva. *Fast, flexible MUS enumeration.* Constraints
-  21(2):223–250, 2016. — MARCO, the seed/shrink/grow enumeration §7 implements.
-- S. Wäldchen, J. MacDonald, S. Hauch, G. Kutyniok. *The Computational Complexity of Understanding
-  Binary Classifier Decisions.* JAIR 70:351–387, 2021. — the `NP^PP`-completeness §7 cites, and the
-  probabilistic reading of sufficiency.
+What this document relies on, by key: `[@reiter-1987]` for the minimal-hitting-set duality the
+Theorem in §4 specialises; `[@shih-2018]` and `[@darwiche-2020]` for the prime-implicant reading of
+a sufficient reason and the vocabulary of §3; `[@ignatiev-2019]` for the abductive explanation
+Definitions 3 and 4 are over the deletion lattice; `[@ignatiev-2020]` for the AXp/CXp duality §4
+rests on; `[@liffiton-2016]` for the MARCO enumeration §7 implements; and `[@waldchen-2021]` for
+the `NP^PP`-completeness §7 cites and the probabilistic reading of sufficiency.
+
+[`formal.md`](formal.md) §3 also states the definitions above in the repository's one notation,
+with this document's fact set `A` written `F` so that it does not collide with the algebra the
+property language is read over.
 
 The exact inference this is measured against — the ground-program IR, the bounded proof enumeration
 and the exact weighted model count — is nesyarena's and is depended on, not reimplemented. See

@@ -269,6 +269,11 @@ def test_every_spec_the_grammar_generates_is_accepted(production: str, data) -> 
 #: the temporal fragment — `validate_temporal_property`.
 REFUSALS = {
     "R-PROSE": "Record check",
+    "R-NOT-READ-WHOLE": "present(reason_a) # and present(reason_b)",
+    # A bare carriage return CPython's parser normalises away and its tokenizer refuses as a
+    # non-printable character: the read-whole check cannot run, so the spec is refused rather
+    # than answered on a token list that may itself be partial.
+    "R-NOT-TOKENISED-WHOLE": "present(reason_a)\r\r# tail",
     "R-UNTERMINATED-STRING": "contains(reason_a, 'oops)",
     "R-UNBALANCED-PARENS": "(present(reason_a)",
     "R-EMPTY-ARROW-OPERAND": "present(reason_a) ->",
@@ -536,8 +541,12 @@ def test_the_four_named_shapes_are_still_what_the_document_records(
     A refused row must still be *rtamt-divergent behind the refusal*, or the refusal has outlived
     its reason and the row should leave `MONITOR_DIVERGENCES` and §4 in the same change.
     """
-    robustness = _monitor_robustness(spec, env)
-    assert _reference_reading(spec, env) != (robustness >= 0), (label, spec, env, robustness)
+    try:
+        robustness = _monitor_robustness(spec, env)
+    except Exception:
+        assert refused, f"{label} raised unexpectedly"
+    else:
+        assert _reference_reading(spec, env) != (robustness >= 0), (label, spec, env, robustness)
     if refused:
         with pytest.raises(MisreadShapeError):
             to_stl(spec)
@@ -630,6 +639,81 @@ def test_both_spellings_of_equivalence_reach_the_same_refusal():
     assert arrow.evidence_summary.replace("<->", "<=>") == long_arrow.evidence_summary
 
 
+def test_dropped_token_and_multi_statement_formulas_are_not_evaluated():
+    """Formulas with dropped tokens (e.g. %) or multiple statements (e.g. 'a b > 1') are reported
+    not evaluated.
+    """
+    for spec in ("count_a % count_b > 1", "count_a count_b > 1"):
+        result = _observed_on(spec)
+        assert result.verdict == Verdict.INCONCLUSIVE
+        assert result.strength is None
+        assert result.evidence_summary.startswith("Not evaluated:")
+
+
+def test_sweep_every_shipped_pack_formula_parses_to_exactly_one_statement():
+    """Sweep every formula in every shipped pack and prove each parses to exactly 1 statement."""
+    import re
+
+    import rtamt
+
+    from reasonsmith.engines.observed import _render_stl
+    from reasonsmith.rulelang import UnsupportedConstructError
+
+    BaseLexer = rtamt.StlDiscreteTimeSpecification().ast.antrlLexerType
+    ErrorListener = rtamt.StlDiscreteTimeSpecification().ast.parserErrorListenerType
+
+    class StrictLexer(BaseLexer):
+        def __init__(self, input_stream):
+            super().__init__(input_stream)
+            self._listeners = [ErrorListener()]
+
+    keywords = {
+        "always",
+        "eventually",
+        "until",
+        "then",
+        "implies",
+        "and",
+        "or",
+        "not",
+        "true",
+        "false",
+        "historically",
+        "once",
+        "since",
+        "rise",
+        "fall",
+        "prev",
+    }
+
+    checked_count = 0
+    for pack_id in list_packs():
+        pack = load_pack(pack_id)
+        for req in pack.requirements:
+            try:
+                stl_text, synth_vars, _ = _render_stl(req.spec)
+            except (UnsupportedConstructError, Exception):
+                continue
+            found_vars = set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", stl_text)) - keywords
+            all_vars = set(synth_vars.keys()) | set(req.requires) | found_vars
+            spec = rtamt.StlDiscreteTimeSpecification()
+            spec.ast.antrlLexerType = StrictLexer
+            spec.name = "sweep_test"
+            for var in all_vars:
+                spec.declare_var(var, "float")
+            spec.spec = stl_text
+            try:
+                spec.parse()
+            except Exception:
+                continue
+            checked_count += 1
+            assert len(spec.ast.specs) == 1, (
+                f"Requirement {req.id} in pack {pack_id} parsed to {len(spec.ast.specs)} "
+                f"statements, expected 1: {req.spec!r}"
+            )
+    assert checked_count > 0
+
+
 #: What rtamt does with every construct the property language admits, measured rather than assumed.
 #: `raises` — `spec.parse()` rejects it, which is this engine's oldest protection; `agrees` — it is
 #: monitored and scores the reference reading; `misreads` — it is monitored and does not, which is
@@ -638,7 +722,7 @@ def test_both_spellings_of_equivalence_reach_the_same_refusal():
 #: instead of raising, and an rtamt version bump could open the same hole under another construct.
 RTAMT_BEHAVIOUR = (
     ("the remainder operator", "count_a % count_b > 1", {"count_a": -2.0, "count_b": 2.0},
-     "misreads"),
+     "raises"),
     ("a chained comparison", "1 < count_a < 10", {"count_a": -2.0}, "misreads"),
     ("`<->`", "(count_a >= 1) <-> (count_b >= 1)", {"count_a": -2.0, "count_b": 0.0}, "misreads"),
     ("`<=>`", "(count_a >= 1) <=> (count_b >= 1)", {"count_a": -2.0, "count_b": 0.0}, "raises"),

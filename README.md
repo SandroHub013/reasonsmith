@@ -4,87 +4,58 @@
 [![Python >= 3.11](https://img.shields.io/badge/python->=3.11-blue.svg)](https://www.python.org/)
 [![MIT licence](https://img.shields.io/github/license/eduardstan/reasonsmith)](https://github.com/eduardstan/reasonsmith/blob/main/LICENSE)
 
-[![reasonsmith — prove which legally-owed reasons a system deleted, and from whom](docs/assets/og.png)](https://reasonsmith.dev/)
+**A credit system declined an application and told the applicant one reason. Its own inference used
+five.** reasonsmith checks an automated decision system against a regulatory duty and states *how
+it knows* — instead of returning a tick.
 
-> [!TIP]
-> **Live on the web:** the landing page is at [**reasonsmith.dev**](https://reasonsmith.dev) — a scroll-driven flight through the proof graph of the demonstration case — and the self-contained conformance dossier at [**reasonsmith.dev/report.html**](https://reasonsmith.dev/report.html). The site lives in its own repo (see [#35](https://github.com/eduardstan/reasonsmith/issues/35)).
+![What the applicant was told, beside what the decision actually used: one reason stated, five used, four struck](docs/assets/showcase-figure.svg)
 
-[![Reasonsmith conformance dossier: headline, key finding and reason audit with the four deleted reasons struck](docs/report-preview.png)](https://reasonsmith.dev/report.html)
+On decision `APP-1042`, reasonsmith re-ran the system's own inference, switched each reason off in
+turn, and named the **four** the answer did not depend on and the notice never stated. It did not
+read that from the decision log: the log records nothing missing.
+
+**Form completeness does not imply reason fidelity.** 12 CFR 1002.9(b)(2) asks two things of an
+adverse-action notice, and this repository ships them as two duties — one reading the notice's
+**form**, one reading its **content**. On this same decision the first is **satisfied** and the
+second is **violated**. That is the finding, not an inconsistency: a checker that reads the form
+alone reports this notice compliant, and launders the gap into a document that reads as
+authoritative.
+
+Two commands, from a bare install — no checkout and no data of your own:
+
+```sh
+pip install reasonsmith
+reasonsmith check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa --system-name TruncatingCreditSystem
+```
+
+![Two reasonsmith commands and the violation appearing: an excerpt of both runs' real stdout](docs/assets/showcase-cast.svg)
+
+Both figures are generated from that run by [`docs/build_showcase.py`](docs/build_showcase.py) and
+pinned byte-for-byte, so no number on either was typed beside the code that measured it. The full
+report both commands print is in [`docs/example-output.md`](docs/example-output.md) §3, pasted
+unedited; the same run as a page is [`docs/showcase.html`](docs/showcase.html).
+
+**Read next:** the four things this tool cannot do → [`docs/what-this-does-not-do.md`](docs/what-this-does-not-do.md)
+· what a verdict means → [`docs/semantics.md`](docs/semantics.md)
+· the mathematics, in one notation → [`docs/formal.md`](docs/formal.md)
+· the live dossier → [reasonsmith.dev/report.html](https://reasonsmith.dev/report.html)
+
+---
 
 ## Prove which legally-owed reasons a system deleted. And from whom.
 
 **For anyone who has to answer for an automated decision** — the team that built the model, the
-auditor checking it, the regulator reading the file. reasonsmith checks a decision system against a
-regulatory duty and states how it knows, instead of returning a tick.
+auditor checking it, the regulator reading the file. A verdict here carries the method that
+reached it, so a claim about three logged decisions never arrives looking like a claim about every
+input a system's rules admit.
 
-A credit system declined application `APP-1042` and stated **one** reason. Its own inference used
-**five**. reasonsmith re-ran that inference, switched each reason off in turn, and named the four
-the system's answer depended on and its notice never said — and it did not read that from the
-decision log, because the log records nothing missing.
-
-Two commands, from a bare install, no checkout and no data of your own:
-
-```sh
-pip install reasonsmith
-```
-
-```sh
-reasonsmith check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa --system-name TruncatingCreditSystem
-```
-
-```text
-CONFORMANCE REPORT
-system: TruncatingCreditSystem
-declared scope: undeclared
-declared domains: consumer-credit
-pack: ecoa
-headline: 6 requirements · 6 binding: 3 observed, 1 violated, 1 not evaluated, 1 unattainable
-
-REQUIREMENT FINDINGS:
-  [OBSERVED] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): satisfied
-    requires: artifact_logs_decision_record, artifact_logs_notification_latency_days, artifact_logs_counteroffer_not_accepted
-    domain limit: consumer-credit
-    summary: Observed over 2 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) -> ((artifact_logs_notification_latency_days <= 30) or ((artifact_logs_counteroffer_not_accepted >= 0.5) and (artifact_logs_notification_latency_days <= 90))))' satisfied at every decision step.
-  [OBSERVED] ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): satisfied
-    requires: artifact_logs_decision_record, provenance_model_version
-    domain limit: consumer-credit
-    summary: Observed over 2 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))' satisfied at every decision step.
-  [OBSERVED] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): satisfied
-    requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
-    domain limit: consumer-credit
-    summary: Observed over 2 decision(s): state monitor for 'present(artifact_logs_reason_explanation) -> ( present(provenance_model_version) and present(scope_statements_local_vs_global) and not contains(artifact_logs_reason_explanation, "internal standards") and not contains(artifact_logs_reason_explanation, "internal policies") and not contains(artifact_logs_reason_explanation, "failed to achieve a qualifying score"))' satisfied at every decision step.
-  [PROBED] ecoa_reg_b_1002_9_b_2_principal_reasons_complete (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): violated
-    evidence basis: artifact — this duty is measured against the inference artefact behind a decision rather than against what the system decided. No trace holds that artefact and the enumeration is exact only on the one artefact it ran over, so the rungs above unattainable are recounted and probed, and neither observed nor proved is reachable however much the system exposes. Which of the two a verdict reaches is a fact about the artefact and not about the search: probed measures a reason set enumerated from a model encoding, recounted measures one the system recounted about its own inference.
-    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
-    domain limit: consumer-credit
-    summary: Violated on 1 of 2 certified decision(s): the stated reasons are not all the reasons. On decision #1 exact inference found 5 reason(s) and the deletion probe showed the system's answer does not depend on 4 of them — C05 — Insufficient number of credit references provided; C03 — Delinquent past or present credit obligations; C04 — Too many recent inquiries on credit bureau report; C02 — Length of time credit has been established is too short. Attribution: The deleted reasons are exactly the 4 lowest-scoring of the 5, and the engine kept the top 1. This is the signature of top-k proof truncation at k=1: top-k works by discarding proofs, so the dropped reasons are lost by configuration, not by error. The missing probability mass is 0.225799. Measured against the inference artefact the system exposed, not read from its decision log.
-    offending record: decision APP-1042 (step 1)
-    probe budget: 13 input(s) replayed, seed none — the proof enumeration and the deletion probes are deterministic, input space: decisions certified (2 values), decisions whose joint search did not finish (0 values), facts switched off (10 values), joint deletion patterns tried (1 values). Strategy: for each decision the system exposed an inference artefact for, its reasons are enumerated exactly by bounded proof enumeration over the ground program and scored by exact weighted model counting; every fact of a reason that no other reason uses is then switched off alone and the system's own engine re-run on the perturbed interpretation. A reason a single deletion moves the engine on is one its answer depends on. A reason no single deletion moves is then put to a second search, because two reasons jointly necessary and individually removable look exactly like two dropped ones: the subset-minimal *joint* deletions the engine notices are enumerated over the remaining facts, and a reason is counted here only where that enumeration ran to exhaustion and met no fact of it. The probe only ever switches a fact off, never on
-  [UNATTAINABLE] ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(c)(2)): inconclusive
-    requires: artifact_logs_incompleteness_notice_sent
-    domain limit: consumer-credit
-    MISSING SIGNALS: artifact_logs_incompleteness_notice_sent
-    summary: Unattainable as built: the system declares no capability to emit artifact_logs_incompleteness_notice_sent, so no amount of testing can discharge this requirement. Determined from declared capabilities alone; the system was not executed.
-  [NOT EVALUATED] ecoa_reg_b_1002_4_a_no_disparate_treatment (ECOA / Regulation B (12 CFR 1002.4) 12 CFR 1002.4(a)): inconclusive
-    evidence basis: relational — this duty is a property of a pair of executions, and a decision record holds one. No length of decision log observes it, so the rungs it can reach are probed and proved; a system exposing only a log cannot discharge it, and that is a fact about the kind of property and not about how much the system exposed.
-    requires: artifact_logs_decision_record, applicant_prohibited_basis
-    domain limit: consumer-credit
-    summary: Not evaluated: the system exposes no decide(), so there is no twin decision to run. A counterfactual is what the system would have decided, and a decision log records only what it did — no trace, however long, establishes one. Limit of this duty: it is invariance under one named variable holding all others fixed, so it is a property of treatment and says nothing about effects. A proxy is invisible to it — a rule set that never reads the protected variable and decides by postcode is satisfied here — and a disparate impact is not a thing it can find. It also reaches exactly one variable: a system answerable on several prohibited bases is answered here about the one this duty names.
-
-LIMITS OF THIS REPORT
-  This report is not a compliance guarantee and is not legal advice. It assesses system capability information and trace evidence against formal specifications. Whether these findings discharge legal duties remains a determination this tool does not make and cannot make. A requirement reported without a strength was not evaluated or is not applicable, and no verdict on it should be read from this report. Recital and guidance items inform how statutory duties are interpreted but create no obligation of their own; interpretive requirements are evaluated and reported separately, and are never folded into the binding headline counts. A requirement reported not applicable was excluded on one of two independent gates. Either no regulatory class was declared for the system at all, or the class that was declared is not the one the requirement is limited to; or no decision domain was declared for the system at all, or none of the domains that were declared is one the requirement is about. This tool infers neither the class nor the domain, so an undeclared system is neither placed in scope nor cleared of the duty: read the declared scope and domain lines before reading a not-applicable result. The decision-domain vocabulary is written by the pack author and by no regulation, and a duty declaring no domain reaches every system it is run against.
-```
-
-**Form completeness does not imply reason fidelity.** 12 CFR 1002.9(b)(2) asks two things of an
-adverse-action notice, and this repository ships them as two duties. `..._specific_reasons` reads
-the notice's **form**: a statement of reasons is there, and it is none of the wordings the clause
-itself calls insufficient. `..._principal_reasons_complete` reads its **content**: are the reasons
-stated all the reasons the decision's own inference used? On `APP-1042` the first comes back
-**satisfied** and the second comes back **violated** — which is the finding, not an inconsistency.
-Checking form alone launders that gap into a document that reads as authoritative: on this same
-decision the Table 7 evidence record is `COMPLETE`, and it is the reason-deletion certificate
-beneath it that reads `FAIL`. That record, that certificate and the four struck reasons are in
-[`docs/example-output.md`](docs/example-output.md).
+The run above is the whole argument in one report. `..._specific_reasons` reads the notice's form:
+a statement of reasons is there, and it is none of the wordings 12 CFR 1002.9(b)(2) itself calls
+insufficient. `..._principal_reasons_complete` reads its content: are the reasons stated all the
+reasons the decision's own inference used? Checking form alone launders that gap into a document
+that reads as authoritative — on this same decision the Table 7 evidence record is `COMPLETE`, and
+it is the reason-deletion certificate beneath it that reads `FAIL`. That record, that certificate
+and the four struck reasons are in [`docs/example-output.md`](docs/example-output.md).
 
 The same violation ships as an example you can run without the CLI, alongside three that pass:
 
@@ -97,15 +68,26 @@ it is, three quarters of the shipped duties are presence checks, a rung is not a
 strongest results need a system that exposes its inference: [`docs/what-this-does-not-do.md`](docs/what-this-does-not-do.md).
 Every claim there cites the committed document that already states it, with the numbers.
 
+## Live on the web
+
+> [!TIP]
+> The landing page is at [**reasonsmith.dev**](https://reasonsmith.dev) — a scroll-driven flight through the proof graph of the demonstration case — and the self-contained conformance dossier at [**reasonsmith.dev/report.html**](https://reasonsmith.dev/report.html). The site lives in its own repo (see [#35](https://github.com/eduardstan/reasonsmith/issues/35)).
+
+[![reasonsmith — prove which legally-owed reasons a system deleted, and from whom](docs/assets/og.png)](https://reasonsmith.dev/)
+
+[![Reasonsmith conformance dossier: headline, key finding and reason audit with the four deleted reasons struck](docs/report-preview.png)](https://reasonsmith.dev/report.html)
+
 ## One run, five readers
 
-The block above is one rendering of that run, not the only one. `--audience` renders the *same*
-run for a named reader — five ship: `developer`, `deployer`, `auditor`, `regulator`,
+The report that command prints is one rendering of that run, not the only one. `--audience` renders
+the *same* run for a named reader — five ship: `developer`, `deployer`, `auditor`, `regulator`,
 `affected-individual` — and **it changes what is shown, never what is claimed**. Nothing is
 recomputed per reader: every part of every view is a part of the single report the run already
 produced. No reader is shown a verdict another reader is not shown, no reader loses the limits
 section, and dropping the flag renders the full report — which is the auditor's view, by identity,
-so the transcript above is already one of the five.
+so the unprojected transcript in [`docs/example-output.md`](docs/example-output.md) §3 is already
+one of the five. All five side by side, as five documents rather than as a claim about them:
+[`docs/audiences.html`](docs/audiences.html).
 
 Here is that run for a **regulator**. Same five verdicts, same strengths, different content: every
 `requires:` line is gone, and the `domain limit:` line that decides whether the duty reaches this
@@ -212,9 +194,12 @@ with — is in [`docs/semantics.md`](docs/semantics.md) §7.
 `--audience` projects the text and HTML renderings only. `--json` stays the complete machine
 record, so a pipeline never loses fields to a display flag — and so `--audience
 affected-individual --json` is not a redaction. Redaction is a security property; this is a
-presentation one. The decision accounts the lay view quotes are the one thing not in it, for the
-opposite reason: the JSON is the findings record, and what the system logged is an input the run
-read rather than a finding it made.
+presentation one. The record does not silently omit what a projection hides: its `audience`
+block *names* the projection it was asked for (`null` when none was), carrying every field of
+that projection alongside the full record, so a consumer can tell the record it was given from
+the display flag it was built under. The decision accounts the lay view quotes are the one thing
+not in it, for the opposite reason: the JSON is the findings record, and what the system logged
+is an input the run read rather than a finding it made.
 
 ## Any model in: one duty, three systems, three rungs
 
@@ -276,6 +261,8 @@ Every evaluated result records its evidence strength, on one lattice:
 - `proved` — a solver result: the decision logic the system exposes is checked over every input the declared constraints admit, and a counterexample is executed before it is reported as a violation.
 
 Combining zero verdicts is `inconclusive`, never vacuously `satisfied`. A requirement no engine here can evaluate is reported with no strength, rather than judged by a weaker check. What each verdict means — and does not mean — is stated one engine at a time in [`docs/semantics.md`](docs/semantics.md); every soundness claim there names the test that fails if the claim becomes false.
+
+The mathematics behind all of it — the denotation of the property language, the sufficient-reason definitions, the strength chain beside the evidence basis, the residuated lattices, and one soundness statement per engine — is stated once and in one notation in [`docs/formal.md`](docs/formal.md), which also carries the repository's bibliography.
 
 How each shipped requirement got from a clause of law to a formula — and, in a fourth column, what that refinement deliberately did not capture — is recorded in [`docs/refinement.md`](docs/refinement.md), one row per requirement across all five packs.
 
@@ -421,7 +408,7 @@ Table 7 is transcribed verbatim into `src/reasonsmith/table7.toml`. That file is
 | `src/reasonsmith/plugins.py` | Discovery of engines and packs installed as separate pip packages, through the `reasonsmith.engines` and `reasonsmith.packs` entry-point groups ([`docs/authoring-engines.md`](docs/authoring-engines.md)) |
 | `src/reasonsmith/rulelang.py` | The whitelisted mini-language rule and specification text is parsed and executed in, shared by the rule adapter and the proved engine |
 | `src/reasonsmith/adapters/` | SUT protocol adapters for JSONL decision logs, Python callables, and rule-based systems that expose their decision logic |
-| `src/reasonsmith/engines/` | Verification engines: `record` completeness check, `observed` rtamt monitor over a trace (temporal formulas and per-record state properties), `probed` perturb-and-replay search, `proved` Z3 solver, `temporal` — the same solver, over an `always(f)` reduced to a property of one decision — and `counterfactual`, the one engine over a *pair* of executions: Z3 self-composition at `proved`, paired replay at `probed`, and no trace rung |
+| `src/reasonsmith/engines/` | Verification engines: `record` completeness check, `observed` over a trace (temporal formulas and per-record state properties, decided by the property language's own finite-trace reading, with the rtamt monitor supplying the quantitative margin beside it), `probed` perturb-and-replay search, `proved` Z3 solver, `temporal` — the same solver, over an `always(f)` reduced to a property of one decision — and `counterfactual`, the one engine over a *pair* of executions: Z3 self-composition at `proved`, paired replay at `probed`, and no trace rung |
 | `src/reasonsmith/examples/` | The five runnable example systems — including the one that comes back violated — and `sample_decisions.jsonl`, shipped in the wheel so every documented command runs after `pip install`; `python -m reasonsmith.examples` prints the directory they installed into |
 | `src/reasonsmith/cli.py` | Command-line interface (`reasonsmith` / `python -m reasonsmith.cli`): `check --system /path/to/your-decisions.jsonl --pack gdpr --capabilities /path/to/capabilities.txt` and `validate-pack gdpr` |
 | `src/reasonsmith/drift.py` | Statute drift check (`python -m reasonsmith.drift`): re-fetches the official legal sources and re-verifies every pack quote, reporting `match` / `differ` / `could-not-verify` without ever editing a pack |
@@ -447,15 +434,17 @@ Table 7 is transcribed verbatim into `src/reasonsmith/table7.toml`. That file is
 
   `check` exits 2 when a requirement is violated, 1 on a usage or input error, and 0 otherwise. Unattainable, not applicable and not evaluated are findings to read in the report, not breaches, so none of them changes the exit code. Reports render to plain text, structured JSON (`--json`), or a self-contained offline HTML report (`--html FILE`). By default the CLI reads capabilities from the supplied log, and a result resting on that says so rather than speaking for the system; pass `--capabilities /path/to/capabilities.txt` to instead have the system's maintainers declare what it can emit. The file has one signal name per line; blank lines and whole-line comments whose first nonblank character is `#` are ignored. The report then says the capabilities were declared. An empty declaration file declares nothing, which is a distinct claim from having no declaration at all, and a malformed line is refused naming the file and the line. `--audience {developer,deployer,auditor,regulator,affected-individual}` projects the text and HTML
 renderings for one reader, changing what is shown and never what is claimed; omitted, the full
-report is printed. `--json` is deliberately not projected, and its envelope carries a
-`schema_version` integer — `1` today — so a consumer can tell one release's shape from another's.
+report is printed. `--json` is not projected and never loses a field to a display flag; its
+envelope *names* the projection it was asked for in an `audience` block (`null` when none was),
+beside the full record, and carries a `schema_version` integer — `2` today — so a consumer can
+tell one release's shape from another's.
 It is not the package version: it increments when a key is removed, renamed, or changes type or
 meaning, and stays put when a key is merely added, so a parser reading the keys it knows is never
 broken by a version it has not seen. `validate-pack` validates one or more
-requirement packs and prints what each contains, exiting 0 for any packs a `check` run could load and 1 at the first one the loader refuses, naming the file and the requirement at fault; the authoring guide is [`docs/authoring-packs.md`](docs/authoring-packs.md). `validate-pack --analyse` additionally checks a pack against *itself* — whether its requirements are jointly satisfiable, which of them entail or are equivalent to which (the EU AI Act Article 12(1)/12(2) overlap is reported without anyone reading the TOML), and which are vacuously discharged; with the `ltlf` extra installed it also decides the temporal duties as finite-trace formulas, which is the only way the one shipped `until` duty is reached at all; with `--system-module` it also scores each duty against single-point mutants of that system's declared rules, which reaches only a system exposing its rules and is not a coverage number. Findings do not change the exit code. [`docs/semantics.md`](docs/semantics.md) §8 states what each answer means.
+requirement packs and prints what each contains, exiting 0 for any packs a `check` run could load and 1 at the first one the loader refuses, naming the file and the requirement at fault; the authoring guide is [`docs/authoring-packs.md`](docs/authoring-packs.md). `validate-pack --analyse` additionally checks a pack against *itself* — whether its requirements are jointly satisfiable, which of them entail or are equivalent to which (the EU AI Act Article 12(1)/12(2) overlap is reported without anyone reading the TOML), and which are vacuously discharged; with the BLACK solver installed it also decides the temporal duties as finite-trace formulas, which is the only way the one shipped `until` duty is reached at all; with `--system-module` it also scores each duty against single-point mutants of that system's declared rules, which reaches only a system exposing its rules and is not a coverage number. Findings do not change the exit code. [`docs/semantics.md`](docs/semantics.md) §8 states what each answer means.
 - **Machine-Readable & Visual HTML Output:** Records, certificates, and reports serialize to dicts (`to_dict()`), JSON (`to_json(indent=None)`), and self-contained HTML (`render_html()`). Each carries the same facts as its text rendering, including its missing-field report and its own limits, so a downstream consumer cannot read a partial document as a complete one. Values outside JSON's own types are stringified rather than raising. Conformance results need no serializer: `group_stats()` and `stratified()` already return plain dicts of JSON-native types, so `json.dumps(stratified(groups))` is the whole recipe — and an unmeasured metric serialises as `null`, never `0`. The HTML report opens from any `file://` path with zero network dependencies, presents the evidence strength lattice, splits binding vs interpretive duties, highlights counterexample trace witnesses for violations, and visually distinguishes unattainable architectural gaps from runtime violations.
 - **The Statute Drift Check (`drift.py`):** A maintenance check, not a conformance engine. `python -m reasonsmith.drift` re-fetches each official statutory document recorded in [`docs/legal-sources.md`](docs/legal-sources.md) and compares the packs' `verbatim_text` against the live source, collapsing only whitespace (the one thing a printer legitimately changes). Every requirement is `match`, `differ` (both strings named) or `could-not-verify` (the source is unreachable or no longer carries the passage — never a pass), and a pack is never edited automatically. `.github/workflows/statute-drift.yml` runs it on the first of every month and files a single GitHub issue when anything drifts; the tests run the same check against recorded byte-faithful fixture slices, so the suite needs no network.
-- **Dependencies & PyPI:** `reasonsmith` is published on PyPI — `pip install reasonsmith` is the user install, and the [PyPI project page](https://pypi.org/project/reasonsmith/) always lists the current release. `nesyarena` supplies ground-program IR, proof enumeration, and exact WMC (pinned to `nesyarena==0.1.0` on PyPI in `pyproject.toml`); `pip install -e ".[dev]"` in a venv is the contributor install, pulling the dev tooling in with the source checkout. `rtamt`, which supplies STL temporal monitoring, and `z3-solver`, which supplies the SMT solver behind the proved engine, are declared runtime dependencies of `reasonsmith`, both pinned exactly. `reasonsmith[ltlf]` is the one **optional extra**: it installs the finite-trace decision procedure `validate-pack --analyse` puts temporal duties to ([`docs/semantics.md`](docs/semantics.md) §8). Nothing in `check`, in any engine or in any shipped example touches it, so `pip install reasonsmith` stays the two-command demo above; with the extra absent the analysis says so and answers no temporal question from a weaker substitute. `torch`, by contrast, is an optional dependency of `nesyarena` (~1GB) and is deliberately not a declared dependency of `reasonsmith` — it was installed and measured in a separate environment, recorded in [RESULTS.md](RESULTS.md).
+- **Dependencies & PyPI:** `reasonsmith` is published on PyPI — `pip install reasonsmith` is the user install, and the [PyPI project page](https://pypi.org/project/reasonsmith/) always lists the current release. `nesyarena` supplies ground-program IR, proof enumeration, and exact WMC (pinned to `nesyarena==0.1.0` on PyPI in `pyproject.toml`); `pip install -e ".[dev]"` in a venv is the contributor install, pulling the dev tooling in with the source checkout. `rtamt`, which supplies STL temporal monitoring, and `z3-solver`, which supplies the SMT solver behind the proved engine, are declared runtime dependencies of `reasonsmith`, both pinned exactly. The finite-trace decision procedure `validate-pack --analyse` puts temporal duties to ([`docs/semantics.md`](docs/semantics.md) §8) uses the BLACK solver (`https://www.black-sat.org`), an external tool installed via OS package managers or binary downloads. Nothing in `check`, in any engine or in any shipped example touches it, so `pip install reasonsmith` stays the two-command demo above; with BLACK absent the analysis says so and answers no temporal question from a weaker substitute. `torch`, by contrast, is an optional dependency of `nesyarena` (~1GB) and is deliberately not a declared dependency of `reasonsmith` — it was installed and measured in a separate environment, recorded in [RESULTS.md](RESULTS.md).
 
 ### Summary of Empirical Findings
 
@@ -564,7 +553,7 @@ needs a pack set whose fourth column someone other than its author has reviewed
 
 ## Roadmap
 
-[**`ROADMAP.md`**](ROADMAP.md) is the public backlog: five numbered objectives, each with the gap
+[**`ROADMAP.md`**](ROADMAP.md) is the public backlog: six numbered objectives, each with the gap
 it closes, a measurable outcome that fails today, and what it depends on — including the one that
 is deliberately blocked and why. It also lists what is deliberately *not* planned, so a proposal
 for one of those gets an answer rather than silence.

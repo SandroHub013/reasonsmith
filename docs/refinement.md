@@ -415,7 +415,7 @@ modelled* above.
 
 This pack is different in kind, and the difference is the largest single item in its column four.
 Its rows are transcribed from Table 7 of *Symbols and Neurons* (Stan, Sciavicco & Napoletano, JAIR
-2026, p. 36:22), not from a statute. So:
+2026, p. 36:22 — `[@stan-2026]`), not from a statute. So:
 
 - `verbatim_text` is the table's **Requirement** cell — a duty *label* such as "Record–keeping (event
   logging)" — not statutory text. A quotation here cannot be checked against a print of the law,

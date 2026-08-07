@@ -39,7 +39,10 @@ What a reader must not break:
 from __future__ import annotations
 
 import ast
-from typing import Any
+import io
+import math
+import tokenize
+from typing import Any, Iterable
 
 _EQUIVALENCE_TOKENS = ("<=>", "<->")
 _IMPLICATION_TOKENS = ("=>", "->", " implies ")
@@ -612,9 +615,65 @@ def preprocess_spec(spec: str) -> str:
     return _rewrite_arrows(spec.strip())
 
 
+def _normalize_tokens_for_read_whole(text: str) -> list[str]:
+    """Extract code tokens from expression text, skipping parens and newline/encoding tokens."""
+    tokens = []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type in (
+                tokenize.ENCODING,
+                tokenize.ENDMARKER,
+                tokenize.NEWLINE,
+                tokenize.NL,
+            ):
+                continue
+            val = tok.string
+            if val in ("(", ")"):
+                continue
+            tokens.append(val)
+    except Exception as exc:
+        raise UnsupportedConstructError(
+            f"{text!r} could not be tokenised whole: {exc}. A partial token list would make a "
+            "truncated specification look read whole, which is the failure this check exists to "
+            "close."
+        ) from exc
+    return tokens
+
+
+def verify_parsed_whole(text: str, node: ast.AST | None = None) -> None:
+    """Verify that Python's parser read the whole source text without dropping text.
+
+    `parse_expression` uses Python's `ast.parse`, which silently drops comments (`# ...`) and
+    trailing unparsed tokens. This check verifies that unparsing the parsed AST accounts for all
+    tokens in the source text. If text was dropped (resulting in fewer unparsed tokens than the
+    input), `UnsupportedConstructError` is raised so every engine reports `not evaluated`
+    rather than answering a truncated formula.
+    """
+    pre = preprocess_spec(text)
+    if node is None:
+        try:
+            node = ast.parse(pre, mode="eval")
+        except SyntaxError as exc:
+            raise UnsupportedConstructError(
+                f"{text!r} is not a property in this language: {exc.msg}."
+            ) from exc
+    unparsed = ast.unparse(node)
+
+    tokens_pre = _normalize_tokens_for_read_whole(pre)
+    tokens_unp = _normalize_tokens_for_read_whole(unparsed)
+
+    if len(tokens_pre) > len(tokens_unp):
+        raise UnsupportedConstructError(
+            f"Specification {text!r} was not read whole: unparsing the parsed AST produced "
+            f"{unparsed!r}, dropping text from the input."
+        )
+
+
 def parse_expression(text: str) -> ast.Expression:
     """Parse specification or constraint text into an AST after arrow normalisation."""
-    return ast.parse(preprocess_spec(text), mode="eval")
+    tree = ast.parse(preprocess_spec(text), mode="eval")
+    verify_parsed_whole(text, tree)
+    return tree
 
 
 def parse_property(text: str) -> ast.Expression:
@@ -1174,8 +1233,83 @@ def _implies(antecedent: Any, consequent: Any) -> bool:
     return (not antecedent) or bool(consequent)
 
 
+class _UnknownType:
+    """Kleene 3-valued logic UNKNOWN sentinel."""
+
+    def __repr__(self) -> str:
+        return "UNKNOWN"
+
+    def __bool__(self) -> bool:
+        raise TypeError("Boolean value of UNKNOWN is undefined; use Kleene operators")
+
+
+UNKNOWN = _UnknownType()
+
+
+def is_unknown(val: Any) -> bool:
+    """Whether `val` is the Kleene 3-valued logic UNKNOWN value."""
+    return val is UNKNOWN
+
+
+def kleene_value(val: Any) -> Any:
+    """Read `val` as an element of the Kleene chain `F < U < T`.
+
+    Every Kleene operator here reads its operands through this, so a truth *value* decides the
+    table rather than an identity comparison against `True`/`False`. An atom of this language may
+    return `0`, `1`, `""` or another falsy or truthy value the audited system supplied, and one of
+    those tested by identity is neither `False` nor `UNKNOWN` and would fall through to the
+    operator's unit — a genuine `True` off a falsy conjunct, and a genuine `False` off a truthy
+    disjunct, at every rung that does not guard its atoms.
+    """
+    return UNKNOWN if is_unknown(val) else bool(val)
+
+
+def kleene_not(val: Any) -> Any:
+    if is_unknown(val):
+        return UNKNOWN
+    return not bool(val)
+
+
+def kleene_and_binary(a: Any, b: Any) -> Any:
+    return kleene_and((a, b))
+
+
+def kleene_or_binary(a: Any, b: Any) -> Any:
+    return kleene_or((a, b))
+
+
+def kleene_and(vals: Iterable[Any]) -> Any:
+    res: Any = True
+    for val in vals:
+        v = kleene_value(val)
+        if v is False:
+            return False
+        if is_unknown(v):
+            res = UNKNOWN
+    return res
+
+
+def kleene_or(vals: Iterable[Any]) -> Any:
+    res: Any = False
+    for val in vals:
+        v = kleene_value(val)
+        if v is True:
+            return True
+        if is_unknown(v):
+            res = UNKNOWN
+    return res
+
+
+def kleene_implies(a: Any, b: Any) -> Any:
+    return kleene_or_binary(kleene_not(a), b)
+
+
+def kleene_iff(a: Any, b: Any) -> Any:
+    return kleene_and_binary(kleene_implies(a, b), kleene_implies(b, a))
+
+
 def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
-    """Evaluate a whitelisted expression AST against `env` without invoking the Python compiler."""
+    """Evaluate a whitelisted expression AST against `env` under Kleene 3-valued logic."""
     if isinstance(node, ast.Expression):
         return eval_expression(node.body, env)
 
@@ -1187,14 +1321,16 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
         )
 
     if isinstance(node, ast.Name):
-        if node.id in env:
+        if node.id in env and env[node.id] is not None and not is_unknown(env[node.id]):
             return env[node.id]
-        raise NameError(f"name {node.id!r} is not defined for this decision")
+        return UNKNOWN
 
     if isinstance(node, ast.UnaryOp):
         operand = eval_expression(node.operand, env)
         if isinstance(node.op, ast.Not):
-            return not operand
+            return kleene_not(operand)
+        if is_unknown(operand):
+            return UNKNOWN
         if isinstance(node.op, ast.USub):
             return -operand
         if isinstance(node.op, ast.UAdd):
@@ -1204,6 +1340,8 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
     if isinstance(node, ast.BinOp):
         left = eval_expression(node.left, env)
         right = eval_expression(node.right, env)
+        if is_unknown(left) or is_unknown(right):
+            return UNKNOWN
         if isinstance(node.op, ast.Add):
             return left + right
         if isinstance(node.op, ast.Sub):
@@ -1218,37 +1356,47 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
 
     if isinstance(node, ast.BoolOp):
         if isinstance(node.op, ast.And):
-            result: Any = True
-            for value in node.values:
-                result = eval_expression(value, env)
-                if not result:
-                    return result
-            return result
+            return kleene_and([eval_expression(value, env) for value in node.values])
         if isinstance(node.op, ast.Or):
-            result = False
-            for value in node.values:
-                result = eval_expression(value, env)
-                if result:
-                    return result
-            return result
+            return kleene_or([eval_expression(value, env) for value in node.values])
         raise UnsupportedConstructError(f"Unsupported boolean operator: {type(node.op).__name__}")
 
     if isinstance(node, ast.Compare):
         left = eval_expression(node.left, env)
+        if is_unknown(left):
+            return UNKNOWN
         for op, comparator in zip(node.ops, node.comparators, strict=False):
             right = eval_expression(comparator, env)
-            if isinstance(op, ast.Eq):
+            if is_unknown(right):
+                return UNKNOWN
+            if isinstance(op, (ast.Lt, ast.LtE, ast.Gt, ast.GtE)):
+                is_flag = _flag_comparison(node.left, op, comparator)
+                if is_flag:
+                    conv_left = (1.0 if left else 0.0) if isinstance(left, bool) else left
+                    conv_right = (1.0 if right else 0.0) if isinstance(right, bool) else right
+                else:
+                    if isinstance(left, bool) or isinstance(right, bool):
+                        return UNKNOWN
+                    conv_left, conv_right = left, right
+                if (
+                    not isinstance(conv_left, (int, float))
+                    or not isinstance(conv_right, (int, float))
+                    or not (math.isfinite(conv_left) and math.isfinite(conv_right))
+                ):
+                    return UNKNOWN
+                held = (
+                    conv_left < conv_right
+                    if isinstance(op, ast.Lt)
+                    else conv_left <= conv_right
+                    if isinstance(op, ast.LtE)
+                    else conv_left > conv_right
+                    if isinstance(op, ast.Gt)
+                    else conv_left >= conv_right
+                )
+            elif isinstance(op, ast.Eq):
                 held = left == right
             elif isinstance(op, ast.NotEq):
                 held = left != right
-            elif isinstance(op, ast.Lt):
-                held = left < right
-            elif isinstance(op, ast.LtE):
-                held = left <= right
-            elif isinstance(op, ast.Gt):
-                held = left > right
-            elif isinstance(op, ast.GtE):
-                held = left >= right
             else:
                 raise UnsupportedConstructError(f"Unsupported comparison: {type(op).__name__}")
             if not held:
@@ -1263,28 +1411,15 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
                 f"Keyword arguments are unsupported: {ast.unparse(node)!r}"
             )
         if name == PRESENCE_CALL:
-            # Asked before the argument is evaluated, and answered without raising: a signal the
-            # record does not carry is exactly what this atom is for, and resolving the name
-            # first would turn "absent" into a NameError.
             if len(node.args) != 1 or not isinstance(node.args[0], ast.Name):
                 raise UnsupportedConstructError(
                     f"{PRESENCE_CALL}() takes one signal name: {ast.unparse(node)!r}"
                 )
             return is_present(env.get(node.args[0].id))
         if name == CONTAINS_CALL:
-            # Read the same way `present()` is: the argument names a field of the record, so it is
-            # fetched rather than resolved, and a record that carries no such field is answered
-            # rather than turned into a NameError.
             signal, phrase = contains_arguments(node)
             return contains_literal(env.get(signal), phrase)
         if name == COUNTERFACTUAL_CALL:
-            # Refused rather than answered, and this is the load-bearing refusal of the whole
-            # fragment. This interpreter is handed one decision record, and one record is what
-            # happened; the atom asks what would have happened had one input differed. Every
-            # engine that reads a trace — the record engine, the observed monitor, the replay
-            # search's own property check — evaluates through here, so refusing at this one place
-            # is what makes "no engine answers a counterfactual off a decision log" a fact about
-            # the code rather than a convention `report._engine_ladder` is trusted to keep.
             outcome, protected = counterfactual_arguments(node)
             raise UnsupportedConstructError(
                 f"{COUNTERFACTUAL_CALL}({outcome}, {protected}) cannot be evaluated against a "
@@ -1295,11 +1430,6 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
                 "replaying a paired input — never read off a log"
             )
         if name == UNDETERMINED_CALL:
-            # Refused rather than answered, and for the same reason the counterfactual atom is: this
-            # interpreter is what every trace-reading engine evaluates through, so refusing here is
-            # what makes "no engine settles an open-textured predicate" a fact about the code rather
-            # than a convention `report._engine_ladder` is trusted to keep. Answering `False` would
-            # report a system violated on a predicate nobody applied, and `True` would clear it.
             signal, predicate, authority = undetermined_arguments(node)
             raise UnsupportedConstructError(
                 f"{UNDETERMINED_CALL}({signal}, {predicate!r}, {authority!r}) is a predicate the "
@@ -1308,11 +1438,6 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
                 "that rather than guessing"
             )
         if name == DEGREE_CALL:
-            # Refused here too, and the refusal is what keeps a two-valued engine from reading a
-            # graded atom as a flag. A degree is read only by `manyvalued.degree_of`, over an
-            # algebra a pack declared and against a grading a caller supplied; neither exists in
-            # this interpreter's environment, and inventing a truthiness for the atom would let the
-            # record engine answer a graded duty off a log.
             signal, predicate = degree_arguments(node)
             raise UnsupportedConstructError(
                 f"{DEGREE_CALL}({signal}, {predicate!r}) has a truth degree and not a truth value. "
@@ -1323,23 +1448,24 @@ def eval_expression(node: ast.AST, env: dict[str, Any]) -> Any:
         args = [eval_expression(arg, env) for arg in node.args]
         if name in ("implies", "Implies"):
             _require_arity(name, args, 2)
-            return _implies(args[0], args[1])
+            return kleene_implies(args[0], args[1])
         if name == EQUIVALENCE_CALL:
-            # Equality of truth values, which over the Booleans is what `<=>` always meant: the
-            # rewriter used to emit `==` and this is the same function of the same two operands.
-            # `bool()` on each side is what the old `==` did not do, and is why a number under an
-            # equivalence is refused a rung earlier by `expression_kind` rather than quietly
-            # compared here.
             _require_arity(name, args, 2)
-            return bool(args[0]) == bool(args[1])
+            return kleene_iff(args[0], args[1])
         if name == "abs":
             _require_arity(name, args, 1)
+            if is_unknown(args[0]):
+                return UNKNOWN
             return abs(args[0])
         if name == "min":
             _require_arity(name, args, 2)
+            if is_unknown(args[0]) or is_unknown(args[1]):
+                return UNKNOWN
             return min(args[0], args[1])
         if name == "max":
             _require_arity(name, args, 2)
+            if is_unknown(args[0]) or is_unknown(args[1]):
+                return UNKNOWN
             return max(args[0], args[1])
         raise UnsupportedConstructError(f"Unsupported function call: {ast.unparse(node)!r}")
 
@@ -1379,3 +1505,100 @@ def execute_statements(stmts: list[ast.stmt], env: dict[str, Any]) -> None:
             raise UnsupportedConstructError(
                 f"Unsupported rule statement type: {type(stmt).__name__}"
             )
+
+
+def eval_temporal_trace(node: ast.AST, records: list[dict[str, Any]]) -> list[Any]:
+    """Evaluate a temporal or state property AST over a finite trace of decision records
+
+    under Kleene 3-valued logic.
+    Returns a list of 3-valued truth values `[b_0, b_1, ..., b_{N-1}]`, where each `b_i` is
+    `True`, `False`, or `UNKNOWN`. The trace verdict is `b_0` for temporal properties or
+    `kleene_and(b)` for state properties.
+    """
+    if isinstance(node, ast.Expression):
+        return eval_temporal_trace(node.body, records)
+
+    if not has_temporal_operator(node):
+        return [kleene_value(eval_expression(node, r)) for r in records]
+
+    n = len(records)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        sub = eval_temporal_trace(node.operand, records)
+        return [kleene_not(b) for b in sub]
+
+    if isinstance(node, ast.BoolOp):
+        subs = [eval_temporal_trace(v, records) for v in node.values]
+        if isinstance(node.op, ast.And):
+            return [kleene_and([s[i] for s in subs]) for i in range(n)]
+        if isinstance(node.op, ast.Or):
+            return [kleene_or([s[i] for s in subs]) for i in range(n)]
+        raise UnsupportedConstructError(f"Unsupported boolean operator: {type(node.op).__name__}")
+
+    if isinstance(node, ast.Call):
+        name = node.func.id if isinstance(node.func, ast.Name) else ""
+        if name in IMPLICATION_CALLS:
+            left = eval_temporal_trace(node.args[0], records)
+            right = eval_temporal_trace(node.args[1], records)
+            return [kleene_implies(left[i], right[i]) for i in range(n)]
+        if name == EQUIVALENCE_CALL:
+            left = eval_temporal_trace(node.args[0], records)
+            right = eval_temporal_trace(node.args[1], records)
+            return [kleene_iff(left[i], right[i]) for i in range(n)]
+        if name in TEMPORAL_OPERATORS:
+            if name == "always":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [kleene_and(sub[i:n]) for i in range(n)]
+            if name == "eventually":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [kleene_or(sub[i:n]) for i in range(n)]
+            if name == "historically":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [kleene_and(sub[0 : i + 1]) for i in range(n)]
+            if name == "once":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [kleene_or(sub[0 : i + 1]) for i in range(n)]
+            if name == "next":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [sub[i + 1] if i + 1 < n else True for i in range(n)]
+            if name == "prev":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [sub[i - 1] if i > 0 else True for i in range(n)]
+            if name == "rise":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [
+                    sub[0]
+                    if i == 0
+                    else kleene_and_binary(sub[i], kleene_not(sub[i - 1]))
+                    for i in range(n)
+                ]
+            if name == "fall":
+                sub = eval_temporal_trace(node.args[0], records)
+                return [
+                    kleene_not(sub[0])
+                    if i == 0
+                    else kleene_and_binary(kleene_not(sub[i]), sub[i - 1])
+                    for i in range(n)
+                ]
+            if name == "until":
+                left = eval_temporal_trace(node.args[0], records)
+                right = eval_temporal_trace(node.args[1], records)
+                return [
+                    kleene_or([
+                        kleene_and_binary(right[j], kleene_and(left[i:j]))
+                        for j in range(i, n)
+                    ])
+                    for i in range(n)
+                ]
+            if name == "since":
+                left = eval_temporal_trace(node.args[0], records)
+                right = eval_temporal_trace(node.args[1], records)
+                return [
+                    kleene_or([
+                        kleene_and_binary(right[j], kleene_and(left[j + 1 : i + 1]))
+                        for j in range(0, i + 1)
+                    ])
+                    for i in range(n)
+                ]
+
+    raise UnsupportedConstructError(f"Unsupported temporal construct: {ast.unparse(node)!r}")
+

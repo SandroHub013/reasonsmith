@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1203 506" width="1203" height="506" role="img" class="rs-fig" aria-label="Decision APP-1042: the notice stated 1 reason, the decision's own inference used 5, and the system's answer did not depend on 4 of them.">
+  <style>
+
+    .rs-fig {
+      --paper: #f6f5f2; --surface: #fdfdfb; --ink: #23272e; --muted: #5b616b;
+      --line: #dcdbd4; --ok: #1c6647; --ok-soft: #e6f2eb; --ok-line: #a9d2be;
+      --accent: #ac2318; --accent-soft: #fbe9e7; --accent-line: #e6b0a9;
+      --band: #23272e; --band-ink: #fdfdfb; --band-faint: #9aa1ab;
+    }
+    @media screen and (prefers-color-scheme: dark) {
+      .rs-fig {
+        --paper: #1b1d22; --surface: #24272d; --ink: #e8e7e3; --muted: #a3a9b3;
+        --line: #383c44; --ok: #6dbd93; --ok-soft: #1d3128; --ok-line: #2f5a45;
+        --accent: #f0867c; --accent-soft: #38211f; --accent-line: #6a3730;
+        --band: #14161a; --band-ink: #f2f1ed; --band-faint: #8d949e;
+      }
+    }
+
+    .rs-fig text { font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .rs-fig-bg { fill: var(--paper); }
+    .rs-fig-title { fill: var(--ink); font-size: 19px; font-weight: 700; }
+    .rs-fig-sub { fill: var(--muted); font-size: 13px; }
+    .rs-fig-panel { fill: var(--surface); stroke: var(--line); }
+    .rs-fig-panel-head { fill: var(--band); }
+    .rs-fig-panel-title { fill: var(--band-ink); font-size: 11.5px; font-weight: 700;
+      letter-spacing: 0.08em; }
+    .rs-fig-panel-count { fill: var(--band-faint); font-size: 11.5px; }
+    .rs-fig-label { fill: var(--ink); font-size: 12.0px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .rs-fig-tag { font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .rs-fig-live rect { fill: var(--ok-soft); stroke: var(--ok-line); }
+    .rs-fig-live .rs-fig-tag { fill: var(--ok); }
+    .rs-fig-del rect { fill: var(--accent-soft); stroke: var(--accent-line); }
+    .rs-fig-del .rs-fig-tag { fill: var(--accent); }
+    .rs-fig-del .rs-fig-label { fill: var(--muted); }
+    .rs-fig-gap rect { fill: none; stroke: var(--line); stroke-dasharray: 4 4; }
+    .rs-fig-gap .rs-fig-tag { fill: var(--muted); font-weight: 400; }
+    .rs-fig-strike { stroke: var(--accent); stroke-width: 1.8; }
+    .rs-fig-v-ok rect { fill: var(--ok-soft); stroke: var(--ok-line); }
+    .rs-fig-v-ok .rs-fig-vverdict { fill: var(--ok); }
+    .rs-fig-v-bad rect { fill: var(--accent-soft); stroke: var(--accent-line); }
+    .rs-fig-v-bad .rs-fig-vverdict { fill: var(--accent); }
+    .rs-fig-vhead { fill: var(--muted); font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .rs-fig-vverdict { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+    .rs-fig-vrung { fill: var(--muted); font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .rs-fig-caption { fill: var(--ink); font-size: 12.5px; }
+    .rs-fig-caption tspan.em { font-weight: 700; }
+  </style>
+  <rect class="rs-fig-bg" x="0" y="0" width="1203" height="506"/>
+  <text class="rs-fig-title" x="26" y="46">One declined credit application, decision APP-1042</text>
+  <text class="rs-fig-sub" x="26" y="70">The reasons the adverse-action notice gave the applicant, beside the reasons the decision&#8217;s own inference used. reasonsmith re-ran that inference and switched each</text>
+  <text class="rs-fig-sub" x="26" y="88">reason off in turn: <tspan font-weight="700">4</tspan> of the 5 are reasons the system&#8217;s answer did not depend on. Nothing here was read from the decision log &#8212; the log records nothing missing.</text>
+
+  <rect class="rs-fig-panel" x="26.0" y="116.0" width="564.4" height="240.0" rx="7"/>
+  <path class="rs-fig-panel-head" d="M26.0 123.0a7 7 0 0 1 7 -7h550.4a7 7 0 0 1 7 7v19.0h-564.4z"/>
+  <text class="rs-fig-panel-title" x="42.0" y="133.5">WHAT THE APPLICANT WAS TOLD</text>
+  <text class="rs-fig-panel-count" x="574.4" y="133.5" text-anchor="end">1 of 5 reasons</text>
+
+  <rect class="rs-fig-panel" x="612.4" y="116.0" width="564.4" height="240.0" rx="7"/>
+  <path class="rs-fig-panel-head" d="M612.4 123.0a7 7 0 0 1 7 -7h550.4a7 7 0 0 1 7 7v19.0h-564.4z"/>
+  <text class="rs-fig-panel-title" x="628.4" y="133.5">WHAT THE DECISION ACTUALLY USED</text>
+  <text class="rs-fig-panel-count" x="1160.8" y="133.5" text-anchor="end">5 reasons, 4 struck</text>
+
+    <g class="rs-fig-chip rs-fig-live">
+      <rect x="42.0" y="158.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="177.5">stated</text>
+      <text class="rs-fig-label" x="120.0" y="177.5">C01 — Income insufficient for amount of credit requested</text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-live">
+      <rect x="628.4" y="158.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="177.5">stated</text>
+      <text class="rs-fig-label" x="706.4" y="177.5">C01 — Income insufficient for amount of credit requested</text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-gap">
+      <rect x="42.0" y="196.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="215.5">not stated</text>
+      <text class="rs-fig-label" x="120.0" y="215.5"></text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-del">
+      <rect x="628.4" y="196.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="215.5">deleted</text>
+      <text class="rs-fig-label" x="706.4" y="215.5">C05 — Insufficient number of credit references provided</text>
+      <line class="rs-fig-strike" x1="698.4" y1="211.0" x2="1109.5" y2="211.0"/>
+    </g>
+    <g class="rs-fig-chip rs-fig-gap">
+      <rect x="42.0" y="234.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="253.5">not stated</text>
+      <text class="rs-fig-label" x="120.0" y="253.5"></text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-del">
+      <rect x="628.4" y="234.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="253.5">deleted</text>
+      <text class="rs-fig-label" x="706.4" y="253.5">C03 — Delinquent past or present credit obligations</text>
+      <line class="rs-fig-strike" x1="698.4" y1="249.0" x2="1080.6" y2="249.0"/>
+    </g>
+    <g class="rs-fig-chip rs-fig-gap">
+      <rect x="42.0" y="272.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="291.5">not stated</text>
+      <text class="rs-fig-label" x="120.0" y="291.5"></text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-del">
+      <rect x="628.4" y="272.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="291.5">deleted</text>
+      <text class="rs-fig-label" x="706.4" y="291.5">C04 — Too many recent inquiries on credit bureau report</text>
+      <line class="rs-fig-strike" x1="698.4" y1="287.0" x2="1109.5" y2="287.0"/>
+    </g>
+    <g class="rs-fig-chip rs-fig-gap">
+      <rect x="42.0" y="310.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="329.5">not stated</text>
+      <text class="rs-fig-label" x="120.0" y="329.5"></text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-del">
+      <rect x="628.4" y="310.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="329.5">deleted</text>
+      <text class="rs-fig-label" x="706.4" y="329.5">C02 — Length of time credit has been established is too short</text>
+      <line class="rs-fig-strike" x1="698.4" y1="325.0" x2="1150.8" y2="325.0"/>
+    </g>
+    <g class="rs-fig-verdict rs-fig-v-ok">
+      <rect x="26.0" y="382.0" width="564.4" height="62" rx="6"/>
+      <text class="rs-fig-vhead" x="40.0" y="405.0">the notice&#8217;s form &#183; ecoa_reg_b_1002_9_b_2_specific_reasons</text>
+      <text class="rs-fig-vverdict" x="40.0" y="428.0">&#10003; SATISFIED</text>
+      <text class="rs-fig-vrung" x="576.4" y="428.0" text-anchor="end">evidence: observed</text>
+    </g>
+    <g class="rs-fig-verdict rs-fig-v-bad">
+      <rect x="612.4" y="382.0" width="564.4" height="62" rx="6"/>
+      <text class="rs-fig-vhead" x="626.4" y="405.0">the notice&#8217;s content &#183; ecoa_reg_b_1002_9_b_2_principal_reasons_complete</text>
+      <text class="rs-fig-vverdict" x="626.4" y="428.0">&#10007; VIOLATED</text>
+      <text class="rs-fig-vrung" x="1162.8" y="428.0" text-anchor="end">evidence: probed</text>
+    </g>
+  <text class="rs-fig-caption" x="26" y="470.0"><tspan class="em">Both duties are 12 CFR 1002.9(b)(2), on this same decision.</tspan> A checker that reads the notice&#8217;s form alone reports it compliant &#8212; and launders that gap into a document that reads as authoritative.</text>
+</svg>

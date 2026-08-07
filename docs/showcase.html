@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reasonsmith Conformance Report - TruncatingCreditSystem</title>
+  <style>
+    :root {
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      /* ponytail: a system serif, not Newsreader as on the landing page — the report
+         stays self-contained (one inlined woff2 would cost ~130KB for every CLI report).
+         Upgrade path: subset Newsreader + data URI if the identity demands it. */
+      --font-serif: Georgia, "Times New Roman", serif;
+
+      /* Dossier palette: tinted neutrals in oklch, one accent (deletion red), color by role.
+         Every colour is a token here so the dark block below is a second set of values,
+         not a second stylesheet. Two rules keep both schemes legible:
+         solid chips pair var(--ink)/var(--ok)/var(--warn) with var(--paper), which inverts
+         with the scheme; and the report header keeps its own --band/--band-ink pair,
+         because it is a dark band in both schemes rather than an inversion of the page. */
+      --paper: oklch(96.6% 0.005 95);
+      --surface: oklch(99.2% 0.003 95);
+      --ink: oklch(24% 0.012 260);
+      --ink-muted: oklch(45% 0.012 260);
+      --ink-faint: oklch(56% 0.01 260);
+      --line: oklch(88% 0.007 260);
+      --line-strong: oklch(72% 0.01 260);
+      --neutral-soft: oklch(95.5% 0.005 260);
+      --band: oklch(24% 0.012 260);
+      --band-ink: oklch(99.2% 0.003 95);
+      --band-faint: oklch(72% 0.012 260);
+      --band-line: oklch(42% 0.012 260);
+      --band-accent: oklch(80% 0.06 25);
+
+      --accent: oklch(50% 0.19 25);
+      --accent-deep: oklch(38% 0.14 25);
+      --accent-soft: oklch(94.5% 0.025 25);
+      --accent-line: oklch(80% 0.07 25);
+
+      --ok: oklch(44% 0.11 155);
+      --ok-soft: oklch(94.5% 0.03 155);
+      --ok-line: oklch(82% 0.06 155);
+
+      --warn: oklch(45% 0.1 75);
+      --warn-soft: oklch(95.5% 0.03 90);
+      --warn-line: oklch(84% 0.06 90);
+
+      /* Fluid type, ratio 1.25 */
+      --step--1: clamp(0.80rem, 0.77rem + 0.15vw, 0.90rem);
+      --step-0: clamp(1.00rem, 0.95rem + 0.25vw, 1.13rem);
+      --step-1: clamp(1.25rem, 1.15rem + 0.5vw, 1.55rem);
+      --step-2: clamp(1.55rem, 1.35rem + 1vw, 2.10rem);
+      --display: clamp(2.2rem, 1.5rem + 3.4vw, 3.6rem);
+
+      --space-2xs: 0.5rem;
+      --space-xs: 0.75rem;
+      --space-s: 1rem;
+      --space-m: 1.5rem;
+      --space-l: 2.5rem;
+
+      --dur-fast: 0.18s;
+      --dur-base: 0.4s;
+      --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+      --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
+
+      --radius: 6px;
+    }
+
+    /* Dark scheme. Scoped to `screen` on purpose: the @media print block below assumes the
+       light tokens, so a dark OS setting must not follow the page onto paper. */
+    @media screen and (prefers-color-scheme: dark) {
+      :root {
+        --paper: oklch(18% 0.008 260);
+        --surface: oklch(22.5% 0.009 260);
+        --ink: oklch(93% 0.006 95);
+        --ink-muted: oklch(76% 0.008 260);
+        --ink-faint: oklch(64% 0.008 260);
+        --line: oklch(32% 0.01 260);
+        --line-strong: oklch(45% 0.012 260);
+        --neutral-soft: oklch(27% 0.009 260);
+        --band: oklch(13.5% 0.01 260);
+        --band-ink: oklch(95% 0.004 95);
+        --band-faint: oklch(70% 0.012 260);
+        --band-line: oklch(34% 0.012 260);
+        --band-accent: oklch(78% 0.08 25);
+
+        /* Violated red and satisfied green must stay far apart on a dark ground:
+           the foreground pair is 72% L red against 78% L green, and each sits on its
+           own tinted soft ground rather than on the shared page background. */
+        --accent: oklch(66% 0.19 25);
+        --accent-deep: oklch(78% 0.13 25);
+        --accent-soft: oklch(27% 0.055 25);
+        --accent-line: oklch(45% 0.11 25);
+
+        --ok: oklch(78% 0.14 155);
+        --ok-soft: oklch(26% 0.045 155);
+        --ok-line: oklch(44% 0.08 155);
+
+        --warn: oklch(80% 0.12 80);
+        --warn-soft: oklch(27% 0.04 85);
+        --warn-line: oklch(46% 0.07 85);
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--paper);
+      color: var(--ink);
+      line-height: 1.6;
+      font-size: var(--step-0);
+      padding: var(--space-l) var(--space-s);
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      z-index: 10;
+      background: var(--ink);
+      color: var(--paper);
+      font-family: var(--font-mono);
+      font-size: var(--step--1);
+      padding: var(--space-2xs) var(--space-s);
+    }
+    .skip-link:focus { left: var(--space-s); top: var(--space-s); }
+
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      overflow: hidden;
+    }
+
+    .report-header {
+      background: var(--band);
+      color: var(--band-ink);
+      padding: var(--space-l);
+      border-bottom: 4px solid var(--accent);
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-s);
+    }
+    .header-corner {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--band-faint);
+      white-space: nowrap;
+    }
+    .header-corner a { color: var(--band-accent); text-decoration: none; }
+    .header-corner a:hover { text-decoration: underline; }
+    .dossier-foot {
+      margin: 0 var(--space-l) var(--space-m);
+      padding-top: var(--space-s);
+      border-top: 1px solid var(--line);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      color: var(--ink-faint);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-s);
+      flex-wrap: wrap;
+    }
+    .dossier-foot a { color: var(--accent-deep); text-decoration: none; }
+    .dossier-foot a:hover { text-decoration: underline; }
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2xs);
+      font-family: var(--font-mono);
+      font-size: var(--step--1);
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--band-accent);
+      margin-bottom: var(--space-2xs);
+    }
+    .brand-title svg { width: 1.15rem; height: 1.15rem; }
+    .brand-title .mark-live { fill: var(--ok); }
+    .brand-title .mark-strike { fill: var(--accent); }
+    .main-title {
+      font-family: var(--font-serif);
+      font-size: var(--display);
+      font-weight: 600;
+      line-height: 1.0;
+      letter-spacing: -0.025em;
+      text-wrap: balance;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-m);
+      margin-top: var(--space-l);
+      padding-top: var(--space-m);
+      border-top: 1px solid var(--band-line);
+    }
+    .meta-item { display: flex; flex-direction: column; gap: 0.15rem; }
+    .meta-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--band-faint);
+    }
+    .meta-value {
+      font-size: var(--step-0);
+      font-weight: 600;
+      color: var(--band-ink);
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .headline-banner {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-line);
+      border-left: 4px solid var(--accent);
+      padding: var(--space-m) var(--space-l);
+      margin: var(--space-l);
+      border-radius: var(--radius);
+    }
+    .headline-title {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent-deep);
+      margin-bottom: var(--space-2xs);
+    }
+    .notice-banner {
+      background: var(--warn-soft);
+      border-color: var(--warn-line);
+      border-left-color: var(--warn);
+    }
+    .notice-banner .headline-title { color: var(--warn); }
+    .notice-text {
+      font-family: var(--font-serif);
+      font-size: var(--step-0);
+      font-weight: 600;
+      line-height: 1.45;
+      color: var(--warn);
+      max-width: 70ch;
+      text-wrap: pretty;
+    }
+    .headline-text {
+      font-family: var(--font-serif);
+      font-size: var(--step-2);
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.015em;
+      color: var(--accent-deep);
+      max-width: 65ch;
+      text-wrap: pretty;
+    }
+    .provenance-bar {
+      font-size: 0.8rem;
+      color: var(--ink-muted);
+      margin-top: var(--space-xs);
+      padding-top: var(--space-xs);
+      border-top: 1px dashed var(--accent-line);
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dashboard-section {
+      padding: 0 var(--space-l) var(--space-l) var(--space-l);
+    }
+    .split-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-m);
+    }
+    @media (max-width: 768px) {
+      .split-grid { grid-template-columns: 1fr; }
+    }
+    .split-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: var(--space-m);
+      background: var(--surface);
+    }
+    .split-card-header {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: var(--space-xs);
+      padding-bottom: var(--space-2xs);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      color: var(--ink-muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2xs);
+    }
+    .stat-pill {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .text-muted { color: var(--ink-faint); font-size: var(--step--1); }
+
+    .section-title {
+      font-family: var(--font-serif);
+      font-size: var(--step-2);
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      padding: var(--space-m) var(--space-l) var(--space-xs);
+      border-top: 1px solid var(--line);
+      color: var(--ink);
+      text-wrap: balance;
+    }
+    .req-list {
+      padding: var(--space-xs) var(--space-l) var(--space-l);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-m);
+    }
+
+    .req-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+    }
+    .req-card.verdict-violated {
+      border: 1px solid var(--accent-line);
+      border-left: 4px solid var(--accent);
+      background: var(--surface);
+    }
+    .req-card.verdict-unattainable {
+      border: 1px dashed var(--warn-line);
+      border-left: 4px dashed var(--warn);
+      background: var(--surface);
+    }
+    .req-card.verdict-satisfied {
+      border-left: 4px solid var(--ok);
+      background: var(--surface);
+    }
+
+    .req-card-header {
+      padding: var(--space-s) var(--space-m);
+      background: var(--neutral-soft);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: var(--space-s);
+      flex-wrap: wrap;
+    }
+    /* `flex: 1 1 20rem` and not `flex: 1; min-width: 16rem`. With a zero basis and a floor
+       narrower than a requirement identifier, this item was handed less width than its own
+       content between roughly 768px and 1000px — wide enough for the desktop row, too narrow
+       for a long identifier beside three badges — and the identifier overflowed *under* the
+       badges instead of the badges wrapping. The basis is the width below which the row is
+       not worth keeping, so the badge group drops to its own line before anything collides.
+       `overflow-wrap` on the identifier is the backstop: an identifier is one unbreakable
+       token, so at a real phone width no reflow can help and it must be allowed to break. */
+    .req-title-group { flex: 1 1 26rem; min-width: 0; }
+    .req-id {
+      font-size: var(--step-0);
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--ink);
+      letter-spacing: -0.01em;
+      overflow-wrap: anywhere;
+    }
+    .req-clause {
+      font-size: var(--step--1);
+      color: var(--ink-muted);
+      margin-left: var(--space-2xs);
+    }
+    .badge-group {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2xs);
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      white-space: nowrap;
+    }
+    .badge-binding { background: var(--ink); color: var(--paper); }
+    .badge-interpretive {
+      background: var(--surface); color: var(--ink-muted); border: 1px solid var(--line-strong);
+    }
+    .badge-scope {
+      background: var(--neutral-soft); color: var(--ink-muted); border: 1px solid var(--line);
+    }
+
+    .verdict-satisfied {
+      background: var(--ok-soft);
+      color: var(--ok);
+      border: 1px solid var(--ok-line);
+    }
+    .verdict-violated {
+      background: var(--accent-soft);
+      color: var(--accent-deep);
+      border: 1px solid var(--accent-line);
+    }
+    .verdict-unattainable {
+      background: var(--warn-soft);
+      color: var(--warn);
+      border: 1px dashed var(--warn-line);
+    }
+    .verdict-inconclusive {
+      background: var(--neutral-soft);
+      color: var(--ink-muted);
+      border: 1px solid var(--line);
+    }
+    .verdict-not-applicable {
+      background: var(--surface);
+      color: var(--ink-faint);
+      border: 1px solid var(--line);
+    }
+
+    .lattice-container {
+      padding: var(--space-xs) var(--space-m);
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: var(--space-s);
+      flex-wrap: wrap;
+    }
+    .lattice-label {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--ink-faint);
+      white-space: nowrap;
+    }
+    .lattice-track {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      flex-wrap: wrap;
+    }
+    .lattice-step {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      color: var(--ink-faint);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      font-variant-numeric: tabular-nums;
+    }
+    .lattice-step.active-proved {
+      background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 700;
+    }
+    .lattice-step.active-probed {
+      background: var(--ok); color: var(--paper); border-color: var(--ok); font-weight: 700;
+    }
+    .lattice-step.active-observed {
+      background: var(--ok); color: var(--paper); border-color: var(--ok); font-weight: 700;
+    }
+    .lattice-step.active-unattainable {
+      background: var(--warn); color: var(--paper); border-color: var(--warn);
+      font-weight: 700; border-style: dashed;
+    }
+    .lattice-step.passed {
+      background: var(--neutral-soft); color: var(--ink-muted); border-color: var(--line-strong);
+    }
+    .lattice-arrow { color: var(--line-strong); font-size: 0.72rem; }
+    /* The basis sentence takes its own line under the track — `flex-basis: 100%` inside the
+       wrapping `.lattice-container` — so it reads as an account of the track and never as one
+       more step on it. Existing tokens only, so both schemes and the print block inherit it. */
+    .lattice-basis {
+      flex-basis: 100%;
+      font-size: 0.78rem;
+      font-style: italic;
+      color: var(--ink-faint);
+    }
+
+    .req-card-body { padding: var(--space-m); }
+    .signal-list { margin-bottom: var(--space-xs); font-size: var(--step--1); }
+    .signal-tag {
+      font-family: var(--font-mono);
+      background: var(--neutral-soft);
+      color: var(--ink-muted);
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      border: 1px solid var(--line);
+      font-size: 0.78rem;
+      display: inline-block;
+      margin: 0.1rem;
+    }
+    .signal-tag.missing {
+      background: var(--warn-soft); color: var(--warn); border-color: var(--warn-line);
+      font-weight: 600;
+    }
+    .signal-tag.absent {
+      background: var(--accent-soft); color: var(--accent-deep); border-color: var(--accent-line);
+      font-weight: 600;
+    }
+
+    .evidence-summary {
+      font-size: var(--step--1);
+      color: var(--ink-muted);
+      margin-top: var(--space-2xs);
+      line-height: 1.6;
+      max-width: 75ch;
+      text-wrap: pretty;
+    }
+    .callout-box {
+      margin-top: var(--space-s);
+      padding: var(--space-s);
+      border-radius: var(--radius);
+      font-size: var(--step--1);
+    }
+    .callout-unattainable {
+      background: var(--warn-soft); border: 1px dashed var(--warn-line); color: var(--warn);
+    }
+    .callout-violated {
+      background: var(--accent-soft); border: 1px solid var(--accent-line);
+      color: var(--accent-deep);
+    }
+    .callout-probe {
+      background: var(--neutral-soft); border: 1px solid var(--line-strong); color: var(--ink);
+    }
+    .callout-note { font-size: 0.78rem; margin-top: var(--space-2xs); font-style: italic; }
+
+    .witness-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: var(--space-xs);
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+    .witness-table th, .witness-table td {
+      border: 1px solid var(--accent-line);
+      padding: 0.4rem 0.6rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .witness-table th {
+      background: var(--surface);
+      color: var(--accent-deep);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.72rem;
+    }
+    .witness-table tr:nth-child(even) { background: var(--surface); }
+
+    .limits-card {
+      margin: var(--space-l);
+      margin-top: 0;
+      padding: var(--space-m);
+      background: var(--neutral-soft);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+    .limits-header {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--ink-muted);
+      margin-bottom: var(--space-2xs);
+    }
+    .limits-text {
+      font-size: var(--step--1);
+      color: var(--ink-muted);
+      line-height: 1.7;
+      max-width: 85ch;
+      text-wrap: pretty;
+    }
+
+    .reveal { opacity: 0; transform: translateY(16px); }
+    .reveal.in {
+      opacity: 1;
+      transform: none;
+      transition: opacity var(--dur-base) var(--ease-out),
+        transform var(--dur-base) var(--ease-out);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; }
+    }
+
+    @media print {
+      body { background: #ffffff; padding: 0; }
+      .container { border: none; max-width: 100%; }
+      .reveal { opacity: 1 !important; transform: none !important; }
+      .report-header {
+        background: oklch(24% 0.012 260) !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .req-card { break-inside: avoid; border: 1px solid oklch(30% 0.012 260) !important; }
+      .req-card.verdict-violated { border-left: 4px solid oklch(50% 0.19 25) !important; }
+      .req-card.verdict-unattainable { border-left: 4px dashed oklch(45% 0.1 75) !important; }
+      .witness-table th, .witness-table td { border-color: oklch(50% 0.07 25) !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#findings">Skip to requirement findings</a>
+  <div class="container" id="top">
+    <header class="report-header">
+      <div class="header-top">
+        <div>
+          <div class="brand-title">
+            <svg viewBox="0 0 64 64" aria-hidden="true">
+              <g stroke="currentColor" stroke-opacity="0.35" stroke-width="1.5">
+                <line x1="10" y1="47" x2="32" y2="17"/><line x1="21" y1="47" x2="32" y2="17"/>
+                <line x1="32" y1="47" x2="32" y2="17"/><line x1="43" y1="47" x2="32" y2="17"/>
+                <line x1="54" y1="47" x2="32" y2="17"/>
+              </g>
+              <circle cx="32" cy="15" r="6.5" fill="currentColor"/>
+              <circle cx="10" cy="47" r="5" class="mark-live"/>
+              <circle cx="21" cy="47" r="5" fill="currentColor"/>
+              <circle cx="32" cy="47" r="5" fill="currentColor"/>
+              <circle cx="43" cy="47" r="5" fill="currentColor"/>
+              <circle cx="54" cy="47" r="5" fill="currentColor"/>
+              <rect x="15" y="44.8" width="45" height="4.4" rx="1.2" class="mark-strike"
+                transform="rotate(-3 37.5 47)"/>
+            </svg>
+            reasonsmith audit engine
+          </div>
+          <h1 class="main-title">Conformance Report</h1>
+        </div>
+        <span class="header-corner">
+          <a href="index.html">&larr; landing</a> &middot; audit dossier
+        </span>
+      </div>
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span class="meta-label">System under test</span>
+          <span class="meta-value">TruncatingCreditSystem</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Declared Scope</span>
+          <span class="meta-value">undeclared</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Declared Domains</span>
+          <span class="meta-value">consumer-credit</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Regulation Pack</span>
+          <span class="meta-value">ecoa</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="headline-banner">
+      <div class="headline-title">Executive Headline Summary</div>
+      <div class="headline-text">6 requirements · 6 binding: 3 observed, 1 violated, 1 not evaluated, 1 unattainable</div>
+      <div class="provenance-bar"><strong>Report Provenance:</strong> Generated without an identified source commit. Command: <code>python docs/build_showcase.py</code>. Re-running that command in any checkout of this repository rewrites this page and both figures identically; test_docs_showcase_matches_the_builder fails if it does not. No commit hash is named because a page committed into the repository it describes cannot name the commit that carries it: that commit does not exist while the page is being rendered.</div>
+    </div>
+
+    
+
+    
+    <section class="limits-card">
+      <h3 class="limits-header">What reasonsmith found</h3>
+      <p class="limits-text">A credit system declined application
+      <code>APP-1042</code> and stated <strong>one</strong> reason. Its
+      own inference used <strong>5</strong>. reasonsmith re-ran that inference,
+      switched each reason off in turn, and named the <strong>4</strong> the system&rsquo;s
+      answer did not depend on and its notice never stated &mdash; without reading anything the
+      decision log says is missing, because the log records nothing missing.</p>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1203 506" width="1203" height="506" role="img" class="rs-fig" aria-label="Decision APP-1042: the notice stated 1 reason, the decision's own inference used 5, and the system's answer did not depend on 4 of them.">
+  <style>
+
+    .rs-fig {
+      --paper: #f6f5f2; --surface: #fdfdfb; --ink: #23272e; --muted: #5b616b;
+      --line: #dcdbd4; --ok: #1c6647; --ok-soft: #e6f2eb; --ok-line: #a9d2be;
+      --accent: #ac2318; --accent-soft: #fbe9e7; --accent-line: #e6b0a9;
+      --band: #23272e; --band-ink: #fdfdfb; --band-faint: #9aa1ab;
+    }
+    @media screen and (prefers-color-scheme: dark) {
+      .rs-fig {
+        --paper: #1b1d22; --surface: #24272d; --ink: #e8e7e3; --muted: #a3a9b3;
+        --line: #383c44; --ok: #6dbd93; --ok-soft: #1d3128; --ok-line: #2f5a45;
+        --accent: #f0867c; --accent-soft: #38211f; --accent-line: #6a3730;
+        --band: #14161a; --band-ink: #f2f1ed; --band-faint: #8d949e;
+      }
+    }
+
+    .rs-fig text { font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .rs-fig-bg { fill: var(--paper); }
+    .rs-fig-title { fill: var(--ink); font-size: 19px; font-weight: 700; }
+    .rs-fig-sub { fill: var(--muted); font-size: 13px; }
+    .rs-fig-panel { fill: var(--surface); stroke: var(--line); }
+    .rs-fig-panel-head { fill: var(--band); }
+    .rs-fig-panel-title { fill: var(--band-ink); font-size: 11.5px; font-weight: 700;
+      letter-spacing: 0.08em; }
+    .rs-fig-panel-count { fill: var(--band-faint); font-size: 11.5px; }
+    .rs-fig-label { fill: var(--ink); font-size: 12.0px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .rs-fig-tag { font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .rs-fig-live rect { fill: var(--ok-soft); stroke: var(--ok-line); }
+    .rs-fig-live .rs-fig-tag { fill: var(--ok); }
+    .rs-fig-del rect { fill: var(--accent-soft); stroke: var(--accent-line); }
+    .rs-fig-del .rs-fig-tag { fill: var(--accent); }
+    .rs-fig-del .rs-fig-label { fill: var(--muted); }
+    .rs-fig-gap rect { fill: none; stroke: var(--line); stroke-dasharray: 4 4; }
+    .rs-fig-gap .rs-fig-tag { fill: var(--muted); font-weight: 400; }
+    .rs-fig-strike { stroke: var(--accent); stroke-width: 1.8; }
+    .rs-fig-v-ok rect { fill: var(--ok-soft); stroke: var(--ok-line); }
+    .rs-fig-v-ok .rs-fig-vverdict { fill: var(--ok); }
+    .rs-fig-v-bad rect { fill: var(--accent-soft); stroke: var(--accent-line); }
+    .rs-fig-v-bad .rs-fig-vverdict { fill: var(--accent); }
+    .rs-fig-vhead { fill: var(--muted); font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .rs-fig-vverdict { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+    .rs-fig-vrung { fill: var(--muted); font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .rs-fig-caption { fill: var(--ink); font-size: 12.5px; }
+    .rs-fig-caption tspan.em { font-weight: 700; }
+  </style>
+  <rect class="rs-fig-bg" x="0" y="0" width="1203" height="506"/>
+  <text class="rs-fig-title" x="26" y="46">One declined credit application, decision APP-1042</text>
+  <text class="rs-fig-sub" x="26" y="70">The reasons the adverse-action notice gave the applicant, beside the reasons the decision&#8217;s own inference used. reasonsmith re-ran that inference and switched each</text>
+  <text class="rs-fig-sub" x="26" y="88">reason off in turn: <tspan font-weight="700">4</tspan> of the 5 are reasons the system&#8217;s answer did not depend on. Nothing here was read from the decision log &#8212; the log records nothing missing.</text>
+
+  <rect class="rs-fig-panel" x="26.0" y="116.0" width="564.4" height="240.0" rx="7"/>
+  <path class="rs-fig-panel-head" d="M26.0 123.0a7 7 0 0 1 7 -7h550.4a7 7 0 0 1 7 7v19.0h-564.4z"/>
+  <text class="rs-fig-panel-title" x="42.0" y="133.5">WHAT THE APPLICANT WAS TOLD</text>
+  <text class="rs-fig-panel-count" x="574.4" y="133.5" text-anchor="end">1 of 5 reasons</text>
+
+  <rect class="rs-fig-panel" x="612.4" y="116.0" width="564.4" height="240.0" rx="7"/>
+  <path class="rs-fig-panel-head" d="M612.4 123.0a7 7 0 0 1 7 -7h550.4a7 7 0 0 1 7 7v19.0h-564.4z"/>
+  <text class="rs-fig-panel-title" x="628.4" y="133.5">WHAT THE DECISION ACTUALLY USED</text>
+  <text class="rs-fig-panel-count" x="1160.8" y="133.5" text-anchor="end">5 reasons, 4 struck</text>
+
+    <g class="rs-fig-chip rs-fig-live">
+      <rect x="42.0" y="158.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="177.5">stated</text>
+      <text class="rs-fig-label" x="120.0" y="177.5">C01 — Income insufficient for amount of credit requested</text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-live">
+      <rect x="628.4" y="158.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="177.5">stated</text>
+      <text class="rs-fig-label" x="706.4" y="177.5">C01 — Income insufficient for amount of credit requested</text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-gap">
+      <rect x="42.0" y="196.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="215.5">not stated</text>
+      <text class="rs-fig-label" x="120.0" y="215.5"></text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-del">
+      <rect x="628.4" y="196.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="215.5">deleted</text>
+      <text class="rs-fig-label" x="706.4" y="215.5">C05 — Insufficient number of credit references provided</text>
+      <line class="rs-fig-strike" x1="698.4" y1="211.0" x2="1109.5" y2="211.0"/>
+    </g>
+    <g class="rs-fig-chip rs-fig-gap">
+      <rect x="42.0" y="234.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="253.5">not stated</text>
+      <text class="rs-fig-label" x="120.0" y="253.5"></text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-del">
+      <rect x="628.4" y="234.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="253.5">deleted</text>
+      <text class="rs-fig-label" x="706.4" y="253.5">C03 — Delinquent past or present credit obligations</text>
+      <line class="rs-fig-strike" x1="698.4" y1="249.0" x2="1080.6" y2="249.0"/>
+    </g>
+    <g class="rs-fig-chip rs-fig-gap">
+      <rect x="42.0" y="272.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="291.5">not stated</text>
+      <text class="rs-fig-label" x="120.0" y="291.5"></text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-del">
+      <rect x="628.4" y="272.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="291.5">deleted</text>
+      <text class="rs-fig-label" x="706.4" y="291.5">C04 — Too many recent inquiries on credit bureau report</text>
+      <line class="rs-fig-strike" x1="698.4" y1="287.0" x2="1109.5" y2="287.0"/>
+    </g>
+    <g class="rs-fig-chip rs-fig-gap">
+      <rect x="42.0" y="310.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="52.0" y="329.5">not stated</text>
+      <text class="rs-fig-label" x="120.0" y="329.5"></text>
+      
+    </g>
+    <g class="rs-fig-chip rs-fig-del">
+      <rect x="628.4" y="310.0" width="532.4" height="30.0" rx="5"/>
+      <text class="rs-fig-tag" x="638.4" y="329.5">deleted</text>
+      <text class="rs-fig-label" x="706.4" y="329.5">C02 — Length of time credit has been established is too short</text>
+      <line class="rs-fig-strike" x1="698.4" y1="325.0" x2="1150.8" y2="325.0"/>
+    </g>
+    <g class="rs-fig-verdict rs-fig-v-ok">
+      <rect x="26.0" y="382.0" width="564.4" height="62" rx="6"/>
+      <text class="rs-fig-vhead" x="40.0" y="405.0">the notice&#8217;s form &#183; ecoa_reg_b_1002_9_b_2_specific_reasons</text>
+      <text class="rs-fig-vverdict" x="40.0" y="428.0">&#10003; SATISFIED</text>
+      <text class="rs-fig-vrung" x="576.4" y="428.0" text-anchor="end">evidence: observed</text>
+    </g>
+    <g class="rs-fig-verdict rs-fig-v-bad">
+      <rect x="612.4" y="382.0" width="564.4" height="62" rx="6"/>
+      <text class="rs-fig-vhead" x="626.4" y="405.0">the notice&#8217;s content &#183; ecoa_reg_b_1002_9_b_2_principal_reasons_complete</text>
+      <text class="rs-fig-vverdict" x="626.4" y="428.0">&#10007; VIOLATED</text>
+      <text class="rs-fig-vrung" x="1162.8" y="428.0" text-anchor="end">evidence: probed</text>
+    </g>
+  <text class="rs-fig-caption" x="26" y="470.0"><tspan class="em">Both duties are 12 CFR 1002.9(b)(2), on this same decision.</tspan> A checker that reads the notice&#8217;s form alone reports it compliant &#8212; and launders that gap into a document that reads as authoritative.</text>
+</svg>
+
+      <p class="limits-text">The two duties above are the two halves of one clause. 12 CFR
+      1002.9(b)(2) asks that an adverse-action notice carry a statement of reasons and that the
+      reasons it states be the reasons. This repository ships them as two requirements, and on
+      this one decision the first is <strong>satisfied</strong> and the second is
+      <strong>violated</strong>. That is the finding and not an inconsistency: a checker that
+      reads the form alone reports this notice compliant, and launders the gap into a document
+      that reads as authoritative.</p>
+      <h3 class="limits-header">The two commands</h3>
+      <p class="limits-text">Both run against a bare <code>pip install reasonsmith</code>, with no
+      checkout and no data of your own. The recording below is an excerpt of their real stdout,
+      generated by the same script that generated this page; lines it leaves out are counted where
+      they were left out.</p>
+      <div class="rs-showcase-cmds">
+      <code class="rs-showcase-cmd">$ reasonsmith check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa --system-name TruncatingCreditSystem</code>
+      <code class="rs-showcase-cmd">$ reasonsmith check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa --system-name TruncatingCreditSystem --audience affected-individual</code>
+      </div>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1162 536" width="1162" height="536" role="img" class="rs-cast" aria-label="Two reasonsmith commands and the violation they report, as a terminal recording.">
+  <style>
+
+    .rs-cast {
+      --paper: #f6f5f2; --surface: #fdfdfb; --ink: #23272e; --muted: #5b616b;
+      --line: #dcdbd4; --ok: #1c6647; --ok-soft: #e6f2eb; --ok-line: #a9d2be;
+      --accent: #ac2318; --accent-soft: #fbe9e7; --accent-line: #e6b0a9;
+      --band: #23272e; --band-ink: #fdfdfb; --band-faint: #9aa1ab;
+    }
+    @media screen and (prefers-color-scheme: dark) {
+      .rs-cast {
+        --paper: #1b1d22; --surface: #24272d; --ink: #e8e7e3; --muted: #a3a9b3;
+        --line: #383c44; --ok: #6dbd93; --ok-soft: #1d3128; --ok-line: #2f5a45;
+        --accent: #f0867c; --accent-soft: #38211f; --accent-line: #6a3730;
+        --band: #14161a; --band-ink: #f2f1ed; --band-faint: #8d949e;
+      }
+    }
+
+    .rs-cast-bg { fill: var(--band); }
+    .rs-cast-bar { fill: var(--band); stroke: var(--band-faint); stroke-opacity: 0.25; }
+    .rs-cast-title { fill: var(--band-faint); font-size: 11px; letter-spacing: 0.06em;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .rs-cast-row { font-size: 12.0px; fill: var(--band-ink); opacity: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      animation-duration: 8.16s; animation-iteration-count: infinite;
+      animation-timing-function: steps(1, end); }
+    .rs-cast-prompt { fill: #7fd6a8; }
+    .rs-cast-exit { fill: #f0867c; font-weight: 700; }
+    .rs-cast-elision { fill: var(--band-faint); font-style: italic; }
+    @media (prefers-reduced-motion: reduce) {
+      .rs-cast-row { animation: none; opacity: 1; }
+    }
+    @keyframes rs-cast-k0 { 0%, 0.000% { opacity: 0 } 0.400%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k1 { 0%, 1.961% { opacity: 0 } 2.361%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k2 { 0%, 3.922% { opacity: 0 } 4.322%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k3 { 0%, 5.882% { opacity: 0 } 6.282%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k4 { 0%, 7.843% { opacity: 0 } 8.243%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k5 { 0%, 9.804% { opacity: 0 } 10.204%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k6 { 0%, 11.765% { opacity: 0 } 12.165%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k7 { 0%, 13.725% { opacity: 0 } 14.125%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k8 { 0%, 15.686% { opacity: 0 } 16.086%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k9 { 0%, 17.647% { opacity: 0 } 18.047%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k10 { 0%, 19.608% { opacity: 0 } 20.008%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k11 { 0%, 21.569% { opacity: 0 } 21.969%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k12 { 0%, 23.529% { opacity: 0 } 23.929%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k13 { 0%, 25.490% { opacity: 0 } 25.890%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k14 { 0%, 27.451% { opacity: 0 } 27.851%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k15 { 0%, 29.412% { opacity: 0 } 29.812%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k16 { 0%, 31.373% { opacity: 0 } 31.773%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k17 { 0%, 33.333% { opacity: 0 } 33.733%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k18 { 0%, 35.294% { opacity: 0 } 35.694%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k19 { 0%, 37.255% { opacity: 0 } 37.655%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k20 { 0%, 39.216% { opacity: 0 } 39.616%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k21 { 0%, 41.176% { opacity: 0 } 41.576%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k22 { 0%, 43.137% { opacity: 0 } 43.537%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k23 { 0%, 45.098% { opacity: 0 } 45.498%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k24 { 0%, 47.059% { opacity: 0 } 47.459%, 100% { opacity: 1 } }
+    @keyframes rs-cast-k25 { 0%, 49.020% { opacity: 0 } 49.420%, 100% { opacity: 1 } }
+  </style>
+  <rect class="rs-cast-bg" x="0" y="0" width="1162" height="536" rx="8"/>
+  <rect class="rs-cast-bar" x="0.5" y="0.5" width="1161" height="32"/>
+  <circle cx="20" cy="16" r="5" fill="#e06c60"/>
+  <circle cx="38" cy="16" r="5" fill="#d9ae4e"/>
+  <circle cx="56" cy="16" r="5" fill="#6fbf8a"/>
+  <text class="rs-cast-title" x="581" y="20" text-anchor="middle">reasonsmith &#183; excerpt of two real runs</text>
+  <text class="rs-cast-row rs-cast-prompt" style="animation-name: rs-cast-k0" x="18.0" y="63.5" xml:space="preserve">$ reasonsmith check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa --system-name TruncatingCreditSystem</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k1" x="18.0" y="81.5" xml:space="preserve">CONFORMANCE REPORT</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k2" x="18.0" y="99.5" xml:space="preserve">system: TruncatingCreditSystem</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k3" x="18.0" y="117.5" xml:space="preserve">declared scope: undeclared</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k4" x="18.0" y="135.5" xml:space="preserve">declared domains: consumer-credit</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k5" x="18.0" y="153.5" xml:space="preserve">pack: ecoa</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k6" x="18.0" y="171.5" xml:space="preserve">headline: 6 requirements · 6 binding: 3 observed, 1 violated, 1 not evaluated, 1 unattainable</text>
+  <text class="rs-cast-row rs-cast-elision" style="animation-name: rs-cast-k7" x="18.0" y="189.5" xml:space="preserve">  ⋯ 10 line(s) not shown</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k8" x="18.0" y="207.5" xml:space="preserve">  [OBSERVED] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): satisfied</text>
+  <text class="rs-cast-row rs-cast-elision" style="animation-name: rs-cast-k9" x="18.0" y="225.5" xml:space="preserve">  ⋯ 3 line(s) not shown</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k10" x="18.0" y="243.5" xml:space="preserve">  [PROBED] ecoa_reg_b_1002_9_b_2_principal_reasons_complete (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): violated</text>
+  <text class="rs-cast-row rs-cast-elision" style="animation-name: rs-cast-k11" x="18.0" y="261.5" xml:space="preserve">  ⋯ 4 line(s) not shown</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k12" x="18.0" y="279.5" xml:space="preserve">    offending record: decision APP-1042 (step 1)</text>
+  <text class="rs-cast-row rs-cast-elision" style="animation-name: rs-cast-k13" x="18.0" y="297.5" xml:space="preserve">  ⋯ 14 line(s) not shown</text>
+  <text class="rs-cast-row rs-cast-exit" style="animation-name: rs-cast-k14" x="18.0" y="315.5" xml:space="preserve">  [exit status 2]</text>
+  <text class="rs-cast-row rs-cast-blank" style="animation-name: rs-cast-k15" x="18.0" y="333.5" xml:space="preserve"></text>
+  <text class="rs-cast-row rs-cast-prompt" style="animation-name: rs-cast-k16" x="18.0" y="351.5" xml:space="preserve">$ reasonsmith check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa --system-name TruncatingCreditSystem --audience affected-individual</text>
+  <text class="rs-cast-row rs-cast-elision" style="animation-name: rs-cast-k17" x="18.0" y="369.5" xml:space="preserve">  ⋯ 10 line(s) not shown</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k18" x="18.0" y="387.5" xml:space="preserve">WHETHER THOSE WERE ALL THE REASONS</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k19" x="18.0" y="405.5" xml:space="preserve">    4 further reason(s) the system&#x27;s own answer depended on were not stated. Measured by re-running its inference, not inferred from its log:</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k20" x="18.0" y="423.5" xml:space="preserve">    &quot;C05 — Insufficient number of credit references provided&quot;</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k21" x="18.0" y="441.5" xml:space="preserve">    &quot;C03 — Delinquent past or present credit obligations&quot;</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k22" x="18.0" y="459.5" xml:space="preserve">    &quot;C04 — Too many recent inquiries on credit bureau report&quot;</text>
+  <text class="rs-cast-row rs-cast-out" style="animation-name: rs-cast-k23" x="18.0" y="477.5" xml:space="preserve">    &quot;C02 — Length of time credit has been established is too short&quot;</text>
+  <text class="rs-cast-row rs-cast-elision" style="animation-name: rs-cast-k24" x="18.0" y="495.5" xml:space="preserve">  ⋯ 15 line(s) not shown</text>
+  <text class="rs-cast-row rs-cast-exit" style="animation-name: rs-cast-k25" x="18.0" y="513.5" xml:space="preserve">  [exit status 2]</text>
+</svg>
+
+      <p class="limits-text">The full report both commands print &mdash; every requirement, every
+      evidence-strength line and the limits paragraph that travels with them &mdash; is in
+      <code>docs/example-output.md</code>, pasted unedited. The report below on this page is that
+      same run once more, rendered as a page.</p>
+    </section>
+    <style>
+      .rs-showcase-cmds { display: flex; flex-direction: column; gap: var(--space-xs);
+        margin: var(--space-sm) 0; }
+      .rs-showcase-cmd { display: block; overflow-x: auto; white-space: pre; padding: 0.5rem
+        0.7rem; border: 1px solid var(--line); border-radius: var(--radius);
+        background: var(--surface); }
+      .rs-fig, .rs-cast { display: block; width: 100%; height: auto;
+        margin: var(--space-sm) 0; }
+    </style>
+
+
+    <section class="dashboard-section">
+      <div class="split-grid">
+        <div class="split-card">
+          <div class="split-card-header">
+            <span>Binding Duties</span>
+            <span>6 total</span>
+          </div>
+          <div class="pill-group">
+            <span class="stat-pill verdict-satisfied"><span aria-hidden="true">👁</span> 3 observed</span><span class="stat-pill verdict-violated"><span aria-hidden="true">✖</span> 1 violated</span><span class="stat-pill verdict-inconclusive"><span aria-hidden="true">−</span> 1 not evaluated</span><span class="stat-pill verdict-unattainable"><span aria-hidden="true">⊘</span> 1 unattainable</span>
+          </div>
+        </div>
+        <div class="split-card">
+          <div class="split-card-header">
+            <span>Interpretive Items</span>
+            <span>0 total</span>
+          </div>
+          <div class="pill-group">
+            <span class="text-muted">None</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <h2 class="section-title" id="findings">Requirement Findings</h2>
+    <main class="req-list">
+
+        <article class="req-card verdict-satisfied">
+          <header class="req-card-header">
+            <div class="req-title-group">
+              <span class="req-id">ecoa_reg_b_1002_9_a_1_timing_of_notice</span>
+              <span class="req-clause">(ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1))</span>
+            </div>
+            <div class="badge-group">
+              <span class="badge badge-binding">Binding</span>
+              
+              <span class="badge badge-scope">Domain: consumer-credit</span>
+              <span class="badge verdict-satisfied"><span aria-hidden="true">✓</span> SATISFIED</span>
+            </div>
+          </header>
+          <div class="lattice-container">
+            <span class="lattice-label">Strength Lattice:</span>
+            <div class="lattice-track"><span class="lattice-step "><span aria-hidden="true">⊘</span> unattainable</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step active-observed"><span aria-hidden="true">👁</span> observed</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🔍</span> probed</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🏆</span> proved</span></div>
+          </div>
+          <div class="req-card-body">
+            <div class="signal-list">
+              <strong>Requires Signals:</strong> <span class="signal-tag">artifact_logs_decision_record</span><span class="signal-tag">artifact_logs_notification_latency_days</span><span class="signal-tag">artifact_logs_counteroffer_not_accepted</span>
+            </div>
+            <div class="evidence-summary">Observed over 2 decision(s): temporal monitor for &#x27;always(present(artifact_logs_decision_record) -&gt; ((artifact_logs_notification_latency_days &lt;= 30) or ((artifact_logs_counteroffer_not_accepted &gt;= 0.5) and (artifact_logs_notification_latency_days &lt;= 90))))&#x27; satisfied at every decision step.</div>
+            
+          </div>
+        </article>
+
+        <article class="req-card verdict-satisfied">
+          <header class="req-card-header">
+            <div class="req-title-group">
+              <span class="req-id">ecoa_reg_b_1002_9_a_2_written_statement</span>
+              <span class="req-clause">(ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2))</span>
+            </div>
+            <div class="badge-group">
+              <span class="badge badge-binding">Binding</span>
+              
+              <span class="badge badge-scope">Domain: consumer-credit</span>
+              <span class="badge verdict-satisfied"><span aria-hidden="true">✓</span> SATISFIED</span>
+            </div>
+          </header>
+          <div class="lattice-container">
+            <span class="lattice-label">Strength Lattice:</span>
+            <div class="lattice-track"><span class="lattice-step "><span aria-hidden="true">⊘</span> unattainable</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step active-observed"><span aria-hidden="true">👁</span> observed</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🔍</span> probed</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🏆</span> proved</span></div>
+          </div>
+          <div class="req-card-body">
+            <div class="signal-list">
+              <strong>Requires Signals:</strong> <span class="signal-tag">artifact_logs_decision_record</span><span class="signal-tag">provenance_model_version</span>
+            </div>
+            <div class="evidence-summary">Observed over 2 decision(s): temporal monitor for &#x27;always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))&#x27; satisfied at every decision step.</div>
+            
+          </div>
+        </article>
+
+        <article class="req-card verdict-satisfied">
+          <header class="req-card-header">
+            <div class="req-title-group">
+              <span class="req-id">ecoa_reg_b_1002_9_b_2_specific_reasons</span>
+              <span class="req-clause">(ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2))</span>
+            </div>
+            <div class="badge-group">
+              <span class="badge badge-binding">Binding</span>
+              
+              <span class="badge badge-scope">Domain: consumer-credit</span>
+              <span class="badge verdict-satisfied"><span aria-hidden="true">✓</span> SATISFIED</span>
+            </div>
+          </header>
+          <div class="lattice-container">
+            <span class="lattice-label">Strength Lattice:</span>
+            <div class="lattice-track"><span class="lattice-step "><span aria-hidden="true">⊘</span> unattainable</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step active-observed"><span aria-hidden="true">👁</span> observed</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🔍</span> probed</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🏆</span> proved</span></div>
+          </div>
+          <div class="req-card-body">
+            <div class="signal-list">
+              <strong>Requires Signals:</strong> <span class="signal-tag">artifact_logs_reason_explanation</span><span class="signal-tag">provenance_model_version</span><span class="signal-tag">scope_statements_local_vs_global</span>
+            </div>
+            <div class="evidence-summary">Observed over 2 decision(s): state monitor for &#x27;present(artifact_logs_reason_explanation) -&gt; ( present(provenance_model_version) and present(scope_statements_local_vs_global) and not contains(artifact_logs_reason_explanation, &quot;internal standards&quot;) and not contains(artifact_logs_reason_explanation, &quot;internal policies&quot;) and not contains(artifact_logs_reason_explanation, &quot;failed to achieve a qualifying score&quot;))&#x27; satisfied at every decision step.</div>
+            
+          </div>
+        </article>
+
+        <article class="req-card verdict-violated">
+          <header class="req-card-header">
+            <div class="req-title-group">
+              <span class="req-id">ecoa_reg_b_1002_9_b_2_principal_reasons_complete</span>
+              <span class="req-clause">(ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2))</span>
+            </div>
+            <div class="badge-group">
+              <span class="badge badge-binding">Binding</span>
+              
+              <span class="badge badge-scope">Domain: consumer-credit</span>
+              <span class="badge verdict-violated"><span aria-hidden="true">✖</span> VIOLATED</span>
+            </div>
+          </header>
+          <div class="lattice-container">
+            <span class="lattice-label">Strength Lattice:</span>
+            <div class="lattice-track"><span class="lattice-step "><span aria-hidden="true">⊘</span> unattainable</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step passed"><span aria-hidden="true">🗣</span> recounted</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step active-probed"><span aria-hidden="true">🔍</span> probed</span></div><div class="lattice-basis">Evidence basis: artifact — this duty is measured against the inference artefact behind a decision rather than against what the system decided. No trace holds that artefact and the enumeration is exact only on the one artefact it ran over, so the rungs above unattainable are recounted and probed, and neither observed nor proved is reachable however much the system exposes. Which of the two a verdict reaches is a fact about the artefact and not about the search: probed measures a reason set enumerated from a model encoding, recounted measures one the system recounted about its own inference.</div>
+          </div>
+          <div class="req-card-body">
+            <div class="signal-list">
+              <strong>Requires Signals:</strong> <span class="signal-tag">artifact_logs_reason_explanation</span><span class="signal-tag">artifact_logs_deleted_reason_count</span>
+            </div>
+            <div class="evidence-summary">Violated on 1 of 2 certified decision(s): the stated reasons are not all the reasons. On decision #1 exact inference found 5 reason(s) and the deletion probe showed the system&#x27;s answer does not depend on 4 of them — C05 — Insufficient number of credit references provided; C03 — Delinquent past or present credit obligations; C04 — Too many recent inquiries on credit bureau report; C02 — Length of time credit has been established is too short. Attribution: The deleted reasons are exactly the 4 lowest-scoring of the 5, and the engine kept the top 1. This is the signature of top-k proof truncation at k=1: top-k works by discarding proofs, so the dropped reasons are lost by configuration, not by error. The missing probability mass is 0.225799. Measured against the inference artefact the system exposed, not read from its decision log.</div>
+            <div class="callout-box callout-violated"><strong>VIOLATED IN TRACE — Execution Counterexample Witness (all 1 offending record):</strong><table class="witness-table"><thead><tr><th>Trace Step</th><th>Decision Record Witness</th></tr></thead><tbody><tr><td>Step 1</td><td><code>decision_id: APP-1042, artifact_logs_decision_record: adverse action on APP-1042, artifact_logs_reason_explanation: C01 — Income insufficient for amount of credit requested, artifact_logs_notification_latency_days: 12, artifact_logs_counteroffer_not_accepted: 0, provenance_model_version: credit-scoring-2026.03.1 / rules cs-rules-2026.03, scope_statements_local_vs_global: local: reasons for this application only</code></td></tr></tbody></table></div><div class="callout-box callout-probe"><strong>PROBED — What Was Searched:</strong><br>13 input(s) replayed, seed none — the proof enumeration and the deletion probes are deterministic, input space: decisions certified (2 values), decisions whose joint search did not finish (0 values), facts switched off (10 values), joint deletion patterns tried (1 values). Strategy: for each decision the system exposed an inference artefact for, its reasons are enumerated exactly by bounded proof enumeration over the ground program and scored by exact weighted model counting; every fact of a reason that no other reason uses is then switched off alone and the system&#x27;s own engine re-run on the perturbed interpretation. A reason a single deletion moves the engine on is one its answer depends on. A reason no single deletion moves is then put to a second search, because two reasons jointly necessary and individually removable look exactly like two dropped ones: the subset-minimal *joint* deletions the engine notices are enumerated over the remaining facts, and a reason is counted here only where that enumeration ran to exhaustion and met no fact of it. The probe only ever switches a fact off, never on<div class="callout-note">A bounded search, not a proof: the property is unchecked outside the inputs named here.</div></div>
+          </div>
+        </article>
+
+        <article class="req-card verdict-unattainable">
+          <header class="req-card-header">
+            <div class="req-title-group">
+              <span class="req-id">ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out</span>
+              <span class="req-clause">(ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(c)(2))</span>
+            </div>
+            <div class="badge-group">
+              <span class="badge badge-binding">Binding</span>
+              
+              <span class="badge badge-scope">Domain: consumer-credit</span>
+              <span class="badge verdict-unattainable"><span aria-hidden="true">⊘</span> UNATTAINABLE</span>
+            </div>
+          </header>
+          <div class="lattice-container">
+            <span class="lattice-label">Strength Lattice:</span>
+            <div class="lattice-track"><span class="lattice-step active-unattainable"><span aria-hidden="true">⊘</span> unattainable</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">👁</span> observed</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🔍</span> probed</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🏆</span> proved</span></div>
+          </div>
+          <div class="req-card-body">
+            <div class="signal-list">
+              <strong>Requires Signals:</strong> <span class="signal-tag">artifact_logs_incompleteness_notice_sent</span>
+            </div>
+            <div class="evidence-summary">Unattainable as built: the system declares no capability to emit artifact_logs_incompleteness_notice_sent, so no amount of testing can discharge this requirement. Determined from declared capabilities alone; the system was not executed.</div>
+            <div class="callout-box callout-unattainable"><strong>UNATTAINABLE AS BUILT — Missing Capability Signals:</strong><br><span class="signal-tag missing">artifact_logs_incompleteness_notice_sent</span><div class="callout-note">The system declares no capability to emit these signals. No testing trace can satisfy this requirement.</div></div>
+          </div>
+        </article>
+
+        <article class="req-card verdict-inconclusive">
+          <header class="req-card-header">
+            <div class="req-title-group">
+              <span class="req-id">ecoa_reg_b_1002_4_a_no_disparate_treatment</span>
+              <span class="req-clause">(ECOA / Regulation B (12 CFR 1002.4) 12 CFR 1002.4(a))</span>
+            </div>
+            <div class="badge-group">
+              <span class="badge badge-binding">Binding</span>
+              
+              <span class="badge badge-scope">Domain: consumer-credit</span>
+              <span class="badge verdict-inconclusive"><span aria-hidden="true">?</span> INCONCLUSIVE</span>
+            </div>
+          </header>
+          <div class="lattice-container">
+            <span class="lattice-label">Strength Lattice:</span>
+            <div class="lattice-track"><span class="lattice-step "><span aria-hidden="true">⊘</span> unattainable</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🔍</span> probed</span><span class="lattice-arrow">&rarr;</span><span class="lattice-step "><span aria-hidden="true">🏆</span> proved</span></div><div class="lattice-basis">Evidence basis: relational — this duty is a property of a pair of executions, and a decision record holds one. No length of decision log observes it, so the rungs it can reach are probed and proved; a system exposing only a log cannot discharge it, and that is a fact about the kind of property and not about how much the system exposed.</div>
+          </div>
+          <div class="req-card-body">
+            <div class="signal-list">
+              <strong>Requires Signals:</strong> <span class="signal-tag">artifact_logs_decision_record</span><span class="signal-tag">applicant_prohibited_basis</span>
+            </div>
+            <div class="evidence-summary">Not evaluated: the system exposes no decide(), so there is no twin decision to run. A counterfactual is what the system would have decided, and a decision log records only what it did — no trace, however long, establishes one. Limit of this duty: it is invariance under one named variable holding all others fixed, so it is a property of treatment and says nothing about effects. A proxy is invisible to it — a rule set that never reads the protected variable and decides by postcode is satisfied here — and a disparate impact is not a thing it can find. It also reaches exactly one variable: a system answerable on several prohibited bases is answered here about the one this duty names.</div>
+            
+          </div>
+        </article>
+    </main>
+
+    <section class="limits-card">
+      <h3 class="limits-header">Limits of this report</h3>
+      <p class="limits-text">This report is not a compliance guarantee and is not legal advice. It assesses system capability information and trace evidence against formal specifications. Whether these findings discharge legal duties remains a determination this tool does not make and cannot make. A requirement reported without a strength was not evaluated or is not applicable, and no verdict on it should be read from this report. Recital and guidance items inform how statutory duties are interpreted but create no obligation of their own; interpretive requirements are evaluated and reported separately, and are never folded into the binding headline counts. A requirement reported not applicable was excluded on one of two independent gates. Either no regulatory class was declared for the system at all, or the class that was declared is not the one the requirement is limited to; or no decision domain was declared for the system at all, or none of the domains that were declared is one the requirement is about. This tool infers neither the class nor the domain, so an undeclared system is neither placed in scope nor cleared of the duty: read the declared scope and domain lines before reading a not-applicable result. The decision-domain vocabulary is written by the pack author and by no regulation, and a duty declaring no domain reaches every system it is run against.</p>
+    </section>
+    <footer class="dossier-foot">
+      <span>reasonsmith &middot; audit-grade explanations</span>
+      <span><a href="index.html">landing</a> &middot; <a href="#top">top</a></span>
+    </footer>
+  </div>
+  <script>
+    (function () {
+      var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var deleted = document.querySelectorAll(".reason-deleted");
+      if (reduce || !("IntersectionObserver" in window)) {
+        deleted.forEach(function (li) { li.classList.add("struck"); });
+        return;
+      }
+      var blocks = document.querySelectorAll(
+        ".split-card, .req-card, .limits-card"
+      );
+      blocks.forEach(function (el) { el.classList.add("reveal"); });
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          en.target.classList.add("in");
+          io.unobserve(en.target);
+        });
+      }, { rootMargin: "0px 0px -10% 0px" });
+      blocks.forEach(function (el, i) {
+        el.style.transitionDelay = (i % 4) * 60 + "ms";
+        io.observe(el);
+      });
+      var audit = deleted.length ? deleted[0].parentNode : null;
+      if (audit) {
+        var rio = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (!en.isIntersecting) return;
+            deleted.forEach(function (li, i) {
+              setTimeout(function () { li.classList.add("struck"); }, 350 + i * 200);
+            });
+            rio.unobserve(en.target);
+          });
+        }, { threshold: 0.35 });
+        rio.observe(audit);
+      }
+    })();
+  </script>
+</body>
+</html>

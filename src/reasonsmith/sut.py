@@ -102,7 +102,7 @@ from typing import Any, Optional, Protocol, runtime_checkable
 from reasonsmith.spec import Pack, load_pack
 
 #: Section 6.3 top-level taxonomy for capability signals supplied through the SUT protocol
-#: (Stan, Sciavicco & Napoletano, JAIR 2026, Section 6.3, p. 36:24):
+#: (Stan, Sciavicco & Napoletano, JAIR 2026, Section 6.3, p. 36:24 — `[@stan-2026]`):
 #:   - provenance: KB version, constraint set, active exceptions at inference time
 #:   - artifact_logs: extracted rules/trees, constraint-satisfaction traces, proof/plan/KG traces
 #:   - stability_signals: artifact drift over time, perturbation sensitivity, change

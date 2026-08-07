@@ -479,7 +479,18 @@ automaton's alphabet: measured on this tree, a pack-shaped question costs about 
 9 s at five and more than 90 s at six. Every shipped temporal duty is three or four atoms and is
 answered in under a second; every *pair* of them is seven, so all three ECOA pairs are reported
 **not decided either way** rather than cleared. `reasonsmith.ltlf.ATOM_BUDGET` is checked before the
-automaton is built, because there is no wall clock anywhere in this package. Read
+automaton is built, because there is no wall clock anywhere in this package.
+
+> **This block is the `flloat`-era measurement and is retained as the record of it.** The temporal
+> decision procedure is now BLACK, which is SAT-based rather than automaton-based; `ATOM_BUDGET`
+> moved from 6 to 100 on that ground, so the entailment line above — three pairs *not decided
+> either way* at seven atoms — no longer describes what the tool reports. The replacement figures
+> are **not measured here**: BLACK publishes no wheel, it is packaged for Ubuntu 26.04 and this
+> tree is measured on 24.04, and inventing a transcript for a procedure that was never run is
+> exactly what this file exists not to do. Re-measure on a machine with BLACK on `PATH` and
+> replace this block with what it prints.
+
+Read
 [`docs/semantics.md`](docs/semantics.md) §8 before quoting any of this: the reading is
 propositional, so satisfiability is reported only in the affirmative and an entailment it does not
 report is not a distinction any system can make.
@@ -492,3 +503,12 @@ pytest -q && ruff check .
 installed. The count includes the 29 tests of `tests/test_ltlf_backend.py` and supersedes the
 `681 passed` above as the current-suite figure. With the extra *absent* the analysis reports it and
 that module's tests skip, which is the arrangement `pip install reasonsmith` has to keep working.
+
+> **This figure is the `flloat`-era suite record, taken when the `ltlf` extra installed a
+> pure-Python wheel.** The extra now declares no Python dependency and what makes the procedure
+> available is the BLACK binary on `PATH`, so "with the `ltlf` extra installed" no longer names the
+> arrangement it was measured under, and the suite has grown past this count. It is **not
+> re-measured here**, for the reason the temporal block above states: BLACK is absent on this
+> machine, and a suite figure quoted for a configuration that was never run is what this file exists
+> not to do. Run `pytest -q` yourself for the current count, as the note under section 2's table
+> already says.

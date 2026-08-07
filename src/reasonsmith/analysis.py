@@ -11,7 +11,8 @@ What this module is for:
     byte-identical properties cannot come apart in any report, and until now that was found by a
     human reading TOML and written into prose (`docs/refinement.md`, EU AI Act Article 12(2)).
   - **Vacuity.** Is a duty discharged without its own content doing any work — Kupferman and
-    Vardi's question, restricted to the fragments this repository ships. `docs/semantics.md` §8
+    Vardi's question (`[@kupferman-2003]`, in the replacement formulation of `[@beer-2001]`),
+    restricted to the fragments this repository ships. `docs/semantics.md` §8
     states the definition and what it costs; the existing
     `report.not_evaluated_for_unreachable_trigger` is the special case where the replaceable
     subformula is an implication's consequent, and the acceptance test
@@ -346,7 +347,8 @@ def vacuous_subformulas(
 ) -> tuple[str, ...]:
     """The subformula occurrences any other formula could replace without changing the verdict.
 
-    The definition is `docs/semantics.md` §8, which is Kupferman and Vardi's restricted to the
+    The definition is `docs/semantics.md` §8 and `docs/formal.md` §6.10, which is Kupferman and
+    Vardi's (`[@kupferman-2003]`) restricted to the
     fragments this repository ships: a requirement is **vacuously discharged** on an evidence
     domain when some subformula of its `spec` can be replaced by *any* well-formed formula of the
     same fragment without changing the verdict.

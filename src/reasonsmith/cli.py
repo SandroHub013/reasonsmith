@@ -57,8 +57,11 @@ What a reader must not break:
     strengths, five artefacts. Omitting it renders the full report, which is byte-for-byte the
     report this CLI printed before the flag existed and is what every generated document under
     `docs/` is pinned to. `--json` is deliberately unprojected: it is the complete machine
-    record, and a consumer parsing it must not have fields disappear under a display flag. That
-    envelope names its own shape in `schema_version` (`reasonsmith.report.JSON_SCHEMA_VERSION`),
+    record, and a consumer parsing it must not have fields disappear under a display flag. The
+    envelope nonetheless *names* the projection it was asked for in its `audience` block (`null`
+    when none was asked for), so a consumer can tell the record it was given from the projection
+    the caller requested without a single field being hidden. That envelope names its own shape
+    in `schema_version` (`reasonsmith.report.JSON_SCHEMA_VERSION`),
     which is not the package version and moves only when a key is removed, renamed or retyped.
     Why this matters: a reader handed a narrower artefact has been shown less, and must never
     have been told something different — and a reader who reaches for the flag by habit must not
@@ -364,8 +367,10 @@ def main(args: list[str] | None = None) -> int:
             "Project the text and HTML renderings for one reader. The run, the verdicts and the "
             "strengths are the same whichever is given — only what is shown changes, and every "
             "audience keeps the limits of the report. Omitted, the full report is printed, which "
-            "is what the auditor projection also gives. --json is unaffected: it is the complete "
-            "machine record, not a reader's artefact. docs/semantics.md names what each shows"
+            "is what the auditor projection also gives. --json is not projected and never loses "
+            "a field to this flag; it only *names* the projection asked for, in its `audience` "
+            "block, so a machine consumer can tell the record from the display it was built for. "
+            "docs/semantics.md names what each shows"
         ),
     )
     check_parser.add_argument(
@@ -554,12 +559,12 @@ def main(args: list[str] | None = None) -> int:
                     print(f"Error writing HTML report to {parsed.html!r}: {exc}", file=sys.stderr)
                     return 1
                 print(
-                    report.to_json(indent=2)
+                    report.to_json(indent=2, audience=parsed.audience)
                     if parsed.json
                     else report.render_text(audience=parsed.audience)
                 )
         elif parsed.json:
-            print(report.to_json(indent=2))
+            print(report.to_json(indent=2, audience=parsed.audience))
         else:
             print(report.render_text(audience=parsed.audience))
 

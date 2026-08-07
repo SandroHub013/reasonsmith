@@ -8,8 +8,91 @@ releases before it predate the file and are not reconstructed here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Replaced `flloat` with BLACK solver behind a subprocess boundary in `src/reasonsmith/ltlf.py`.**
+  The finite-trace decision procedure for temporal formulas now invokes `BLACK` (`https://www.black-sat.org`, MIT licensed) via a subprocess call rather than depending on `flloat` (LGPLv3+). `accepts(φ, σ)` is re-encoded as satisfiability over `pin(σ)`, standard LTLf non-empty trace semantics are used natively, and `ATOM_BUDGET` is raised to 100 as an explicitly unmeasured bound, on the change of encoding — `pin(σ)` grows linearly in `n*|AP|` where flloat built a powerset automaton — and not on a benchmark.
+
+### Fixed
+
+- **Kleene operators read a truth value rather than an identity.**
+  `rulelang`'s Kleene operators compared operands with `is True` / `is False`, so an atom returning a falsy or truthy non-`bool` — `0`, `1`, `""`, whatever the decision record carried — matched neither branch and fell through to the operator's unit, producing a genuine `True` off a falsy conjunct and a genuine `False` off a truthy disjunct at the `probed` and `certificate` rungs, which guard no atom. Every operand is now read through `rulelang.kleene_value`, and `eval_temporal_trace` normalises each position of the trace the same way, so an identity test against a trace value at a call site is sound. `tests/test_kleene_three_valued.py` checks the tables cell by cell.
+
+- **A tokenizer failure no longer reports a specification read whole.**
+  `rulelang._normalize_tokens_for_read_whole` swallowed every exception and returned the partial token list collected so far, so a failure part-way through the input made the token-count comparison in `verify_parsed_whole` pass — the failure direction that check exists to close. It now raises `UnsupportedConstructError`.
+
+- **Specification read-whole verification across all engines.**
+  `rulelang.parse_expression` now verifies that Python's parser read the whole specification text (`verify_parsed_whole`) without silently dropping comments (`# ...`) or unparsed tokens (such as implicit string literal concatenation `a and "b" "c"`). Any specification that is not read whole is reported `not evaluated` (`verdict=INCONCLUSIVE`, `strength=None`) across all seven engines (`certificate`, `counterfactual`, `observed`, `probed`, `proved`, `record`, `temporal`), ensuring incomplete formulas are never answered.
+
+- **Temporal verdict derived from Boolean semantics.**
+  The temporal engine (`engines/observed.py`) now derives requirement verdicts from the Boolean semantics over finite traces (`rulelang.eval_temporal_trace`) rather than from quantitative robustness sign alone. Robustness remains reported as the quantitative margin in `evaluation_scores`. This resolves strict comparison boundary issues at robustness zero (e.g. `always(b > 0)` at `b = 0.0` now evaluates to `VIOLATED` rather than `SATISFIED`).
+
+- **Unreachable trigger vacuity guard uses Kleene 3-valued Boolean semantics.**
+  The temporal engine (`engines/observed.py`) now evaluates implication antecedents under Kleene 3-valued logic over the trace (`rulelang.eval_temporal_trace`) rather than using quantitative robustness comparisons (`rob < 0`). An antecedent that is false at every position is reported as an unreachable trigger (`verdict=INCONCLUSIVE`), an antecedent that is unknown anywhere and never true is reported as not evaluated (`verdict=INCONCLUSIVE`), and negative zero robustness (`-0.0`) can no longer bypass the guard.
+
+- **Silent wrong answers closed in the temporal backend.**
+  A temporal formula that the backend parser did not read whole (due to dropped lexer tokens like `%` or multi-statement inputs like `'a b > 1'`) is now reported `not evaluated` (`verdict=INCONCLUSIVE`) rather than answered from an incomplete parse. Implemented via a strict lexer subclass (`F1`) that attaches rtamt's raising error listener to the lexer and a postcondition assertion (`F2`) that the backend parser produced exactly one statement. Every formula in every shipped pack was swept and verified to parse to rendering exactly one statement.
+
 ### Added
 
+- **The mathematics is stated once, and the repository has a bibliography that the build enforces.**
+  [`docs/formal.md`](docs/formal.md) gathers what was scattered across four documents and a dozen
+  module docstrings into one notation: the objects, the denotation `⟦·⟧_{M,A}`, the sufficient-reason
+  definitions and the deletion certificate, the strength chain beside the evidence basis, the
+  residuated lattices and the three t-norms, and one soundness statement per engine. It introduces no
+  construct, engine, rung, basis or verdict, and every claim in it names the test that falsifies it.
+  It also carries the repository's first **bibliography** — 26 entries, every one of them a work the
+  tree already relied on, the densest concentration of which was inside `src/reasonsmith/verdict.py`
+  where nobody looking for references would find them. The bibliography is a **registry**, not a
+  list: a citation is a backticked pandoc key (`` `[@hajek-1998]` ``), and
+  `tests/test_docs_formal.py` fails the build when a key resolves to no entry, when an entry is
+  cited by no claim, or when a paragraph anywhere in `docs/` or `src/reasonsmith/` names a
+  publication venue and carries no key. Every existing citation site was keyed in the same change,
+  and `docs/sufficient-reasons.md` §9 — the one reference list the repository had — now points at
+  the registry instead of carrying its own. The anti-drift mechanism for the definitions is the
+  same one the other documents already use and is why a fourth document is safe: every definition
+  the code also defines is generated from the code in each document that states it, so
+  `formal.md`, `semantics.md` and `language.md` cannot disagree with each other about the chain
+  (`Strength`), the rung table (`BASIS_RUNGS`), the fragments (`rulelang.FRAGMENTS`) or the algebras
+  (`manyvalued.ALGEBRAS`). No verdict, engine, duty, pack or parser changed.
+
+- **The `--json` envelope declares the projection it was asked for, and never applies one.**
+  `--audience <reader> --json` still emits the complete machine record with every field — a
+  display flag hides nothing from a consumer — but the envelope now carries a top-level
+  `audience` block naming the requested audience and every flag of its resolved
+  `AudienceProjection`, exactly the way the text renderer already names a projection with
+  `audience=None`. `--audience` omitted emits `name: null` with the full projection; an unknown
+  name fails through the renderer's own `_projection` refusal, not a new error path. The flags
+  are derived from `dataclasses.fields(AudienceProjection)` — one field per dataclass field,
+  never a hand-listed second copy of the authored `AUDIENCES` table that would drift when a flag
+  is added. `results` stay byte-identical across every audience (the property that makes the
+  declaration safe), it is additive only, so `JSON_SCHEMA_VERSION` stays at 2 unchanged (the
+  decision was made in `tests/test_json_schema_version.py` rather than skipped, and
+  `tests/test_json_audience.py` pins the block field-by-field against the dataclass rather than
+  against literals). Nothing is filtered from the JSON for any audience; no verdict, rung,
+  basis, engine, duty, pack or parser behaviour changes; no byte-pinned document moved — none
+  of them embeds the `audience` block.
+
+- **The `--json` machine record is complete: every result carries its `verbatim_text` and the
+  deletion certificate's reason identities.** Two keys added, purely additive, so
+  `JSON_SCHEMA_VERSION` stays at 2 unchanged (addition is not a shape change; the decision was
+  made in `tests/test_json_schema_version.py` rather than skipped). `verbatim_text` is the
+  statutory quotation the duty restates, carried through from the pack **unchanged** — never
+  reflowed, truncated or whitespace-normalised — so a detail pane that names
+  `12 CFR 1002.9(b)(2)` can show its words. `details.certificate` carries, for each decision the
+  deletion probe certified, the full per-reason verdict: `status` verbatim (`live`, `deleted`,
+  `unseparable`, `inconclusive`, `undetermined`) beside each reason's `score`, `exact_drop`,
+  `engine_drop` and `detail`, so the difference between *deleted* and *we could not separate this
+  one* — a finding and a guess — cannot be collapsed by a rendering. The project's headline
+  finding — one stated reason, five found, four deleted — could previously be read only from a
+  rendering; it is now in the machine record. It is present only where a certificate exists and
+  absent otherwise. (The evidence `basis` coordinate was already part of the record, shipped in
+  [#123](https://github.com/eduardstan/reasonsmith/pull/123); this change only pins it in a test.)
+  Nothing is removed, renamed or retyped; nothing
+  besides these two keys is added; no verdict, rung, basis or engine moved, and
+  `details.certificate` is a list — a certificate exists per certified decision, and a single
+  record would present one decision's measurement as the whole. No shipped verdict moved and no
+  byte-pinned document changed: none of them embeds the `--json` result record.
 - **The strength lattice gains a rung, and the inference-artefact protocol gains a second family.**
   `Strength.RECOUNTED` sits between `observed` and `probed` and is the rung a reason-adequacy verdict
   reaches when the reason set the deletion probe ran over is one the *system recounted about its own
@@ -259,6 +342,24 @@ releases before it predate the file and are not reconstructed here.
   it needs an adapter (`docs/semantics.md` §3, *The inference artefact*).
 
 ### Changed
+
+- **The README leads with its own result, and the result ships as two generated artefacts.**
+  `docs/build_showcase.py` writes three files from one run — a figure putting what the applicant was
+  told beside what the decision's own inference used, with the four reasons the answer did not depend
+  on struck; an animated terminal recording of two commands and the violation appearing; and
+  `docs/showcase.html`, a page carrying both above the conformance report they came from. Every
+  number on both is read off `demo.key_finding_report()`, the run
+  [`docs/build_example.py`](docs/build_example.py) already composes the committed dossier's key
+  finding from, and `tests/test_docs_showcase.py` holds all three byte-for-byte and asserts that no
+  reason label appears in the builder's own source. The cast's timings are synthesised from the row
+  index, which is what lets a terminal recording be pinned at all; it is a deliberate placeholder for
+  the interactive explorer proposed in
+  [#120](https://github.com/eduardstan/reasonsmith/pull/120). The README's first screen is now the
+  figure, the result, `pip install` plus one command and that recording. Nothing was deleted: the
+  forty-line transcript that used to sit there is [`docs/example-output.md`](docs/example-output.md)
+  §3, where the transcripts live and where the suite re-runs them, and everything else moved down the
+  page or one link away. No behaviour changed — no engine, duty, pack, verdict, rung, basis or
+  parser.
 
 - **`uncertified` was one bucket doing three jobs.** `Certificate.unseparable`,
   `.inconclusive` and `.undetermined` report apart — a reason with no fact of its own, a probe that

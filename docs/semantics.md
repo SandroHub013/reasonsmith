@@ -8,6 +8,13 @@ exist in the suite fails the build.
 
 Where this document and the code disagree, the code is right and this document has a defect.
 
+[`formal.md`](formal.md) states the same mathematics once and in one notation — the objects, the
+denotation, the reason definitions, the two coordinates of §4 and §10, the graded readings, and one
+soundness statement per engine — and carries the repository's **bibliography**. This document keeps
+its own operational phrasing on purpose: it is written for a reader of a report and that one for a
+reader checking the mathematics. They cannot drift apart, because every definition the code also
+defines is generated from the code in both.
+
 ---
 
 ## 1. The objects
@@ -99,8 +106,8 @@ A trace is a sample of behaviour chosen by whoever produced it. Nothing in reaso
 that it is representative, complete, or unfiltered.
 
 **Verdict and strength** — `verdict.py`. A `Verdict` is one of `satisfied`, `violated`,
-`inconclusive`, `not_applicable`. A `Strength` is one of `unattainable`, `observed`, `probed`,
-`proved`, ordered strictly in that order (§4). `strength=None` is not a rung: it means no engine
+`inconclusive`, `not_applicable`. A `Strength` is one of `unattainable`, `observed`, `recounted`,
+`probed`, `proved`, ordered strictly in that order (§4). `strength=None` is not a rung: it means no engine
 here evaluated this requirement.
 
 **Result** — `report.py`, `RequirementResult`. One requirement's outcome. Its `__post_init__` is the
@@ -326,7 +333,8 @@ Two things about the encoding are this project's own and are load-bearing:
   magnitude. For such a variable, Boolean values become 1.0/0.0, any other present non-numeric
   value becomes 1.0, an absent or non-finite value becomes 0.0, and a finite numeric value remains
   that number. A signal used directly as a bare Boolean atom must carry `True` or `False` in every
-  record; true becomes 1.0 and false becomes -1.0 so false has negative robustness and is a breach
+  record; for the monitor's margin true becomes 1.0 and false becomes -1.0, and a false atom is a
+  breach because the property reads false, not because that margin is negative
   (`test_a_false_bare_boolean_atom_is_violated`). If the trace does not establish that Boolean
   kind, the property is not evaluated (`test_a_bare_boolean_atom_without_an_established_kind_is_not_evaluated`).
   This truth reading is distinct from presence: `present(x)` is true when a record carries `False`,
@@ -464,9 +472,17 @@ observed zero decisions is not evidence that a requirement holds
 
 ### `observed` — `engines/observed.py`
 
-> **If the observed engine reports `satisfied` at strength `observed`, then:** the rtamt discrete-time
-> STL monitor for `req.spec` returned non-negative robustness at every time step of the trace it was
-> given, where step *t* is the record at position *t* (`test_temporal_satisfied`).
+> **If the observed engine reports `satisfied` at strength `observed`, then:** `req.spec` evaluated
+> *true* over the trace it was given, under the finite-trace clauses and the three-valued chain of
+> [`language.md`](language.md) §2.8 and §2.12, where position *t* is the record at position *t*
+> (`test_temporal_satisfied`).
+
+The verdict is that evaluation and **not** the sign of a robustness score. rtamt still monitors the
+property, and its score travels beside the verdict in `details['evaluation_scores']` as the
+quantitative margin; it is a margin and not an answer, because `ρ = 0` decides nothing and `ρ` does
+not represent strictness at all — `ρ(x > c) = ρ(x >= c)`. So a strict comparison is breached at its
+boundary and a non-strict one is not (`test_strict_comparison_boundary_table`), and a shape the
+monitor renders differently is refused rather than answered ([`language.md`](language.md) §4).
 
 *What it does not tell you.* Nothing about any execution of the system that is not in that trace.
 "Held for every step we monitored" is a statement about a finite, supplied sequence. Nothing about
@@ -474,17 +490,18 @@ wall-clock time: the monitor's time axis is the record index, so a bound reads a
 decisions. And the flag/magnitude reading of §2 is a modelling choice — a pack author who writes
 `x >= 0.5` meaning a threshold on a measured quantity gets a presence test.
 
-> **If it reports `violated` at strength `observed`, then:** robustness went negative at at least one
-> step, and the result names those step indices and carries the offending records
+> **If it reports `violated` at strength `observed`, then:** `req.spec` evaluated *false* at at least
+> one position, and the result names those step indices and carries the offending records
 > (`test_temporal_violated_returns_offending_segment`).
 
 Not evaluated, never satisfied, when: the trace is shorter than two records, because a discrete-time
 monitor cannot read a sampling period off one sample
 (`test_trace_too_short_names_the_trace_not_the_formula`); rtamt cannot parse the formula
 (`test_unexpressible_formula_reports_not_evaluated`); any record carries no finite real number for
-a variable the formula treats as a magnitude (`test_quantitative_bound_needs_a_measurement`); or the
-property is an implication whose antecedent scored below zero at every position, because a trace
-that never reaches the trigger scores non-negative for every system alike
+a variable the formula treats as a magnitude, so the property evaluates to the third value
+(`test_quantitative_bound_needs_a_measurement`); or the property is an implication whose antecedent
+was false at every position, or was never true and unknown at some position, because a trace that
+never reaches the trigger says nothing about this system in particular
 (`test_an_antecedent_false_at_every_position_is_not_evaluated_at_observed`, and §4 for the rule).
 
 The two-record floor is what holding an either/or costs `ecoa_reg_b_1002_9_a_2_written_statement`.
@@ -516,14 +533,14 @@ duty can flag. Nothing about decisions outside the trace. And nothing about the 
 the system's own decision margin, not a figure Recital 71 states, and no number in this duty comes
 from the regulation (`test_the_deviation_duty_is_interpretive_and_not_class_limited`).
 
-Nor does `satisfied` exclude a decision that turns on an exact boundary tie. Where deviation and
-margin are equal, robustness is zero: rtamt's quantitative semantics score `<` and `<=` alike at
-that boundary, and the observed engine treats only negative robustness as a breach. In the
-threshold-facing case the claimed oracle value sits exactly on the decision threshold, but whether
-the decision would have differed depends on the system's own tie-break, which this record does not
-carry. This duty therefore reports an exact tie satisfied and does not detect a decision that turns
-on one. Closing that gap would require signed evidence and a strict-boundary reading the shared
-observed engine does not have; no engine was changed here
+Nor does `satisfied` exclude a decision that turns on an exact boundary tie. The property this duty
+states is non-strict, and where deviation and margin are equal it *holds* — that is the comparison,
+not a rounding of a margin, and the engine reads strict and non-strict comparisons apart at their
+boundary (`test_strict_comparison_boundary_table`). In the threshold-facing case the claimed oracle
+value sits exactly on the decision threshold, but whether the decision would have differed depends
+on the system's own tie-break, which this record does not carry. This duty therefore reports an
+exact tie satisfied and does not detect a decision that turns on one. Closing that gap would require
+signed evidence and a stricter reading of the clause than the pack states; no duty was changed here
 (`test_a_declared_deviation_exactly_equal_to_the_margin_is_reported_satisfied`).
 
 > **If it reports `violated` at strength `observed`, then:** at least one record declared a deviation
@@ -745,7 +762,8 @@ system of omitting two reasons its inference demonstrably used. That is unsoundn
 that matters: a false accusation, from an instrument whose purpose is to make one only on measured
 evidence. So the definition of a reason the answer depends on is now written down —
 [`sufficient-reasons.md`](sufficient-reasons.md), which specialises Ignatiev, Narodytska and
-Marques-Silva's abductive explanation and its contrastive dual to the deletions the artefact admits
+Marques-Silva's abductive explanation (`[@ignatiev-2019]`) and its contrastive dual to the
+deletions the artefact admits
 — and measured. A **contrastive set** is a subset-minimal set of facts whose *joint* deletion moves
 the engine; a fact is **relevant** iff it lies in one; a reason is `live` where a fact private to it
 is relevant, and `deleted` only where **no** fact of it is
@@ -915,12 +933,12 @@ model encoding. The probe is the same probe: every reason's private facts are sw
 and the system's own answer re-run. What differs is the reference set, and the difference is exactly
 the one the literature calls **faithfulness**: a self-explanation may be plausible and yet not
 describe the computation that produced the decision (A. Jacovi, Y. Goldberg, *Towards Faithfully
-Interpretable NLP Systems: How Should We Define and Evaluate Faithfulness?*, ACL 2020, 4198–4205;
-measured, as here, by erasure — J. DeYoung, S. Jain, N. F. Rajani, E. Lehman, C. Xiong, R. Socher,
-B. C. Wallace, *ERASER: A Benchmark to Evaluate Rationalized NLP Models*, ACL 2020, 4443–4458; and
-demonstrably failing on decoders — M. Turpin, J. Michael, E. Perez, S. R. Bowman, *Language Models
+Interpretable NLP Systems: How Should We Define and Evaluate Faithfulness?*, ACL 2020, 4198–4205 —
+`[@jacovi-2020]`; measured, as here, by erasure — J. DeYoung, S. Jain, N. F. Rajani, E. Lehman, C. Xiong, R. Socher,
+B. C. Wallace, *ERASER: A Benchmark to Evaluate Rationalized NLP Models*, ACL 2020, 4443–4458 —
+`[@deyoung-2020]`; and demonstrably failing on decoders — M. Turpin, J. Michael, E. Perez, S. R. Bowman, *Language Models
 Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting*, NeurIPS
-2023). A probe over a recounted set can show that the answer does not depend on a reason the system
+2023 — `[@turpin-2023]`). A probe over a recounted set can show that the answer does not depend on a reason the system
 recounted; it can never show that the set is all of them, which is what the `probed` rung's
 enumeration establishes and is why that rung is above this one.
 
@@ -1593,11 +1611,11 @@ the domain it quantifies over, and the domain travels on the result:
 | `proved` | every input the declared logic and constraints admit — the solver is asked whether premises ∧ antecedent is satisfiable, which is the premise check one quantifier deeper | `test_an_antecedent_no_admissible_input_reaches_is_not_evaluated_at_proved` |
 | `proved`, over a trace | the same domain: `always(f)` is decided by deciding `f`, so the reduction inherits the refusal rather than repeating it | `test_the_temporal_reduction_inherits_the_refusal` |
 | `probed` | the decisions the search replayed — the interpreter already evaluates the antecedent to answer the implication, so it is counted in the same walk | `test_a_search_that_never_reached_the_antecedent_is_not_evaluated_at_probed` |
-| `observed` | the decisions of the supplied trace — the antecedent is monitored as a sub-formula, at the same threshold satisfaction is read at | `test_an_antecedent_false_at_every_position_is_not_evaluated_at_observed` |
+| `observed` | the decisions of the supplied trace — the antecedent is evaluated as a sub-formula at every position, by the same reading satisfaction is decided by, and an antecedent the trace leaves unknown is not a trigger that fired | `test_an_antecedent_false_at_every_position_is_not_evaluated_at_observed`, `test_unknown_antecedent_returns_inconclusive` |
 | `probed`, over certificates | the certified decisions of the trace — the antecedent is counted in the same walk that decides the property against the measured count | `test_a_certified_trace_that_never_reached_the_antecedent_is_not_evaluated` |
 
 **Why the argument for tolerating it did not survive.** It was a trace argument: reporting the
-vacuous case `satisfied` is literally true of what was monitored — the observed engine's claim is
+vacuous case `satisfied` is literally true of what was monitored — the observed engine's claim was
 non-negative robustness at every step, which held — and misleading only about what was learned.
 That reading does not exist at `proved`, where there is no monitor, no record and no robustness,
 and the claim is universal over the whole declared input space. A creditor whose rules state no
@@ -1743,11 +1761,11 @@ Two consequences of that report text, followed by a separate package-level termi
 | An absent or blank signal in an observed record is a violation, naming it | `test_record_engine_violated_on_blank_field`, `test_a_declared_signal_absent_from_the_trace_is_a_violation` |
 | Presence means non-empty, not merely keyed, in every engine | `test_a_present_but_empty_signal_does_not_count_as_evidence`, `test_a_falsy_but_real_signal_value_counts`, `test_temporal_presence_agrees_with_record_presence_for_falsy_values` |
 | An empty trace is not evaluated, never satisfied | `test_an_empty_trace_is_not_evidence` |
-| `observed satisfied` ⇒ non-negative STL robustness at every step of the supplied trace | `test_temporal_satisfied` |
+| `observed satisfied` ⇒ the property evaluated true over the supplied trace, and never merely a non-negative robustness score | `test_temporal_satisfied`, `test_strict_comparison_boundary_table` |
 | A temporal violation names the record positions that breached | `test_temporal_violated_returns_offending_segment` |
 | A trace too short to monitor is not evaluated, and the trace is blamed, not the formula | `test_trace_too_short_names_the_trace_not_the_formula` |
 | A formula rtamt cannot parse is not evaluated | `test_unexpressible_formula_reports_not_evaluated` |
-| Bare Boolean atoms use Boolean trace values, false has negative robustness, and unknown kinds are not evaluated | `test_a_false_bare_boolean_atom_is_violated`, `test_a_bare_boolean_atom_without_an_established_kind_is_not_evaluated` |
+| Bare Boolean atoms use Boolean trace values, a false atom is a breach, and unknown kinds are not evaluated | `test_a_false_bare_boolean_atom_is_violated`, `test_a_bare_boolean_atom_without_an_established_kind_is_not_evaluated` |
 | Presence and Boolean truth remain distinct for a recorded `False` value | `test_presence_and_bare_boolean_atoms_keep_distinct_false_semantics`, `test_temporal_presence_agrees_with_record_presence_for_falsy_values` |
 | Boolean literals are refused as atoms but remain valid comparison operands in state properties | `test_the_loader_refuses_boolean_constants_as_atoms`, `test_a_boolean_constant_remains_valid_as_a_comparison_operand`, `test_a_logical_boolean_constant_comparison_still_reaches_proved` |
 | Temporal Boolean-constant comparisons are refused in favour of sound bare Boolean atoms | `test_the_loader_refuses_temporal_boolean_constant_comparisons`, `test_a_direct_temporal_boolean_comparison_is_not_evaluated`, `test_a_bare_boolean_atom_is_monitored_for_true_and_false_traces` |
@@ -1934,16 +1952,21 @@ the reader would like:
   (`test_the_lay_page_does_not_let_the_disclaimer_dominate`). The text rendering keeps them last
   and whole, where they are still the longest single block — the console has no fold, and
   shortening them is not on offer.
-- **`--json` is not projected.** It stays the complete machine record, so a pipeline parsing it
-  never loses fields to a display flag — and so `--audience affected-individual --json` is not a
-  redaction. Redaction is a security property; this is a presentation one, and the two must not
-  be confused. `ConformanceReport.decisions` is not in it either, for the opposite reason: the
-  JSON is the findings record, and the decisions are an input the run read, not a finding it
-  made. The envelope carries its own shape version, `schema_version`, so a consumer can tell one
-  release's shape from another's without inferring it from the package version. It increments
-  when a key is removed, renamed, or changes type or meaning, and not when one is added;
-  `test_version_2_is_this_shape` pins the key set at each level to the current number, so a
-  shape change made without moving it fails the suite.
+- **`--json` is not projected, and it says which projection it was asked for.** It stays the
+  complete machine record, so a pipeline parsing it never loses fields to a display flag — and
+  so `--audience affected-individual --json` is not a redaction. Redaction is a security
+  property; this is a presentation one, and the two must not be confused. The record does not
+  silently omit what a projection hides: its top-level `audience` block *names* the projection
+  it was asked for (`null` when none was), carrying every field of that resolved
+  `AudienceProjection` beside the full record, so a machine consumer can tell the record it was
+  given from the display flag it was built under
+  (`test_every_audience_leaves_results_byte_identical`). `ConformanceReport.decisions` is not
+  in it either, for the opposite reason: the JSON is the findings record, and the decisions are
+  an input the run read, not a finding it made. The envelope carries its own shape version,
+  `schema_version`, so a consumer can tell one release's shape from another's without inferring
+  it from the package version. It increments when a key is removed, renamed, or changes type or
+  meaning, and not when one is added; `test_version_2_is_this_shape` pins the key set at each
+  level to the current number, so a shape change made without moving it fails the suite.
 
 ---
 
@@ -2025,42 +2048,39 @@ passes forever.
   into `PackAnalysis.skipped`. Rendering one into a future operator would be implementing its
   semantics (`test_a_past_operator_is_skipped_by_name_rather_than_rendered`). No shipped duty uses
   one.
-- **Every question is asked over a non-empty trace.** LTLf as the installed procedure implements it
-  admits the empty trace, on which `always(f)` holds whatever `f` says — so without this every
-  `always` duty in every pack would be reported satisfiable by a trace no monitor ever reads.
-  `ltlf.NON_EMPTY` is the LTLf formula for "there is a position", conjoined into every question. It
-  is a formula of the logic and not a construction over its automata
-  (`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`).
-- **There is a ceiling, and questions over it are refused by name rather than run.** The procedure
-  enumerates the powerset of the atoms as the automaton's alphabet, which on this tree costs about
-  9 s at five atoms and more than 90 s at six. There is no wall clock anywhere in this package — the
-  same limit `docs/authoring-engines.md` states for a plug-in — so `ltlf.ATOM_BUDGET` is checked
-  before the automaton is built (`test_a_question_over_the_atom_budget_is_refused_by_name`). Every
-  shipped temporal duty carries at most four atoms and is decided (the smallest is a single
-  comparison); every *pair* of them is seven, so the
-  pack's temporal entailment questions are all reported **not decided either way**, which is a
-  different fact from "no temporal duty entails another" and never renders as it
-  (`test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared`).
+- **Every question is asked over a non-empty trace.** BLACK interprets LTLf formulas over non-empty finite traces (length >= 1) natively, where position 0 always exists.
+- **There is a ceiling, and questions over it are refused by name rather than run.** `ltlf.ATOM_BUDGET` is set to 100, and it is an **unmeasured** bound stated as one: LTLf satisfiability is PSPACE-complete and BLACK's tableau is worst-case exponential, so no atom count is a runtime guarantee. What moved it off the `flloat`-era 6 is the encoding — `pin(σ)` grows linearly in `n·|AP|` where the previous backend built a powerset automaton — and not a benchmark. There is no wall clock anywhere in this package, so the budget is the only bound `_decide` has, and a question carrying more atoms than `ATOM_BUDGET` is refused by name (`test_a_question_over_the_atom_budget_is_refused_by_name`). A pair of duties that is refused is reported **not decided either way**, which is a different fact from "no temporal duty entails another" and never renders as it (`test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared`).
 
-**No three-valued verdict is computed here, and that is a decision.** The runtime-verification
-literature (Bauer, Leucker and Schallhart) distinguishes *satisfied on this finite prefix* from
+**No LTL₃ verdict is computed here, and that is a decision.** The runtime-verification
+literature (Bauer, Leucker and Schallhart — `[@bauer-2011]`) distinguishes *satisfied on this
+finite prefix* from
 *satisfied on every extension of it*, and that distinction is real for this package: a decision log
-is a finite trace and §2 already says the trace is a sample. The installed procedure exposes an
-automaton and no monitor construction over it, so the distinction is **not available from the tool**
-and is not synthesised from one — a three-valued verdict this repository computed for itself would
-be the temporal semantics it has just spent this section not implementing. Nothing on the strength
-lattice (§4) moves for it either. A procedure that reports it is what would close this.
+is a finite trace and §2 already says the trace is a sample. The installed procedure answers a
+satisfiability question and exposes no monitor construction, so the distinction is **not available
+from the tool** and is not synthesised from one. Nothing on the strength lattice (§4) moves for it
+either. A procedure that reports it is what would close this.
+
+This is **not** the same third value as the `UNKNOWN` the reference interpreter computes, and the
+two must not be read as one. `UNKNOWN` is ignorance about a *record* — a signal the log carries no
+value for — which is the partial-state-space setting of Bruns & Godefroid `[@bruns-1999]`; LTL₃'s
+third value is truncation of the *trace*, a question about extensions this tool asks of nothing.
+Same arity, different question, and only the first is answered.
+[`language.md`](language.md) §2.12 is the definition, including why Kleene is sound for its
+question and not complete for it.
 
 **The backend is an optional extra and its absence is a note.** `pip install reasonsmith` stays a
-two-command demo; `pip install reasonsmith[ltlf]` adds the procedure. Nothing in `check`, in any
+two-command demo; the procedure is the BLACK solver binary, which publishes no wheel and comes
+from a system package manager or <https://www.black-sat.org>. The `ltlf` extra declares no
+Python dependency and installing it adds nothing — what makes the procedure available is the
+binary on `PATH`. Nothing in `check`, in any
 engine or in any shipped example touches it. With it absent, `PackAnalysis.temporal` is `None`,
 `ltlf.UNAVAILABLE_NOTE` is printed, and no temporal question is answered from a weaker substitute
 wearing the same words (`test_the_analysis_says_so_when_the_extra_is_absent`).
 
 ### Vacuity, defined for this evidence model
 
-Kupferman and Vardi define vacuity against model checking a transition system, and Beer et al. gave
-the subformula-replacement formulation this uses. Over a finite trace plus this repository's Z3
+Kupferman and Vardi (`[@kupferman-2003]`) define vacuity against model checking a transition
+system, and Beer et al. (`[@beer-2001]`) gave the subformula-replacement formulation this uses. Over a finite trace plus this repository's Z3
 encoding it needs its own statement, because a loose one produces false alarms and an analysis that
 cries wolf is an analysis nobody reads. The definition, restricted to the fragments this repository
 ships:
@@ -2138,16 +2158,17 @@ None of the four is invented here, and naming the sources is also how a reader c
 definitions were not bent to fit the code.
 
 - **Vacuity.** O. Kupferman and M. Y. Vardi, *Vacuity detection in temporal model checking*
-  (STTT 4(2), 2003; first at CHARME 1999) give the formulation used above — a subformula does not
+  (STTT 4(2), 2003; first at CHARME 1999 — `[@kupferman-2003]`) give the formulation used above — a subformula does not
   affect a property when replacing it changes nothing — and I. Beer, S. Ben-David, C. Eisner and
   Y. Rodeh, *Efficient detection of vacuity in temporal model checking* (Formal Methods in System
-  Design 18(2), 2001) give the single-occurrence replacement check that makes it decidable in
+  Design 18(2), 2001 — `[@beer-2001]`) give the single-occurrence replacement check that makes it decidable in
   practice. §8 restricts both to the fragments of `rulelang.py`, over a finite trace and this
   repository's Z3 encoding, because the original setting is model checking a transition system and
   a definition carried across unexamined would report vacuity where there is none.
 - **Satisfiability and subsumption of a rule set** are the oldest questions asked of a formalised
   regulation, and the framing this repository works in is T. J. M. Bench-Capon and F. P. Coenen,
-  *Isomorphism and legal knowledge based systems* (Artificial Intelligence and Law 1(1), 1992):
+  *Isomorphism and legal knowledge based systems* (Artificial Intelligence and Law 1(1), 1992 —
+  `[@benchcapon-1992]`):
   a legal knowledge base should stay *isomorphic* to its source — one rule per provision, in the
   source's own structure, so that a change in the law is a local change in the model and a lawyer
   can check one against the other. That is what `verbatim_text` and `drift.py` are for. Every
@@ -2331,7 +2352,7 @@ settle.
 - **A graded atom under a temporal operator is refused at load**
   (`test_a_graded_atom_under_a_temporal_operator_is_refused_at_load`). A many-valued reading of
   `always` or `until` is a temporal semantics, and this repository implements none at any rung —
-  rtamt monitors and `flloat` decides. The graded fragment is a property of one decision record,
+  rtamt monitors and BLACK decides. The graded fragment is a property of one decision record,
   quantified over the trace by the infimum, and nothing here reads a degree across positions.
 - **A spec using both constructs is refused**
   (`test_a_spec_using_both_open_texture_atoms_is_refused`). One says nothing here settles the
@@ -2378,10 +2399,10 @@ the same object, less deeply, is a rung. That is the test to apply to the next c
 
 | Basis | What the evidence is about | Rungs it admits | Named after |
 |---|---|---|---|
-| `behavioural` | the system's own executions, one at a time | `unattainable`, `observed`, `probed`, `proved` | a **trace property** — Alpern & Schneider, *Defining Liveness*, IPL 21(4), 1985 |
-| `relational` | a *pair* of executions | `unattainable`, `probed`, `proved` | a **2-safety property** — Terauchi & Aiken, SAS 2005; a hyperproperty rather than a trace property — Clarkson & Schneider, JCS 18(6), 2010; self-composition as the proof method — Barthe, D'Argenio & Rezk, CSFW 2004; the duty itself — Kusner, Loftus, Russell & Silva, *Counterfactual Fairness*, NeurIPS 2017 |
-| `artifact` | the inference *behind* a decision, not what was decided | `unattainable`, `recounted`, `probed` | the **abductive explanation** — Ignatiev, Narodytska & Marques-Silva, AAAI 2019 (`docs/sufficient-reasons.md` §9 for the rest); the model-precise rather than behaviour-sampled side of formal XAI — Marques-Silva & Ignatiev, AAAI 2022; and, for the `recounted` rung, the **faithfulness** of a self-reported rationale — Jacovi & Goldberg, ACL 2020; erasure as its measurement — DeYoung et al., ACL 2020; the failure it measures — Turpin, Michael, Perez & Bowman, NeurIPS 2023 |
-| `assessment` | how an open-textured predicate applies, per a named authority | `unattainable` alone | a **truth degree over a residuated lattice** — Hájek, *Metamathematics of Fuzzy Logic*, 1998; degree of truth is not degree of belief — Dubois & Prade, AMAI 32, 2001 |
+| `behavioural` | the system's own executions, one at a time | `unattainable`, `observed`, `probed`, `proved` | a **trace property** — Alpern & Schneider, *Defining Liveness*, IPL 21(4), 1985 (`[@alpern-1985]`) |
+| `relational` | a *pair* of executions | `unattainable`, `probed`, `proved` | a **2-safety property** — Terauchi & Aiken, SAS 2005 (`[@terauchi-2005]`); a hyperproperty rather than a trace property — Clarkson & Schneider, JCS 18(6), 2010 (`[@clarkson-2010]`); self-composition as the proof method — Barthe, D'Argenio & Rezk, CSFW 2004 (`[@barthe-2004]`); the duty itself — Kusner, Loftus, Russell & Silva, *Counterfactual Fairness*, NeurIPS 2017 (`[@kusner-2017]`) |
+| `artifact` | the inference *behind* a decision, not what was decided | `unattainable`, `recounted`, `probed` | the **abductive explanation** — Ignatiev, Narodytska & Marques-Silva, AAAI 2019 (`[@ignatiev-2019]`; `docs/formal.md` §3 for the rest); the model-precise rather than behaviour-sampled side of formal XAI — Marques-Silva & Ignatiev, AAAI 2022 (`[@marques-silva-2022]`); and, for the `recounted` rung, the **faithfulness** of a self-reported rationale — Jacovi & Goldberg, ACL 2020 (`[@jacovi-2020]`); erasure as its measurement — DeYoung et al., ACL 2020 (`[@deyoung-2020]`); the failure it measures — Turpin, Michael, Perez & Bowman, NeurIPS 2023 (`[@turpin-2023]`) |
+| `assessment` | how an open-textured predicate applies, per a named authority | `unattainable` alone | a **truth degree over a residuated lattice** — Hájek, *Metamathematics of Fuzzy Logic*, 1998 (`[@hajek-1998]`); degree of truth is not degree of belief — Dubois & Prade, AMAI 32, 2001 (`[@dubois-2001]`) |
 
 Every row's rung list is read off what an engine can actually reach, and the two are held together
 in both directions: no ladder may offer a rung its duty's basis refuses, and no basis may advertise

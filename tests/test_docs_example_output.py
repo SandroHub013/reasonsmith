@@ -11,6 +11,10 @@ What a reader must not break:
     silently skipping a transcript.
   - Compare stdout verbatim. Normalising whitespace or matching on substrings would let a stale
     transcript pass, which is the one failure this test exists to catch.
+  - A run reporting a violation exits 2, and §3 — the reason-fidelity run the README's front page
+    is about — is committed here because it is that run. Its exit code is a finding, so
+    `REPORTING_EXIT_CODES` admits it; only a usage or input error, which prints no report at all,
+    is refused.
   - The header's line count and `md5sum` are checked against the demo block and against RESULTS.md.
     Regenerating a transcript without updating them is what makes the two files stop matching.
   - The header names the reasonsmith version the file was produced with, and
@@ -32,6 +36,10 @@ EXAMPLE_OUTPUT = REPO_ROOT / "docs" / "example-output.md"
 RESULTS = REPO_ROOT / "RESULTS.md"
 
 PAIR_RE = re.compile(r"```sh\n(.*?)\n```\n\n```text\n(.*?)```\n", re.DOTALL)
+
+#: 0 is a clean run and 2 is a run reporting a violation, on the terms
+#: `docs/build_readme_transcripts.py` sets. Both print a report worth committing.
+REPORTING_EXIT_CODES = (0, 2)
 HEADER_RE = re.compile(r"\*\*Demo transcript:\*\* (\d+) lines, `md5sum` `([0-9a-f]{32})`")
 
 
@@ -56,7 +64,7 @@ def test_doc_names_the_version_it_was_generated_with():
 def test_committed_transcripts_are_the_real_stdout():
     text = EXAMPLE_OUTPUT.read_text(encoding="utf-8")
     pairs = PAIR_RE.findall(text)
-    assert len(pairs) == 3, "expected three command/transcript pairs in docs/example-output.md"
+    assert len(pairs) == 4, "expected four command/transcript pairs in docs/example-output.md"
 
     header = HEADER_RE.search(text)
     assert header, "docs/example-output.md header no longer states the demo line count and md5sum"
@@ -79,7 +87,12 @@ def test_committed_transcripts_are_the_real_stdout():
             encoding="utf-8",
             env=env,
         )
-        assert run.returncode == 0, f"{command} exited {run.returncode}: {run.stderr}"
+        # 0 is a clean run and 2 is a run reporting a violation; both are reports, and §3 is
+        # committed here precisely because it is the second. Anything else is a usage or input
+        # error, which prints no report and must never be pinned as one.
+        assert run.returncode in REPORTING_EXIT_CODES, (
+            f"{command} exited {run.returncode}: {run.stderr}"
+        )
         assert (
             run.stdout.replace("\r\n", "\n") == transcript.replace("\r\n", "\n")
         ), f"transcript for `{command}` is stale"

@@ -149,15 +149,54 @@ def test_the_counterfactual_atom_reaches_no_trace_logic():
 
 
 def test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable():
-    """`flloat` admits the empty trace, on which every `always(f)` holds whatever `f` says.
+    """BLACK excludes the empty trace natively.
 
-    Without `NON_EMPTY` every `always` duty in every pack would be reported satisfiable by a trace
-    no monitor ever reads, which is a clean bill of health nothing earned.
+    Under BLACK, `always(present(a) and not present(a))` is unsatisfiable.
     """
     abstraction = ltlf.Abstraction()
     formula = ltlf.to_ltlf("always(present(a) and not present(a))", abstraction)
-    assert ltlf.accepts(formula, []) is True
+    assert ltlf.accepts(formula, []) is False
     assert ltlf.satisfiable([formula], abstraction) is False
+
+
+def test_black_non_empty_semantics_g_false_is_unsat():
+    # BLACK interprets LTLf over non-empty finite traces natively (G(False) is UNSAT),
+    # which is what makes the NON_EMPTY guard unnecessary.
+    assert ltlf._run_black("G(False)") is False
+
+
+# `test_decoy_black_on_path_is_rejected` lives in `test_ltlf_boundary.py`: it is about a machine
+# where BLACK is absent, so this module's `skipif` was the one gate it must not sit behind.
+
+
+def test_pin_characteristic_formula_accepts_sigma_and_rejects_neighbors():
+    """`pin(sigma)` accepts sigma, rejects every Hamming step, and rejects length neighbours."""
+    formula = "p0 & X(p1)"
+    sigma = [{"p0": True, "p1": False}, {"p0": False, "p1": True}]
+
+    # Complete literal lambda_i and pin(sigma) construction logic
+    ap = sorted(set(ltlf._ATOM_PATTERN.findall(formula)) | {k for v in sigma for k in v.keys()})
+    lambdas = [" & ".join(a if v.get(a, False) else f"!{a}" for a in ap) for v in sigma]
+    pin_parts = [ltlf._apply_X(f"({lam})", i) for i, lam in enumerate(lambdas)]
+    pin_parts.append(ltlf._apply_X("!(X True)", len(sigma) - 1))
+    pin_sigma = " & ".join(f"({p})" for p in pin_parts)
+
+    # 1. Accepts sigma
+    assert ltlf.accepts(pin_sigma, sigma) is True
+
+    # 2. Rejects every trace one Hamming step from sigma
+    hamming_t0 = [{"p0": False, "p1": False}, {"p0": False, "p1": True}]
+    hamming_t1 = [{"p0": True, "p1": False}, {"p0": False, "p1": False}]
+    assert ltlf.accepts(pin_sigma, hamming_t0) is False
+    assert ltlf.accepts(pin_sigma, hamming_t1) is False
+
+    # 3. Rejects length neighbour n-1
+    len_n_minus = [{"p0": True, "p1": False}]
+    assert ltlf.accepts(pin_sigma, len_n_minus) is False
+
+    # 4. Rejects length neighbour n+1
+    len_n_plus = [{"p0": True, "p1": False}, {"p0": False, "p1": True}, {"p0": False, "p1": False}]
+    assert ltlf.accepts(pin_sigma, len_n_plus) is False
 
 
 def test_a_contradictory_pair_of_temporal_duties_is_reported_unsatisfiable_together():
@@ -170,7 +209,7 @@ def test_a_contradictory_pair_of_temporal_duties_is_reported_unsatisfiable_toget
 
 
 def test_a_question_over_the_atom_budget_is_refused_by_name():
-    """The installed procedure's ceiling is refused before the automaton is built, not after.
+    """The installed procedure's ceiling is refused before the solver runs.
 
     There is no wall clock anywhere in this package, so a question it cannot finish has to be
     turned away on a count rather than on a timeout.
@@ -385,10 +424,27 @@ def test_a_temporal_duty_no_trace_discharges_is_reported_and_named(tmp_path):
     assert "NOT satisfiable: never_dischargeable" in render_analysis(analysis)
 
 
-def test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared():
+def test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared(tmp_path):
     """"No temporal duty entails another" is a finding; "none was decided" is not one."""
     from reasonsmith.analysis import render_analysis
 
-    rendered = render_analysis(analyse_pack(load_pack("ecoa")))
+    half = ltlf.ATOM_BUDGET // 2 + 1
+    spec1 = "always(" + " and ".join(f"present(a{i})" for i in range(half)) + ")"
+    reqs1 = [f"a{i}" for i in range(half)]
+    spec2 = "always(" + " and ".join(f"present(b{i})" for i in range(half)) + ")"
+    reqs2 = [f"b{i}" for i in range(half)]
+
+    pack_file = tmp_path / "over_budget.toml"
+    block1 = _REQUIREMENT_BLOCK.format(id="r1", spec=spec1)
+    block1 = block1.replace('requires = ["reason"]', f"requires = {reqs1!r}")
+    block2 = _REQUIREMENT_BLOCK.format(id="r2", spec=spec2)
+    block2 = block2.replace('requires = ["reason"]', f"requires = {reqs2!r}")
+    pack_file.write_text(
+        f'[pack]\nid = "over_budget"\n{block1}\n{block2}',
+        encoding="utf-8",
+    )
+
+    rendered = render_analysis(analyse_pack(load_pack(pack_file)))
     assert "not decided either way" in rendered
     assert "no temporal duty entails another" not in rendered
+
