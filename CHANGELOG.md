@@ -31,6 +31,43 @@ releases before it predate the file and are not reconstructed here.
   (`Strength`), the rung table (`BASIS_RUNGS`), the fragments (`rulelang.FRAGMENTS`) or the algebras
   (`manyvalued.ALGEBRAS`). No verdict, engine, duty, pack or parser changed.
 
+- **The `--json` envelope declares the projection it was asked for, and never applies one.**
+  `--audience <reader> --json` still emits the complete machine record with every field — a
+  display flag hides nothing from a consumer — but the envelope now carries a top-level
+  `audience` block naming the requested audience and every flag of its resolved
+  `AudienceProjection`, exactly the way the text renderer already names a projection with
+  `audience=None`. `--audience` omitted emits `name: null` with the full projection; an unknown
+  name fails through the renderer's own `_projection` refusal, not a new error path. The flags
+  are derived from `dataclasses.fields(AudienceProjection)` — one field per dataclass field,
+  never a hand-listed second copy of the authored `AUDIENCES` table that would drift when a flag
+  is added. `results` stay byte-identical across every audience (the property that makes the
+  declaration safe), it is additive only, so `JSON_SCHEMA_VERSION` stays at 2 unchanged (the
+  decision was made in `tests/test_json_schema_version.py` rather than skipped, and
+  `tests/test_json_audience.py` pins the block field-by-field against the dataclass rather than
+  against literals). Nothing is filtered from the JSON for any audience; no verdict, rung,
+  basis, engine, duty, pack or parser behaviour changes; no byte-pinned document moved — none
+  of them embeds the `audience` block.
+
+- **The `--json` machine record is complete: every result carries its `verbatim_text` and the
+  deletion certificate's reason identities.** Two keys added, purely additive, so
+  `JSON_SCHEMA_VERSION` stays at 2 unchanged (addition is not a shape change; the decision was
+  made in `tests/test_json_schema_version.py` rather than skipped). `verbatim_text` is the
+  statutory quotation the duty restates, carried through from the pack **unchanged** — never
+  reflowed, truncated or whitespace-normalised — so a detail pane that names
+  `12 CFR 1002.9(b)(2)` can show its words. `details.certificate` carries, for each decision the
+  deletion probe certified, the full per-reason verdict: `status` verbatim (`live`, `deleted`,
+  `unseparable`, `inconclusive`, `undetermined`) beside each reason's `score`, `exact_drop`,
+  `engine_drop` and `detail`, so the difference between *deleted* and *we could not separate this
+  one* — a finding and a guess — cannot be collapsed by a rendering. The project's headline
+  finding — one stated reason, five found, four deleted — could previously be read only from a
+  rendering; it is now in the machine record. It is present only where a certificate exists and
+  absent otherwise. (The evidence `basis` coordinate was already part of the record, shipped in
+  [#123](https://github.com/eduardstan/reasonsmith/pull/123); this change only pins it in a test.)
+  Nothing is removed, renamed or retyped; nothing
+  besides these two keys is added; no verdict, rung, basis or engine moved, and
+  `details.certificate` is a list — a certificate exists per certified decision, and a single
+  record would present one decision's measurement as the whole. No shipped verdict moved and no
+  byte-pinned document changed: none of them embeds the `--json` result record.
 - **The strength lattice gains a rung, and the inference-artefact protocol gains a second family.**
   `Strength.RECOUNTED` sits between `observed` and `probed` and is the rung a reason-adequacy verdict
   reaches when the reason set the deletion probe ran over is one the *system recounted about its own

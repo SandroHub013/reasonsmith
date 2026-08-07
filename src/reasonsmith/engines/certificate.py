@@ -118,9 +118,10 @@ from reasonsmith.artifacts import (
     deletion_semantics_refusal,
     reason_set_is_exact,
 )
-from reasonsmith.certificate import Certificate, certify, certify_artifact
+from reasonsmith.certificate import Certificate, ReasonVerdict, certify, certify_artifact
 from reasonsmith.conformance import measured
 from reasonsmith.report import (
+    CERTIFICATE_KEY,
     CERTIFICATES_KEY,
     EXACT_REASON_SET_KEY,
     PROBE_BUDGET_KEY,
@@ -247,6 +248,45 @@ def _refused(
 def _env(record: Mapping[str, Any], cert: Certificate) -> dict[str, Any]:
     """The record, with the measured count written over anything the record claimed for it."""
     return {**record, DELETED_REASON_COUNT: len(cert.deleted)}
+
+
+def _reason_record(verdict: ReasonVerdict) -> dict:
+    """The machine record of one reason verdict, lean by design.
+
+    The full-fat `ReasonVerdict.to_dict` keeps the probe internals — `reason` (a frozenset of
+    adapter-specific objects), `probe_fact`, `probe_facts`, `joint_witness` — that are not
+    JSON-shaped and no rendering reads. What a renderer needs is the verdict itself and its
+    numbers, and the distinction the record must not lose is `status` verbatim: `deleted` is a
+    finding, `unseparable`/`inconclusive`/`undetermined` are the three ways a reason was not
+    certified, and collapsing them would show a guess as a finding.
+    """
+    return {
+        "label": verdict.label,
+        "status": verdict.status,
+        "score": verdict.score,
+        "exact_drop": verdict.exact_drop,
+        "engine_drop": verdict.engine_drop,
+        "detail": verdict.detail,
+    }
+
+
+def _certificate_record(index: int, cert: Certificate) -> dict:
+    """The machine record of one certificate, as `details[CERTIFICATE_KEY]` carries it.
+
+    `index` is the decision index, so a reader can join this record against the summary under
+    `CERTIFICATES_KEY` and against the trace. Everything here is read off the `Certificate`
+    itself; nothing is recomputed. The certificate's own fields are carried unchanged, and
+    `monotone` may be null exactly as the artefact's declaration was absent.
+    """
+    return {
+        "decision_index": index,
+        "attribution": cert.attribution,
+        "exact_value": cert.exact_value,
+        "engine_value": cert.engine_value,
+        "claimed_semantics": cert.claimed_semantics,
+        "monotone": cert.monotone,
+        "reasons": [_reason_record(v) for v in cert.verdicts],
+    }
 
 
 def _probes(cert: Certificate) -> int:
@@ -496,6 +536,11 @@ class CertificateEngine:
                 }
                 for index, cert, _ in certified
             ],
+            # The full machine record the summary above condenses: one entry per certified
+            # decision, carrying every reason verdict the summary counts. Present only here — a
+            # result this engine did not settle carries no certificate key at all, so absence
+            # means "no certificate exists", never an empty record.
+            CERTIFICATE_KEY: [_certificate_record(index, cert) for index, cert, _ in certified],
         }
         # A reason no probe could isolate is not a reason shown deleted, so it never turns the
         # verdict — but a reader must be told the certified set was not complete.

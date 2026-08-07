@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import Any, cast
 
 from reasonsmith.artifacts import RECOUNTED_REASONS
@@ -142,6 +142,14 @@ ENGINE_PLUGIN_KEY = "engine_plugin"
 #: not all the reasons" is being shown this measurement and nothing else.
 CERTIFICATES_KEY = "certificates"
 
+#: Where the certificate engine records the full machine record of each certificate it produced —
+#: one entry per certified decision, each carrying the per-reason verdicts the summary under
+#: `CERTIFICATES_KEY` collapses to counts and names. Absent on a result the certificate engine
+#: did not settle, so `in` rather than a value read means "a certificate exists here". The two
+#: keys are a deliberate pair: `CERTIFICATES_KEY` is the summary a rendering already reads, and
+#: this is the full record that summary was condensed from.
+CERTIFICATE_KEY = "certificate"
+
 #: Where a result measured against an inference artefact records whether the reason set it was
 #: measured against was *enumerated* from a model encoding or *recounted* by the system. False caps
 #: the result at `Strength.RECOUNTED`, and `__post_init__` refuses one that claims higher — the
@@ -165,6 +173,11 @@ EXACT_REASON_SET_KEY = "reason_set_is_exact"
 #: know from `docs/semantics.md` §2 rather than from the document in front of them. Version 2
 #: states the clock the run was answered on, so a parser can tell a verdict counted in decisions
 #: from one counted on any later domain instead of assuming the first.
+#:
+#: Version 2 has since grown `basis`, `verbatim_text` and `details.certificate` without a bump,
+#: deliberately: each is a key added beside keys a parser already reads, and the convention above
+#: says addition is not a shape change. The decision was made in `tests/test_json_schema_version.py`
+#: rather than skipped.
 JSON_SCHEMA_VERSION = 2
 
 #: The two signals a decision record is read for when a report is asked what the system itself
@@ -203,6 +216,12 @@ class RequirementResult:
     carried through from the requirement so a reader of a single result never has to go back to
     the pack to know what kind of duty it is.
 
+    `verbatim_text` is the statutory quotation the duty restates, carried through from the
+    requirement unchanged and never reflowed, truncated or whitespace-normalised: the pack's
+    copy is the authority and this is a passthrough, so a detail pane that names a clause can
+    show its words. It is stamped beside `domains` and `basis` by `evaluate_requirement`, so a
+    directly constructed result may carry the default until a run stamps it.
+
     `basis` is the fourth such fact and the second coordinate of the evidence claim: what kind of
     thing this duty's evidence is *about*, as against `strength`, which says how far the claim was
     pushed. It is derived from the requirement by `evidence_basis` and stamped once by
@@ -226,6 +245,7 @@ class RequirementResult:
     scope: str = ""
     domains: tuple[str, ...] = ()
     basis: EvidenceBasis = EvidenceBasis.BEHAVIOURAL
+    verbatim_text: str = ""
 
     def __post_init__(self) -> None:
         # Every invariant below compares against the enum members, so a raw string would
@@ -547,6 +567,7 @@ class RequirementResult:
         return {
             "requirement_id": self.requirement_id,
             "source_clause": self.source_clause,
+            "verbatim_text": self.verbatim_text,
             "verdict": self.verdict.value,
             "strength": self.strength.value if self.strength else None,
             "signals_required": list(self.signals_required),
@@ -1061,7 +1082,7 @@ class ConformanceReport:
         )
 
 
-    def to_dict(self) -> dict:
+    def to_dict(self, audience: str | None = None) -> dict:
         return {
             "schema_version": JSON_SCHEMA_VERSION,
             "system_name": self.system_name,
@@ -1073,11 +1094,45 @@ class ConformanceReport:
             "results": [r.to_dict() for r in self.results],
             "limits": self.limits,
             "time_domain": self.time_domain,
+            "audience": _audience_block(audience),
         }
 
-    def to_json(self, indent: int | None = None) -> str:
-        """JSON representation following house pattern."""
-        return json.dumps(self.to_dict(), indent=indent, default=str)
+    def to_json(self, indent: int | None = None, audience: str | None = None) -> str:
+        """JSON representation following house pattern.
+
+        `audience` travels onto the record as a declaration of the projection it was asked for,
+        never as a filter: the complete machine record is emitted regardless, and the envelope's
+        `audience` block names the projection (or `null` when none was asked for) beside every
+        field it would have filtered. A consumer can therefore tell the record it was given from
+        the projection the caller requested, and nothing is hidden from a machine consumer by a
+        display flag.
+        """
+        return json.dumps(self.to_dict(audience=audience), indent=indent, default=str)
+
+
+def _audience_block(audience: str | None) -> dict[str, Any]:
+    """The `audience` block of the machine record: the projection asked for, declared not applied.
+
+    `--json` is the complete machine record and no projection filters it, but a record must be
+    able to say *which* projection it was asked for — otherwise a consumer cannot tell `absent
+    because the audience is not shown it` from `absent because the run never established it`. The
+    block carries the name (`null` when no audience was given, matching the text renderer's
+    `audience=None` full report) and every flag of the resolved `AudienceProjection`.
+
+    The flags are derived, one field per `AudienceProjection` dataclass field, by iterating
+    `dataclasses.fields` — never by hand-listing the names. A hand-written list is a second copy
+    of the authored `AUDIENCES` table, and it would drift the first time a flag is added; this
+    derivation makes the block a projection of the projection, with no second copy to keep in
+    step. The unknown-audience refusal is the renderer's own `_projection` refusal, so the JSON
+    path and the text path reject the same name with the same words.
+    """
+    from reasonsmith.render import AudienceProjection, _projection
+
+    projection = _projection(audience)
+    return {
+        "name": audience,
+        **{f.name: getattr(projection, f.name) for f in fields(AudienceProjection)},
+    }
 
 
 def evidence_basis(req: Requirement) -> EvidenceBasis:
@@ -1377,7 +1432,15 @@ def evaluate_requirement(
     # the duty rather than about the run — which is why it is derived here from `req` alone and not
     # asked of whichever engine answered — and `replace` re-runs `__post_init__`, so a result
     # carrying a rung its basis does not admit is refused at the stamp rather than rendered.
-    return replace(result, domains=req.domains, basis=evidence_basis(req))
+    return replace(
+        result,
+        domains=req.domains,
+        basis=evidence_basis(req),
+        # The statutory quotation, stamped beside the other two facts about the duty rather
+        # than threaded through four engines: it is the pack's copy, unchanged, and an engine
+        # has nothing to say about the words of the clause it was checked against.
+        verbatim_text=req.verbatim_text,
+    )
 
 
 def _evaluate_requirement(
