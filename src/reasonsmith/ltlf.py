@@ -90,6 +90,14 @@ What a reader must not break:
     semantics. (`test_a_past_operator_is_skipped_by_name_rather_than_rendered`)
   - **Every question is asked over a non-empty trace.** BLACK interprets LTLf over non-empty
     traces natively.
+  - **A solver that misbehaves is refused on that question, and takes nothing else down with it.**
+    A binary that passes identification and then prints both answers, prints neither, exits
+    nonzero or dies on a signal raises `UnsupportedConstructError` — the same class the timeout and
+    the atom budget raise, and the one every call site in `analysis.py` already turns into a named
+    entry in `PackAnalysis.skipped`. These were `RuntimeError`, which nothing caught: the question
+    was described here as a refusal and was in fact a traceback out of `validate-pack --analyse`,
+    taking the Z3 half of the analysis — which never touched the solver — down with it.
+    (`test_a_misbehaving_solver_is_skipped_and_the_rest_of_the_analysis_survives`)
 """
 
 from __future__ import annotations
@@ -214,7 +222,7 @@ def available() -> bool:
 def _run_black(formula: str, timeout: int = 30) -> bool:
     path = _get_black_path()
     if not path:
-        raise RuntimeError("BLACK solver is not available")
+        raise UnsupportedConstructError("the BLACK solver is not available")
     try:
         res = subprocess.run(
             [path, "solve", "--finite", "-f", formula],
@@ -225,18 +233,20 @@ def _run_black(formula: str, timeout: int = 30) -> bool:
     except subprocess.TimeoutExpired as err:
         raise UnsupportedConstructError(f"BLACK solver timed out after {timeout} seconds") from err
     except Exception as err:
-        raise RuntimeError(f"Failed to execute BLACK solver: {err}") from err
+        raise UnsupportedConstructError(f"the BLACK solver could not be executed: {err}") from err
 
     if res.returncode != 0:
         err_msg = res.stderr.strip() or res.stdout.strip()
-        raise RuntimeError(f"BLACK solver failed with exit code {res.returncode}: {err_msg}")
+        raise UnsupportedConstructError(
+            f"the BLACK solver failed with exit code {res.returncode}: {err_msg}"
+        )
 
     out = res.stdout.strip()
     if out == "SAT":
         return True
     if out == "UNSAT":
         return False
-    raise RuntimeError(f"Unexpected output from BLACK solver: {out!r}")
+    raise UnsupportedConstructError(f"unexpected output from the BLACK solver: {out!r}")
 
 
 @dataclass

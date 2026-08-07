@@ -173,3 +173,96 @@ def test_kleene_is_sound_and_not_complete_for_determinacy():
                 assert completions == {got}, (op.__name__, _name(a), _name(b))
 
     assert is_unknown(kleene_or_binary(UNKNOWN, kleene_not(UNKNOWN)))
+
+
+# --------------------------------------------------------------------------------------------
+# The two atoms of the language must not disagree about the sentinel
+# --------------------------------------------------------------------------------------------
+
+
+def test_the_sentinel_reaches_a_decision_record_through_a_shipped_adapter():
+    """The path, before the verdict: nothing here hand-builds the sentinel.
+
+    `RulesAdapter` runs the rules and writes whatever the interpreter returned straight into the
+    record, and the interpreter returns UNKNOWN for a rule whose inputs were not all supplied. So
+    a log an auditor is handed can carry the sentinel without anyone having injected it, which is
+    why a fixture that hand-built one would prove nothing about whether the real path is closed.
+    """
+    from reasonsmith.adapters.rules import RulesAdapter
+
+    adapter = RulesAdapter(
+        rules=["notice = appeal_flag and True"],
+        variables={"appeal_flag": "bool", "notice": "bool"},
+        constraints=[],
+        declared_capabilities={"notice", "appeal_flag"},
+        test_inputs=[{}],
+    )
+    records = adapter.decisions()
+
+    assert is_unknown(records[0]["notice"])
+
+
+def test_present_and_a_bare_name_agree_about_the_sentinel():
+    """`present(x)` answered true for a value whose whole meaning is *no value was determined*.
+
+    Two atoms of one language, one object, opposite answers: a bare `notice` read as UNKNOWN while
+    `present(notice)` read as satisfied. End to end that landed `satisfied` at strength `observed`
+    on a trace of records carrying nothing, under the summary "every required signal carries a
+    value in every record".
+    """
+    from reasonsmith.rulelang import is_present
+
+    assert is_present(UNKNOWN) is False
+    assert is_unknown(kleene_value(UNKNOWN))
+    assert eval_expression(parse_property("present(notice)"), {"notice": UNKNOWN}) is False
+
+
+def test_a_record_duty_over_a_log_of_sentinels_is_not_satisfied():
+    """The verdict the disagreement produced, at the rung it produced it at."""
+    from reasonsmith.adapters.rules import RulesAdapter
+    from reasonsmith.engines.record import RecordEngine
+    from reasonsmith.spec import Requirement
+    from reasonsmith.verdict import Verdict
+
+    adapter = RulesAdapter(
+        rules=["notice = appeal_flag and True"],
+        variables={"appeal_flag": "bool", "notice": "bool"},
+        constraints=[],
+        declared_capabilities={"notice"},
+        test_inputs=[{}, {}],
+    )
+    log = [dict(record) for record in adapter.decisions()]
+
+    class LogOnly:
+        system_domains = ("consumer-credit",)
+
+        def capabilities(self):
+            return {"notice"}
+
+        def decisions(self):
+            return [dict(record) for record in log]
+
+        def logic(self):
+            return None
+
+    req = Requirement(
+        id="sentinel_presence",
+        source_document="Internal Policy",
+        article_clause="Section 1.1",
+        verbatim_text="A notice shall be recorded for every decision.",
+        stakeholder="Compliance",
+        formalism="record",
+        spec="present(notice)",
+        rationale="Why this duty exists, in English.",
+        requires=("notice",),
+        binding=True,
+        scope="",
+        domains=(),
+        deontic_type="obligation",
+        defeasibility="strict",
+    )
+    system = LogOnly()
+    result = RecordEngine.evaluate(req, system, system.decisions())
+
+    assert result.verdict != Verdict.SATISFIED
+    assert "carries a value in every record" not in result.evidence_summary
