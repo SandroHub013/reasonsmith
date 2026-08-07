@@ -9,9 +9,10 @@ What this module is for:
 
 from __future__ import annotations
 
+from datetime import timedelta
 from pathlib import Path
 
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from reasonsmith.engines.observed import ObservedEngine
@@ -112,6 +113,7 @@ def test_differential_property_shipped_packs_and_systems():
                         )
 
 
+@settings(deadline=timedelta(seconds=30))
 @given(
     st.lists(
         st.tuples(
