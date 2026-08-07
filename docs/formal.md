@@ -1051,6 +1051,10 @@ addition rather than a rewrite.
 - **`[@degiacomo-2013]`** G. De Giacomo, M. Y. Vardi. *Linear Temporal Logic and Linear Dynamic Logic
   on Finite Traces.* IJCAI 2013, 854–860. — the finite-trace semantics whose clauses
   [`language.md`](language.md) §2.8 states and `rulelang.eval_temporal_trace` evaluates (§2.7).
+- **`[@manna-1992]`** Z. Manna, A. Pnueli. *The Temporal Logic of Reactive and Concurrent Systems:
+  Specification.* Springer, 1992. — the strong and weak previous operators of past LTL, whose
+  distinction is what separates this language's `prev` from its `rise` and `fall` at position 0
+  ([`language.md`](language.md) §2.8).
 - **`[@bauer-2011]`** A. Bauer, M. Leucker, C. Schallhart. *Runtime Verification for LTL and TLTL.*
   ACM Transactions on Software Engineering and Methodology 20(4):14, 2011. — the three-valued
   finite-trace distinction this package reports unavailable rather than synthesising (§6.10). Its

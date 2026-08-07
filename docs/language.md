@@ -477,7 +477,7 @@ presented as the regulation's (`test_a_graded_comparison_the_author_wrote_is_sti
 
 ### 2.8 Temporal formulas denotation over finite traces
 
-For a trace $\sigma$ of length $n = |\sigma| > 0$ and a position $i \in \{0, \dots, n-1\}$, $\llbracket \phi \rrbracket^{\text{pos}}(\sigma, i)$ defines the semantics of every temporal formula $\phi$ at position $i$. The trace verdict is evaluated at position 0: $\llbracket \phi \rrbracket^{\text{tr}}(\sigma) = \llbracket \phi \rrbracket^{\text{pos}}(\sigma, 0)$ (§2.9). The clauses are the standard finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and linear dynamic logic on finite traces* (IJCAI 2013 — `[@degiacomo-2013]`) — with the past operators read as their usual mirror images over the prefix.
+For a trace $\sigma$ of length $n = |\sigma| > 0$ and a position $i \in \{0, \dots, n-1\}$, $\llbracket \phi \rrbracket^{\text{pos}}(\sigma, i)$ defines the semantics of every temporal formula $\phi$ at position $i$. The trace verdict is evaluated at position 0: $\llbracket \phi \rrbracket^{\text{tr}}(\sigma) = \llbracket \phi \rrbracket^{\text{pos}}(\sigma, 0)$ (§2.9). The **future** clauses are the standard finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and linear dynamic logic on finite traces* (IJCAI 2013 — `[@degiacomo-2013]`). The **past** clauses are not the mirror images of those, and this document does not claim they are: their conventions at position 0 are **rtamt's**, adopted deliberately. rtamt is the monitor that computes the robustness reported beside every `observed` verdict, and a denotation that diverged from it at the boundary would make the documented semantics and the executed semantics disagree, which is worse than adopting a convention this section can simply state. Each one was read off the monitor, and the probes are recorded below.
 
 They are **restated here rather than named**, and the reason is a change in the code that this
 section is the contract for. `rulelang.eval_temporal_trace` evaluates these clauses directly, over
@@ -555,6 +555,34 @@ The finite-trace boundary edge cases are determined by running `rtamt` over disc
 - **`rise` and `fall` at position 0**: Implicitly assumes initial boundary conditions $f(-1) = 0$ for `rise` and $f(-1) = 1$ for `fall`.
   *Empirical probe*: `rise(b >= 0.5)` on $b = [1.0, 0.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`), and `fall(b >= 0.5)` on $b = [0.0, 1.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`).
 - **Strictness at threshold $\rho = 0$**: The Boolean verdict follows from strict comparison operator semantics: `>` and `<` evaluate to `False` on the threshold, while `>=` and `<=` evaluate to `True` (`test_strict_comparison_boundary_table`, `test_all_ten_temporal_operators_covered_and_distinguished`, `test_differential_property_shipped_packs_and_systems`, `test_differential_property_random_traces`, `test_missing_numeric_signal_returns_inconclusive`).
+
+#### Which reading each past operator takes at position 0
+
+Past LTL has **two** previous operators, and the distinction is the standard one: the *strong*
+previous $\ominus$ is false at the initial position, there being no predecessor to satisfy it, and
+the *weak* previous $\widetilde{\ominus}$ is true there for the same reason — Manna & Pnueli, *The
+Temporal Logic of Reactive and Concurrent Systems: Specification* (Springer, 1992 —
+`[@manna-1992]`), where the pair is introduced and $\widetilde{\ominus} \phi \equiv \neg \ominus
+\neg \phi$. This language has one `prev`, and the three clauses that look one position back do not
+all read it the same way:
+
+- `prev(f)` is the **weak** previous: $1$ at position 0 (clause 4).
+- `rise(f)` takes the **strong** reading: at position 0 it evaluates as if $f(-1) = 0$, so it
+  reduces to $\llbracket f \rrbracket^{\text{pos}}(\sigma, 0)$ (clause 7).
+- `fall(f)` takes the **strong** reading with the opposite boundary value: at position 0 it
+  evaluates as if $f(-1) = 1$, so it reduces to $\neg \llbracket f \rrbracket^{\text{pos}}(\sigma,
+  0)$ (clause 8).
+
+**The consequence, which is the part a reader will otherwise get wrong.** `rise(f)` and
+`f and not prev(f)` agree at every position but the first, and at position 0 they are **not
+interchangeable**, because one clause is written against the strong previous and the other against
+the weak one. Witness, on $\sigma = [\{\texttt{flag}: 1\}, \{\texttt{flag}: 0\}]$: `rise(flag)` is
+$1$ at position 0, while `flag and not prev(flag)` is $0$ there, since `prev(flag)` is weak and
+therefore $1$. Neither is wrong and neither is a defect — they are two operators, spelled apart —
+and this paragraph exists so that a pack author does not write one meaning the other.
+`historically`, `once` and `since` raise no such question: they quantify over the prefix $[0, i]$,
+which at $i = 0$ is $[0, 0]$ and asks for no value at $-1$. The three conventions are pinned by
+`test_all_ten_temporal_operators_covered_and_distinguished`.
 
 One clause `engines/temporal.py` implements for reduction to `proved`:
 ```
@@ -831,6 +859,19 @@ and `test_the_four_named_shapes_are_still_what_the_document_records` asserts a c
 which rtamt and the reference reading still disagree *behind* the refusal — so the exclusion list
 can neither grow silently nor keep a refusal whose reason has gone.
 
+**What the refusal protects, now that the verdict is not the monitor's.** §2.8 records the change
+this rationale has to be restated against: `engines/observed.py` takes its verdict from
+`rulelang.eval_temporal_trace`, over the clauses of §2.8 and the chain of §2.12, and not from a
+robustness sign. A shape rtamt misreads therefore no longer decides the verdict. The refusal is
+kept, and its reason is the **other** number the rung publishes. rtamt's robustness still populates
+`details['evaluation_scores']`, which travels into the JSON record and into every rendering that
+reads one, so a shape rtamt reads differently would carry a margin computed from a *different
+formula than the one the duty states* — `1 < count_a < 10` scored as `(1 < count_a) < 10`, a `%`
+scored with the token dropped, an `Iff` scored as `−|ρ(left) − ρ(right)|`. A correct verdict beside
+a margin that does not belong to it is worse than no `observed` verdict at all: nothing on the
+record says the margin is about another formula, and a reader has no way to tell. So the rung is
+refused, the four rows stay, and neither pin moves.
+
 **1. The remainder operator, `%`.** rtamt's lexer has no `%`. ANTLR **error-recovers by dropping the
 token** and `spec.parse()` does not raise, so the monitor answered about a formula nobody wrote, with
 a token-recognition line on stderr as the only trace. Witness: `count_a % count_b > 1` at
@@ -884,6 +925,12 @@ reopening the `%` hole under another construct, which would otherwise be as invi
 What is **not** done, and is a separate decision: verifying that what rtamt parsed is what was
 rendered, rather than naming the shapes it misreads. That is the general form of this fix and would
 not need a list.
+
+A second question is open and is deliberately not settled here. Since the verdict is now this
+package's own and only the margin is the monitor's, the rung *could* be produced from
+`eval_temporal_trace` with `evaluation_scores` suppressed for a shape rtamt misreads — a verdict
+without a margin rather than no verdict. That trades one silence for another and needs a decision
+about what an `observed` result owes a reader, so it is filed rather than taken.
 
 ---
 
