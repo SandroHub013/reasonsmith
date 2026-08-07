@@ -705,8 +705,9 @@ entailment is `left & !right` unsatisfiable, equivalence is both ways. **Never i
 semantics, monitor, automaton construction or tableau here** — the previous attempt at this hand-
 wrote a monitor for operators rtamt had parsed all along. It is deliberately not under `engines/`:
 it returns no `RequirementResult`, occupies no rung, and the engine count `test_release_discipline`
-pins reads that directory. Six things must not be undone: it is an **optional extra**
-(`pip install reasonsmith[ltlf]`) and its absence is `UNAVAILABLE_NOTE` with `PackAnalysis.temporal`
+pins reads that directory. Six things must not be undone: it is an **optional extra** whose
+procedure is the BLACK binary from a system package manager (the `ltlf` extra declares no Python
+dependency, so installing it adds nothing) and its absence is `UNAVAILABLE_NOTE` with `PackAnalysis.temporal`
 left `None`, never a weaker answer in the same words; the reading is propositional, so satisfiability
 is reported **only in the affirmative** and `LTLF_ABSTRACTION_LIMIT` rides on every answer — rtamt
 keeps every magnitude, this keeps every position, and neither replaces the other; every question

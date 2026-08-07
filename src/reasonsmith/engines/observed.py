@@ -500,6 +500,10 @@ class ObservedEngine:
         }
         formula_vars = found_vars - keywords
         spec_vars = formula_vars | var_names
+        # The names a decision record could carry a value for. `spec_vars` also holds the
+        # synthetic `present()`/`contains()` flags `_render_stl` mints for rtamt, which are never
+        # record keys and would therefore be reported absent from every trace.
+        record_vars = spec_vars - set(presence_signals) - set(contains_signals)
         magnitude_vars = _magnitude_vars(monitored_text)
         magnitude_vars.difference_update(presence_signals)
         magnitude_vars.difference_update(contains_signals)
@@ -687,7 +691,7 @@ class ObservedEngine:
 
         if is_unknown(trace_val):
             absent_vars = sorted(
-                [v for v in spec_vars if any(v not in rec or rec[v] is None for rec in records)]
+                [v for v in record_vars if any(v not in rec or rec[v] is None for rec in records)]
             )
             gaps = ", ".join(absent_vars) if absent_vars else "a required signal"
             details_dict: dict[str, Any] = {"signals_absent_in_trace": absent_vars}
@@ -725,7 +729,11 @@ class ObservedEngine:
                 b is True for b in antecedent_bools
             ):
                 absent_vars = sorted(
-                    [v for v in spec_vars if any(v not in rec or rec[v] is None for rec in records)]
+                    [
+                        v
+                        for v in record_vars
+                        if any(v not in rec or rec[v] is None for rec in records)
+                    ]
                 )
                 gaps = ", ".join(absent_vars) if absent_vars else "a required signal"
                 details_dict: dict[str, Any] = {"records_observed": len(records)}

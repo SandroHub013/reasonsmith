@@ -35,8 +35,9 @@ establishes it and it stays at `observed`. Closing *that* needs the reasoning th
 need — a bounded search over generated traces, or a finite-trace decision procedure — and no shipped
 duty uses the operator, so it waits for one, on the same terms as objective 2.
 
-A finite-trace decision procedure is now installable (`pip install reasonsmith[ltlf]`,
-`src/reasonsmith/ltlf.py`), which changes what this objective *depends on* and not what it is. That
+A finite-trace decision procedure is now installable (the BLACK solver binary from a system
+package manager, driven by `src/reasonsmith/ltlf.py`; the `ltlf` extra declares no Python
+dependency), which changes what this objective *depends on* and not what it is. That
 backend decides a duty as a **formula**, for `validate-pack --analyse`; it is never given a system,
 returns no `RequirementResult` and occupies no rung, so it establishes nothing about what any
 system's logic admits. The condition still stands unchanged: a duty using the operator first, and

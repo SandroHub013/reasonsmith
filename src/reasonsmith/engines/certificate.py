@@ -357,7 +357,6 @@ class CertificateEngine:
                 ),
             )
 
-        node = parse_property(req.spec)
         spec_vars = set(signal_names(node))
         antecedent_node = implication_antecedent(node)
         antecedent_text = ast.unparse(antecedent_node) if antecedent_node is not None else ""

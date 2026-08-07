@@ -60,8 +60,11 @@ Empty trace semantics:
   `NON_EMPTY` guard formula is required.
 
 Atom ceiling:
-  `ATOM_BUDGET` is set to 100. BLACK is SAT-based and scales linearly with atom count (n*|AP|
-  literals in pin(sigma)), unlike flloat's exponential powerset DFA construction.
+  `ATOM_BUDGET` is set to 100, and it is an **unmeasured** bound rather than a measured one.
+  LTLf satisfiability is PSPACE-complete and BLACK's tableau is worst-case exponential, so no
+  atom count is a runtime guarantee; what changed from the flloat-era 6 is the encoding, since
+  pin(sigma) grows linearly in n*|AP| where flloat built a powerset DFA. It is the only bound
+  `_decide` has, because there is no wall clock anywhere in this package.
 
 What a reader must not break:
   - **Every backend adapter certifies that it consumed the whole rendered formula and produced
@@ -97,6 +100,7 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Sequence
 
 from reasonsmith.rulelang import (
@@ -147,8 +151,12 @@ LTLF_ABSTRACTION_LIMIT = (
 )
 
 #: The most propositional atoms **one question** may carry before it is refused by name.
-#: BLACK is SAT-based and scales linearly with atom count (n*|AP| literals in pin(sigma)),
-#: benchmarking under 50 ms for 200+ atoms.
+#: This is an **unmeasured** bound and is stated as one: LTLf satisfiability is PSPACE-complete
+#: and BLACK's tableau is worst-case exponential in the formula, so no atom count is a runtime
+#: guarantee. It was raised from the flloat-era 6 because the encoding pin(sigma) hands BLACK
+#: grows linearly (n*|AP| literals) where flloat built a powerset automaton, and it is the only
+#: bound `_decide` has — there is no wall clock anywhere in this package. Lower it if a question
+#: at this size is found not to return; do not raise it on the strength of this comment.
 ATOM_BUDGET = 100
 
 #: The rulelang operators BLACK has, and their LTLf spelling.
@@ -161,6 +169,7 @@ _BINARY_RENDERING = {"until": "U"}
 _PAST_OPERATORS = TEMPORAL_OPERATORS - set(_UNARY_RENDERING) - set(_BINARY_RENDERING)
 
 
+@lru_cache(maxsize=None)
 def _verify_black_binary(path: str) -> bool:
     try:
         res = subprocess.run(

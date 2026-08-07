@@ -11,9 +11,15 @@ releases before it predate the file and are not reconstructed here.
 ### Changed
 
 - **Replaced `flloat` with BLACK solver behind a subprocess boundary in `src/reasonsmith/ltlf.py`.**
-  The finite-trace decision procedure for temporal formulas now invokes `BLACK` (`https://www.black-sat.org`, MIT licensed) via a subprocess call rather than depending on `flloat` (LGPLv3+). `accepts(φ, σ)` is re-encoded as satisfiability over `pin(σ)`, standard LTLf non-empty trace semantics are used natively, and `ATOM_BUDGET` is updated to 100 based on SAT-based performance measurements.
+  The finite-trace decision procedure for temporal formulas now invokes `BLACK` (`https://www.black-sat.org`, MIT licensed) via a subprocess call rather than depending on `flloat` (LGPLv3+). `accepts(φ, σ)` is re-encoded as satisfiability over `pin(σ)`, standard LTLf non-empty trace semantics are used natively, and `ATOM_BUDGET` is raised to 100 as an explicitly unmeasured bound, on the change of encoding — `pin(σ)` grows linearly in `n*|AP|` where flloat built a powerset automaton — and not on a benchmark.
 
 ### Fixed
+
+- **Kleene operators read a truth value rather than an identity.**
+  `rulelang`'s Kleene operators compared operands with `is True` / `is False`, so an atom returning a falsy or truthy non-`bool` — `0`, `1`, `""`, whatever the decision record carried — matched neither branch and fell through to the operator's unit, producing a genuine `True` off a falsy conjunct and a genuine `False` off a truthy disjunct at the `probed` and `certificate` rungs, which guard no atom. Every operand is now read through `rulelang.kleene_value`, and `eval_temporal_trace` normalises each position of the trace the same way, so an identity test against a trace value at a call site is sound. `tests/test_kleene_three_valued.py` checks the tables cell by cell.
+
+- **A tokenizer failure no longer reports a specification read whole.**
+  `rulelang._normalize_tokens_for_read_whole` swallowed every exception and returned the partial token list collected so far, so a failure part-way through the input made the token-count comparison in `verify_parsed_whole` pass — the failure direction that check exists to close. It now raises `UnsupportedConstructError`.
 
 - **Specification read-whole verification across all engines.**
   `rulelang.parse_expression` now verifies that Python's parser read the whole specification text (`verify_parsed_whole`) without silently dropping comments (`# ...`) or unparsed tokens (such as implicit string literal concatenation `a and "b" "c"`). Any specification that is not read whole is reported `not evaluated` (`verdict=INCONCLUSIVE`, `strength=None`) across all seven engines (`certificate`, `counterfactual`, `observed`, `probed`, `proved`, `record`, `temporal`), ensuring incomplete formulas are never answered.

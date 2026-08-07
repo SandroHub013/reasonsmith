@@ -674,7 +674,21 @@ strong three-valued logic** `[@kleene-1952]` on the chain `F < U < T` (`rulelang
 
 `φ → ψ` is `¬φ ∨ ψ` and `φ ↔ ψ` is `(φ → ψ) ∧ (ψ → φ)`, both derived rather than tabulated, which
 is why `U ↔ U = U`. `UNKNOWN.__bool__` **raises**: a third value that silently coerced to `False`
-at an `if` would be a two-valued answer wearing a three-valued type.
+at an `if` would be a two-valued answer wearing a three-valued type. The tables above are checked
+against the operators cell by cell (`test_the_kleene_tables_are_the_ones_the_language_doc_writes_out`,
+`test_implication_and_equivalence_are_derived_and_not_tabulated`,
+`test_the_unknown_value_refuses_to_coerce_to_a_boolean`).
+
+Each operand is read as a **truth value** and never by identity against `True`/`False`
+(`rulelang.kleene_value`), and `eval_temporal_trace` normalises every position of the trace the
+same way. This is load-bearing rather than tidy: an atom of this language returns whatever the
+decision record carried, so `0`, `1` or `""` in a Boolean position matched neither identity branch
+and fell through to the operator's unit — a `T` off a falsy conjunct and an `F` off a truthy
+disjunct, at the two rungs (`probed`, `certificate`) that guard no atom
+(`test_a_falsy_operand_is_false_and_not_a_third_thing`,
+`test_a_truthy_operand_is_true_and_not_a_third_thing`,
+`test_the_interpreter_does_not_answer_a_conjunction_off_a_falsy_atom`,
+`test_a_trace_of_records_evaluates_into_the_kleene_chain_and_not_into_raw_values`).
 
 **Where `U` comes from here, and where it does not.** `U` is this tool's *ignorance about a record*
 — a signal the decision record does not carry a value for, so the atom reading it has no truth
@@ -695,7 +709,8 @@ completion makes it true. So `U` means **this evaluation did not determine the f
 classical completions — is complete for that question and is deliberately not implemented: it costs
 a satisfiability check per formula, and the direction Kleene errs in is the direction this package
 always errs in, reporting *not evaluated* where a sharper procedure would answer. A duty whose
-verdict rests on that gap is therefore reported inconclusive, never satisfied.
+verdict rests on that gap is therefore reported inconclusive, never satisfied
+(`test_kleene_is_sound_and_not_complete_for_determinacy`).
 
 ---
 

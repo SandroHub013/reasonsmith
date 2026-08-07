@@ -631,8 +631,12 @@ def _normalize_tokens_for_read_whole(text: str) -> list[str]:
             if val in ("(", ")"):
                 continue
             tokens.append(val)
-    except Exception:
-        pass
+    except Exception as exc:
+        raise UnsupportedConstructError(
+            f"{text!r} could not be tokenised whole: {exc}. A partial token list would make a "
+            "truncated specification look read whole, which is the failure this check exists to "
+            "close."
+        ) from exc
     return tokens
 
 
@@ -1244,7 +1248,20 @@ UNKNOWN = _UnknownType()
 
 def is_unknown(val: Any) -> bool:
     """Whether `val` is the Kleene 3-valued logic UNKNOWN value."""
-    return type(val).__name__ == "_UnknownType" or val is UNKNOWN
+    return val is UNKNOWN
+
+
+def kleene_value(val: Any) -> Any:
+    """Read `val` as an element of the Kleene chain `F < U < T`.
+
+    Every Kleene operator here reads its operands through this, so a truth *value* decides the
+    table rather than an identity comparison against `True`/`False`. An atom of this language may
+    return `0`, `1`, `""` or another falsy or truthy value the audited system supplied, and one of
+    those tested by identity is neither `False` nor `UNKNOWN` and would fall through to the
+    operator's unit — a genuine `True` off a falsy conjunct, and a genuine `False` off a truthy
+    disjunct, at every rung that does not guard its atoms.
+    """
+    return UNKNOWN if is_unknown(val) else bool(val)
 
 
 def kleene_not(val: Any) -> Any:
@@ -1254,24 +1271,17 @@ def kleene_not(val: Any) -> Any:
 
 
 def kleene_and_binary(a: Any, b: Any) -> Any:
-    if a is False or b is False:
-        return False
-    if is_unknown(a) or is_unknown(b):
-        return UNKNOWN
-    return True
+    return kleene_and((a, b))
 
 
 def kleene_or_binary(a: Any, b: Any) -> Any:
-    if a is True or b is True:
-        return True
-    if is_unknown(a) or is_unknown(b):
-        return UNKNOWN
-    return False
+    return kleene_or((a, b))
 
 
 def kleene_and(vals: Iterable[Any]) -> Any:
     res: Any = True
-    for v in vals:
+    for val in vals:
+        v = kleene_value(val)
         if v is False:
             return False
         if is_unknown(v):
@@ -1281,7 +1291,8 @@ def kleene_and(vals: Iterable[Any]) -> Any:
 
 def kleene_or(vals: Iterable[Any]) -> Any:
     res: Any = False
-    for v in vals:
+    for val in vals:
+        v = kleene_value(val)
         if v is True:
             return True
         if is_unknown(v):
@@ -1508,7 +1519,7 @@ def eval_temporal_trace(node: ast.AST, records: list[dict[str, Any]]) -> list[An
         return eval_temporal_trace(node.body, records)
 
     if not has_temporal_operator(node):
-        return [eval_expression(node, r) for r in records]
+        return [kleene_value(eval_expression(node, r)) for r in records]
 
     n = len(records)
     if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):

@@ -2059,7 +2059,10 @@ Same arity, different question, and only the first is answered.
 question and not complete for it.
 
 **The backend is an optional extra and its absence is a note.** `pip install reasonsmith` stays a
-two-command demo; `pip install reasonsmith[ltlf]` adds the procedure. Nothing in `check`, in any
+two-command demo; the procedure is the BLACK solver binary, which publishes no wheel and comes
+from a system package manager or <https://www.black-sat.org>. The `ltlf` extra declares no
+Python dependency and installing it adds nothing — what makes the procedure available is the
+binary on `PATH`. Nothing in `check`, in any
 engine or in any shipped example touches it. With it absent, `PackAnalysis.temporal` is `None`,
 `ltlf.UNAVAILABLE_NOTE` is printed, and no temporal question is answered from a weaker substitute
 wearing the same words (`test_the_analysis_says_so_when_the_extra_is_absent`).
