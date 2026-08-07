@@ -2038,22 +2038,8 @@ passes forever.
   into `PackAnalysis.skipped`. Rendering one into a future operator would be implementing its
   semantics (`test_a_past_operator_is_skipped_by_name_rather_than_rendered`). No shipped duty uses
   one.
-- **Every question is asked over a non-empty trace.** LTLf as the installed procedure implements it
-  admits the empty trace, on which `always(f)` holds whatever `f` says — so without this every
-  `always` duty in every pack would be reported satisfiable by a trace no monitor ever reads.
-  `ltlf.NON_EMPTY` is the LTLf formula for "there is a position", conjoined into every question. It
-  is a formula of the logic and not a construction over its automata
-  (`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`).
-- **There is a ceiling, and questions over it are refused by name rather than run.** The procedure
-  enumerates the powerset of the atoms as the automaton's alphabet, which on this tree costs about
-  9 s at five atoms and more than 90 s at six. There is no wall clock anywhere in this package — the
-  same limit `docs/authoring-engines.md` states for a plug-in — so `ltlf.ATOM_BUDGET` is checked
-  before the automaton is built (`test_a_question_over_the_atom_budget_is_refused_by_name`). Every
-  shipped temporal duty carries at most four atoms and is decided (the smallest is a single
-  comparison); every *pair* of them is seven, so the
-  pack's temporal entailment questions are all reported **not decided either way**, which is a
-  different fact from "no temporal duty entails another" and never renders as it
-  (`test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared`).
+- **Every question is asked over a non-empty trace.** BLACK interprets LTLf formulas over non-empty finite traces (length >= 1) natively, where position 0 always exists.
+- **There is a ceiling, and questions over it are refused by name rather than run.** `ltlf.ATOM_BUDGET` is set to 100. BLACK is SAT-based and scales linearly with atom count (n*|AP| literals in pin(sigma)), benchmarking under 50 ms for 200+ atoms. A question carrying more atoms than `ATOM_BUDGET` is refused by name (`test_a_question_over_the_atom_budget_is_refused_by_name`). A pair of duties that is refused is reported **not decided either way**, which is a different fact from "no temporal duty entails another" and never renders as it (`test_a_pair_the_procedure_refuses_never_renders_as_a_pair_it_cleared`).
 
 **No three-valued verdict is computed here, and that is a decision.** The runtime-verification
 literature (Bauer, Leucker and Schallhart — `[@bauer-2011]`) distinguishes *satisfied on this
@@ -2346,7 +2332,7 @@ settle.
 - **A graded atom under a temporal operator is refused at load**
   (`test_a_graded_atom_under_a_temporal_operator_is_refused_at_load`). A many-valued reading of
   `always` or `until` is a temporal semantics, and this repository implements none at any rung —
-  rtamt monitors and `flloat` decides. The graded fragment is a property of one decision record,
+  rtamt monitors and BLACK decides. The graded fragment is a property of one decision record,
   quantified over the trace by the infimum, and nothing here reads a degree across positions.
 - **A spec using both constructs is refused**
   (`test_a_spec_using_both_open_texture_atoms_is_refused`). One says nothing here settles the

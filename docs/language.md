@@ -484,10 +484,10 @@ read as their usual mirror images over the prefix.
 
 **This package implements none of it, and this document defines none of it.** The clauses are
 named, not restated, and the reason is a rule in the tree: rtamt owns the temporal semantics at the
-`observed` rung and `flloat` owns them in the analysis, and a second implementation of one is the
+`observed` rung and BLACK owns them in the analysis, and a second implementation of one is the
 thing to refuse if it is ever proposed. The property language's whole contribution here is a
 **syntax mapping** — prefix calls, because it parses through Python's `ast`, rendered back into
-rtamt's infix by `engines/observed.to_stl` and into `flloat`'s by `ltlf.to_ltlf`
+rtamt's infix by `engines/observed.to_stl` and into BLACK's by `ltlf.to_ltlf`
 (`test_the_rendered_form_is_rtamt_infix_and_rtamt_monitors_it`).
 
 One clause the package does own, because `engines/temporal.py` implements it:
@@ -609,7 +609,7 @@ agreed on the cases we tried*, and a semantics says *here is the definition and 
 | `rulelang.eval_expression` | `O(σ)`, one record at a time | `𝔹` | reference | — it *is* the reference |
 | `engines/proved._ast_to_z3` | `D(L)` | `𝔹` | `proved` | `test_the_encoder_and_the_interpreter_answer_the_same`, `test_the_encoder_and_the_interpreter_compute_the_same_number`, `test_the_solvers_fold_is_the_interpreters_fold`, `test_the_solvers_blank_string_is_pythons_blank_string` |
 | `engines/observed.to_stl` + rtamt | `O(σ)` | `𝔹` (via robustness sign) | `observed` | `test_the_monitor_agrees_with_the_reference_reading`, and §4 |
-| `ltlf.to_ltlf` + `flloat` | a propositional abstraction of `O(σ)` | `𝔹` | none — it answers about *packs* | `test_the_ltlf_backend_agrees_with_the_monitor` |
+| `ltlf.to_ltlf` + BLACK | a propositional abstraction of `O(σ)` | `𝔹` | none — it answers about *packs* | `test_the_ltlf_backend_agrees_with_the_monitor` |
 
 `manyvalued.degree_of` is not a fifth implementation but the same reference interpreter at a
 different `A`: every subtree carrying no `degree()` atom is handed to `eval_expression` and mapped
@@ -673,19 +673,22 @@ corpus of state formulas, evaluated by the reference interpreter and by the moni
 It carries four **named exclusions**, and §4 is what they are — three of them now refused in the
 rendering rather than answered, the fourth a boundary convention.
 
-### 3.4 flloat, at a propositional abstraction
+### 3.4 BLACK, at a propositional abstraction
 
-`ltlf.py` compiles a temporal formula to a DFA and asks emptiness. It is the only implementation
-that changes the structure rather than the algebra: every comparison of magnitudes becomes one
+`ltlf.py` hands a temporal formula to BLACK (a satisfiability checker for LTL and LTLf) over a subprocess boundary.
+It is the only implementation that changes the structure rather than the algebra: every comparison of magnitudes becomes one
 opaque propositional atom, so `x <= 30` bears no relation to `x <= 90`. That abstraction is sound
 for the entailments it reports and incomplete for the ones it does not, which is why satisfiability
 is reported only in the affirmative and `LTLF_ABSTRACTION_LIMIT` rides on every answer.
 
-Two of its choices are §2 clauses rather than implementation details. Every question conjoins
-`F(true)`, because LTLf admits the empty trace on which every `always` duty vacuously holds — which
-is §2.9's refusal of `⨅ ∅` restated in the object logic
-(`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`). And `Iff` is
-expanded both ways, the same expansion Z3 uses, because the mapping has no `<->` of its own
+Two of its choices are §2 clauses rather than implementation details. Every question is asked over
+a **non-empty** trace, which is §2.9's refusal of `⨅ ∅` restated in the object logic: an `always`
+duty satisfiable only by the empty trace is reported unsatisfiable
+(`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`). BLACK
+interprets LTLf over non-empty finite traces natively, so that clause is inherited from the
+procedure rather than conjoined as a guard formula — the clause is the same one either way, and it
+is the clause and not the guard that this document states. And `Iff` is expanded both ways, the
+same expansion Z3 uses, because the mapping has no `<->` of its own
 (`test_the_trace_logic_has_a_spelling_for_equivalence`).
 
 The decision record that fixed the shape of this document predates `ltlf.py`, so it names three

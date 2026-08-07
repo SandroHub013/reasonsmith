@@ -479,7 +479,18 @@ automaton's alphabet: measured on this tree, a pack-shaped question costs about 
 9 s at five and more than 90 s at six. Every shipped temporal duty is three or four atoms and is
 answered in under a second; every *pair* of them is seven, so all three ECOA pairs are reported
 **not decided either way** rather than cleared. `reasonsmith.ltlf.ATOM_BUDGET` is checked before the
-automaton is built, because there is no wall clock anywhere in this package. Read
+automaton is built, because there is no wall clock anywhere in this package.
+
+> **This block is the `flloat`-era measurement and is retained as the record of it.** The temporal
+> decision procedure is now BLACK, which is SAT-based rather than automaton-based; `ATOM_BUDGET`
+> moved from 6 to 100 on that ground, so the entailment line above — three pairs *not decided
+> either way* at seven atoms — no longer describes what the tool reports. The replacement figures
+> are **not measured here**: BLACK publishes no wheel, it is packaged for Ubuntu 26.04 and this
+> tree is measured on 24.04, and inventing a transcript for a procedure that was never run is
+> exactly what this file exists not to do. Re-measure on a machine with BLACK on `PATH` and
+> replace this block with what it prints.
+
+Read
 [`docs/semantics.md`](docs/semantics.md) §8 before quoting any of this: the reading is
 propositional, so satisfiability is reported only in the affirmative and an entailment it does not
 report is not a distinction any system can make.

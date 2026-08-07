@@ -545,7 +545,7 @@ def test_a_graded_atom_under_arithmetic_or_a_comparison_is_refused():
 def test_a_graded_atom_under_a_temporal_operator_is_refused_at_load():
     """A many-valued reading of a temporal operator is a temporal semantics, and there is none here.
 
-    This package implements no temporal semantics at any rung — rtamt monitors and `flloat`
+    This package implements no temporal semantics at any rung — rtamt monitors and BLACK
     decides — and inventing one on a lattice would be a larger claim than either. The graded
     fragment is a property of one decision record, quantified over the trace by the infimum.
     """

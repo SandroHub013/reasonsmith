@@ -700,7 +700,7 @@ The `temporal` fragment is not a property of one record, so Z3 reached it only t
 `always(state property)` reduction and every other shape — including the shipped `until` duty —
 was skipped by every question above. `ltlf.py` decides the whole fragment instead, and it is **a
 syntax mapping and an emptiness question and nothing else**, on the terms `engines/observed.to_stl`
-sets for rtamt: `flloat` compiles the formula to a DFA, satisfiable is "some accepting state",
+sets for rtamt: BLACK is asked whether the formula is satisfiable over a finite trace,
 entailment is `left & !right` unsatisfiable, equivalence is both ways. **Never implement a temporal
 semantics, monitor, automaton construction or tableau here** — the previous attempt at this hand-
 wrote a monitor for operators rtamt had parsed all along. It is deliberately not under `engines/`:
@@ -710,9 +710,9 @@ pins reads that directory. Six things must not be undone: it is an **optional ex
 left `None`, never a weaker answer in the same words; the reading is propositional, so satisfiability
 is reported **only in the affirmative** and `LTLF_ABSTRACTION_LIMIT` rides on every answer — rtamt
 keeps every magnitude, this keeps every position, and neither replaces the other; every question
-conjoins `NON_EMPTY` (`F(true)`), because the logic admits the empty trace on which every `always`
-duty vacuously holds; a past operator (`once`, `historically`, `prev`, `since`, `rise`, `fall`) is
-LTLf-inexpressible and is skipped **by name**; `ATOM_BUDGET` is checked before the automaton is built
+is asked over a non-empty trace, on which an `always` duty cannot hold vacuously — a clause BLACK's
+own finite-trace semantics supplies rather than a guard formula conjoined here; a past operator (`once`, `historically`, `prev`, `since`, `rise`, `fall`) is
+LTLf-inexpressible and is skipped **by name**; `ATOM_BUDGET` is checked before the solver is called
 because there is no wall clock anywhere in this package, and "no pair entails another" must never
 render for "no pair was decided"; and **no three-valued finite-trace verdict is computed** — the
 tool exposes no monitor construction, so the Bauer/Leucker/Schallhart distinction is reported

@@ -353,7 +353,7 @@ names the refusal that enforces it rather than a test that could exhibit a value
    (`test_an_undetermined_atom_is_reported_undetermined_and_names_its_authority`).
 2. **The temporal operators have no reading in a general `A`.** Over `𝔹` they are the finite-trace
    semantics of `[@degiacomo-2013]`, owned by two published implementations — rtamt at the `observed`
-   rung and `flloat` `[@flloat]` in the pack analysis. Over a residuated lattice they would be a
+   rung and BLACK `[@geatti-2019]` in the pack analysis. Over a residuated lattice they would be a
    many-valued temporal logic this package has not implemented and must not improvise, so a graded
    atom under a temporal operator is a **load error** and that refusal is a consequence of this gap
    rather than a policy (`test_a_graded_atom_under_a_temporal_operator_is_refused_at_load`).
@@ -387,7 +387,7 @@ two components; named as what they are, those tests are this document's conforma
 | `rulelang.eval_expression` | `O(σ)`, one record | `𝔹` | it *is* the reference |
 | `engines/proved._ast_to_z3` | `D(L)` | `𝔹` | `test_the_encoder_and_the_interpreter_answer_the_same` |
 | `engines/observed.to_stl` + rtamt | `O(σ)` | `𝔹` via robustness sign | `test_the_monitor_agrees_with_the_reference_reading` |
-| `ltlf.to_ltlf` + `flloat` `[@flloat]` | a propositional abstraction of `O(σ)` | `𝔹` | `test_the_ltlf_backend_agrees_with_the_monitor` |
+| `ltlf.to_ltlf` + BLACK `[@geatti-2019]` | a propositional abstraction of `O(σ)` | `𝔹` | `test_the_ltlf_backend_agrees_with_the_monitor` |
 
 `manyvalued.degree_of` is not a fifth implementation but the reference interpreter at a different
 `A` (§5.3). [`language.md`](language.md) §4 reports four shapes on which the rtamt rendering and
@@ -992,16 +992,20 @@ This definition **must keep coinciding** with §6.9 on the case that rule alread
 never a definition to widen on either side.
 
 The **temporal** fragment is decided by `ltlf.py`, which is a syntax mapping and an emptiness
-question and nothing else: `flloat` `[@flloat]` compiles the formula to a DFA, satisfiable is *some
-accepting state*, entailment is `left & !right` unsatisfiable, equivalence is both ways. The reading
+question and nothing else: BLACK `[@geatti-2019]` is asked whether the formula is satisfiable over
+a finite trace, entailment is `left & !right` unsatisfiable, and equivalence is both ways. The reading
 is propositional — every comparison of magnitudes becomes one opaque atom — so satisfiability is
 reported **only in the affirmative** and `LTLF_ABSTRACTION_LIMIT` rides on every answer. Every
-question conjoins `F(true)`, which is §2.6's refusal of `⨅ ∅` restated in the object logic. Past
+question is asked over a non-empty trace, which is §2.6's refusal of `⨅ ∅` restated in the object
+logic — a clause inherited from BLACK's own finite-trace semantics rather than conjoined as a guard
+formula. Past
 operators are LTLf-inexpressible and are skipped by name. **No three-valued finite-trace verdict is
-computed**: the installed procedure exposes an automaton and no monitor construction over it, so the
-distinction `[@bauer-2011]` draws between *satisfied on this prefix* and *satisfied on every
-extension* is reported unavailable rather than synthesised. The alternative priced against `flloat`
-was BLACK `[@geatti-2019]`, which decides the past operators and publishes no wheel.
+computed**: the installed procedure answers a satisfiability question and exposes no monitor
+construction, so the distinction `[@bauer-2011]` draws between *satisfied on this prefix* and
+*satisfied on every extension* is reported unavailable rather than synthesised. BLACK was priced
+against `flloat` `[@flloat]`, the previous backend, which is pure Python on PyPI but has no past
+operators and an exponential powerset DFA construction; BLACK publishes no wheel, so the extra is a
+binary a user installs by hand and its absence is reported rather than worked around.
 
 The framing in which any of these questions is worth asking of a legal text is isomorphism
 `[@benchcapon-1992]`: a legal knowledge base should stay structurally faithful to its source, one
@@ -1058,10 +1062,10 @@ addition rather than a rewrite.
   single-occurrence replacement formulation §6.10 implements.
 - **`[@geatti-2019]`** L. Geatti, N. Gigante, A. Montanari. *A SAT-based encoding of the one-pass and
   tree-shaped tableau system for LTL.* TABLEAUX 2019, LNCS 11714, 3–20. — the procedure behind
-  BLACK, priced against `flloat` and not chosen (§6.10).
+  BLACK, the temporal decision procedure behind the `ltlf` extra (§2.7, §4, §6.10).
 - **`[@flloat]`** M. Favorito, R. Cipollone. *flloat*, a pure-Python LTLf/LDLf-to-DFA library,
-  https://github.com/whitemech/flloat — the temporal decision procedure behind the
-  `ltlf` extra (§2.9, §6.10). Cited as software: it publishes no paper, which is why the key
+  https://github.com/whitemech/flloat — the previous temporal decision procedure behind the
+  `ltlf` extra, priced against BLACK and replaced by it (§6.10). Cited as software: it publishes no paper, which is why the key
   convention admits a second shape. Its licence is inconsistent at the source, and this entry
   records three claims rather than one: the PyPI metadata's licence field reads Apache-2.0; the
   LICENSE file the installed wheel ships reads GPL-3.0; and the project's own prose in that same
