@@ -11,6 +11,7 @@ What this module is for:
           [--capabilities <file>] [--audience <reader>] [--json]
       reasonsmith check --system-module <module>:<attribute> --pack <pack_name> [...]
       reasonsmith validate-pack <pack_name_or_file> [...]
+      reasonsmith explain <requirement_id> [--pack <pack_name_or_file>]...
 
 What a reader must not break:
   - Exit code contract for `check`: 2 when at least one requirement is VIOLATED, 0 otherwise,
@@ -88,6 +89,19 @@ What a reader must not break:
     reachable from no `--help` string and from none of the shipped examples, so a stranger
     following the tool's own pointing saw only clean runs. The example that fails is the one
     worth showing first.
+  - `explain <requirement-id>` prints only fields the pack already carries and, when the record
+    is on disk, the fourth column of `docs/refinement.md`. It runs no engine, reads no system and
+    changes no verdict. `docs/` is not in the wheel, so an absent record is *named* rather than
+    silently dropped, and the command must keep working for a reader who only ran
+    `pip install reasonsmith`. It prints no rung ceiling: which rung a duty reaches is decided at
+    run time by whichever engine serves it, and a table here would be a hand-maintained claim
+    nothing holds to the dispatch.
+    Why this matters: the translation from a clause of law to a formula is the one step in this
+    tool nothing can verify, so the least it can be is inspectable — and an inspection that
+    invented a field would be worse than none.
+  - `explain` exits 0 when it printed a requirement and 1 when the id matches nothing or a named
+    pack does not load, naming the packs it searched. It never prints an empty frame.
+    Why this matters: a reader who mistyped an id must be told what was looked in.
 
 """
 
@@ -250,7 +264,10 @@ def main(args: list[str] | None = None) -> int:
             "     pack the loader accepts is a valid pack, and a finding is for its author.\n"
             "  1  a pack the loader refuses, naming the file and the requirement at fault, or\n"
             "     a --system-module that does not import, names no such attribute, is not a\n"
-            "     SystemUnderTest, or was given without --analyse."
+            "     SystemUnderTest, or was given without --analyse.\n"
+            "exit codes for explain:\n"
+            "  0  the requirement was found and printed.\n"
+            "  1  no pack searched ships that requirement id, or a named pack does not load."
         ),
     )
     parser.add_argument(
@@ -420,7 +437,51 @@ def main(args: list[str] | None = None) -> int:
         ),
     )
 
+    explain_parser = subparsers.add_parser(
+        "explain",
+        help="Print how one requirement's clause of law became its formula",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "example:\n"
+            "  reasonsmith explain ecoa_reg_b_1002_9_b_2_specific_reasons\n"
+            "\n"
+            "Every line printed is a field of the pack, or a cell of docs/refinement.md when\n"
+            "that record is on disk — it is not packaged in the wheel, and its absence is said\n"
+            "rather than hidden. No rung is printed: which rung a duty reaches is decided by\n"
+            "whichever engine serves it at run time, not by its fragment.\n"
+        ),
+    )
+    explain_parser.add_argument(
+        "requirement_id",
+        help="Requirement id, e.g. ecoa_reg_b_1002_9_b_2_specific_reasons",
+    )
+    explain_parser.add_argument(
+        "--pack",
+        "-p",
+        action="append",
+        default=None,
+        dest="packs",
+        help=(
+            "Pack name or TOML file path to search; repeat for several. Omitted, every built-in "
+            f"pack is searched: {', '.join(list_packs())}"
+        ),
+    )
+
     parsed = parser.parse_args(args)
+
+    if parsed.command == "explain":
+        from reasonsmith.explain import find_requirement, refinement_notes, render_explanation
+
+        try:
+            req, pack_id = find_requirement(parsed.requirement_id, parsed.packs)
+        except LookupError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        except Exception as exc:
+            print(f"Error loading pack: {exc}", file=sys.stderr)
+            return 1
+        print(render_explanation(req, pack_id, refinement_notes()))
+        return 0
 
     if parsed.command == "validate-pack":
         if parsed.system_module is not None and not parsed.analyse:
