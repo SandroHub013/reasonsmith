@@ -269,6 +269,11 @@ def test_every_spec_the_grammar_generates_is_accepted(production: str, data) -> 
 #: the temporal fragment — `validate_temporal_property`.
 REFUSALS = {
     "R-PROSE": "Record check",
+    "R-NOT-READ-WHOLE": "present(reason_a) # and present(reason_b)",
+    # A bare carriage return CPython's parser normalises away and its tokenizer refuses as a
+    # non-printable character: the read-whole check cannot run, so the spec is refused rather
+    # than answered on a token list that may itself be partial.
+    "R-NOT-TOKENISED-WHOLE": "present(reason_a)\r\r# tail",
     "R-UNTERMINATED-STRING": "contains(reason_a, 'oops)",
     "R-UNBALANCED-PARENS": "(present(reason_a)",
     "R-EMPTY-ARROW-OPERAND": "present(reason_a) ->",

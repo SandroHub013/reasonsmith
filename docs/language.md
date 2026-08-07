@@ -250,6 +250,8 @@ one witness per row and fails if a row here has no witness or a witness here has
 | Id | Refused |
 |---|---|
 | `R-PROSE` | text CPython cannot parse as an expression, English included |
+| `R-NOT-READ-WHOLE` | text CPython parsed without reading whole, a comment or a token of the input dropped |
+| `R-NOT-TOKENISED-WHOLE` | text CPython parsed and its tokeniser would not read whole, so whether anything was dropped cannot be established |
 | `R-UNTERMINATED-STRING` | an unterminated string literal, found by the rewriter |
 | `R-UNBALANCED-PARENS` | unbalanced parentheses, found by the rewriter |
 | `R-EMPTY-ARROW-OPERAND` | a missing operand on either side of an arrow |
