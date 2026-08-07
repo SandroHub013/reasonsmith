@@ -277,6 +277,8 @@ Every evaluated result records its evidence strength, on one lattice:
 
 Combining zero verdicts is `inconclusive`, never vacuously `satisfied`. A requirement no engine here can evaluate is reported with no strength, rather than judged by a weaker check. What each verdict means — and does not mean — is stated one engine at a time in [`docs/semantics.md`](docs/semantics.md); every soundness claim there names the test that fails if the claim becomes false.
 
+The mathematics behind all of it — the denotation of the property language, the sufficient-reason definitions, the strength chain beside the evidence basis, the residuated lattices, and one soundness statement per engine — is stated once and in one notation in [`docs/formal.md`](docs/formal.md), which also carries the repository's bibliography.
+
 How each shipped requirement got from a clause of law to a formula — and, in a fourth column, what that refinement deliberately did not capture — is recorded in [`docs/refinement.md`](docs/refinement.md), one row per requirement across all five packs.
 
 ## Can it use a different formalism? Engines and packs install

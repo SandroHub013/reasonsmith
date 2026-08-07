@@ -10,14 +10,19 @@ What this module is for:
 
   This module answers those questions for the whole fragment by handing the formula to a published
   LTLf decision procedure. It is **a syntax mapping and an emptiness question, and nothing else** —
-  the same discipline `engines/observed.to_stl` observes for rtamt. `flloat` (Favorito & Fuggitti,
-  Apache-2.0) compiles an LTLf formula to a DFA over its propositional atoms; a formula is
-  satisfiable exactly when that automaton's language is non-empty, entailment is
+  the same discipline `engines/observed.to_stl` observes for rtamt. `flloat` (Favorito &
+  Cipollone; the PyPI metadata's licence field says Apache-2.0, the licence file the package
+  ships says GPL-3.0, and the project's own prose in that metadata says LGPLv3+, a conflict
+  `[@flloat]` records) compiles an LTLf formula to a DFA over its
+  propositional atoms; a formula is
+  satisfiable exactly when that automaton's language is non-empty (`[@flloat]`, over the
+  finite-trace semantics of `[@degiacomo-2013]`), entailment is
   `left & !right` unsatisfiable, and equivalence is entailment both ways. No temporal semantics,
   automaton construction, tableau or monitor is implemented here, and none may be.
 
   What was priced against `flloat`, so the choice is reconstructible rather than asserted. **BLACK**
-  (Geatti, Gigante, Montanari; MIT) decides LTL, LTL+Past and LTLf and would have covered the past
+  (Geatti, Gigante, Montanari; MIT — `[@geatti-2019]`) decides LTL, LTL+Past and LTLf and would
+  have covered the past
   operators this does not, but publishes no PyPI distribution under any name searched, so
   integrating it means shipping a subprocess boundary onto a binary a user installs by hand.
   **LTLf2DFA** and **Lydia** compile LTLf to a minimal DFA through **MONA**, which is a native

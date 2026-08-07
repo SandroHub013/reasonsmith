@@ -8,16 +8,19 @@ What this module is for:
   reported `deleted` and the tool accused a system of omitting two reasons its inference
   demonstrably used. This module is what the certificate asks instead.
 
-  The objects are Ignatiev, Narodytska and Marques-Silva's abductive explanation (AXp) and its
+  The objects are Ignatiev, Narodytska and Marques-Silva's abductive explanation
+  (AXp — `[@ignatiev-2019]`) and its
   contrastive dual (CXp), specialised to the one perturbation space `artifacts.InferenceArtifact`
   reaches — the *deletion lattice*, since the protocol has a `without(fact)` and deliberately no
   `with_(fact)`. A **CXp** is a subset-minimal set of facts whose joint removal moves the engine's
   answer; an **AXp** is a subset-minimal set of facts whose retention holds it, and the two are
-  minimal hitting sets of each other (Reiter 1987; Ignatiev, Narodytska, Asher and Marques-Silva
-  2020). A fact is **relevant** iff it lies in some CXp, which is the same as lying in some AXp.
-  `docs/sufficient-reasons.md` §4 carries the lemmas and §9 the sources.
+  minimal hitting sets of each other (Reiter 1987 — `[@reiter-1987]`; Ignatiev, Narodytska, Asher
+  and Marques-Silva 2020 — `[@ignatiev-2020]`). A fact is **relevant** iff it lies in some CXp,
+  which is the same as lying in some AXp. `docs/sufficient-reasons.md` §4 carries the lemmas and
+  `docs/formal.md` §3 states them in the repository's one notation, with the bibliography.
 
-  The enumeration is the seed/shrink/grow MARCO loop of Liffiton, Previti, Malik and Marques-Silva,
+  The enumeration is the seed/shrink/grow MARCO loop of Liffiton, Previti, Malik and
+  Marques-Silva (`[@liffiton-2016]`),
   with Z3 as the oracle over the subset lattice — one Boolean per searchable fact, blocking clauses
   recording what has been covered — and the *engine* as the membership oracle, one probe per
   `moved()` call.
