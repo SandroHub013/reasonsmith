@@ -8,6 +8,11 @@ releases before it predate the file and are not reconstructed here.
 
 ## [Unreleased]
 
+### Added
+
+- **`reasonsmith explain <requirement-id>` shows how a clause of law became a formula.**
+  Every requirement already carried its clause, its formula, its rationale and the signals it needs as fields of the pack, and none of it reached a reader through the tool: `validate-pack` prints one index line per requirement, so someone asking how a clause became a property had to open the pack TOML, [`docs/refinement.md`](docs/refinement.md) and [`docs/language.md`](docs/language.md) and hold three files in their head. The command prints those fields under `CLAUSE`, `FORMULA`, `RATIONALE`, `FRAGMENT` and `REQUIRES`, and adds `REFINEMENT` — the fourth column of the refinement record, what the formalisation deliberately did not capture. It runs no engine and reads no system, so it changes no verdict. The id resolves against every built-in pack, or against the packs `--pack` names, a TOML path included; an id nothing ships is a usage error naming the packs searched, never an empty frame. `docs/` is not in the wheel, so an absent refinement record is *named* and pointed at the repository rather than silently dropped. No rung ceiling is printed: which rung a duty reaches is decided at run time by whichever engine serves it, not by its fragment, and a table of fragment-to-rung here would be a hand-maintained claim nothing holds to the dispatch. `tests/test_explain_command.py` explains every shipped requirement and holds both halves of the refinement section; `tests/test_docs_refinement.py` now reads the record through the same parser the command uses, rather than keeping a second copy.
+
 ## [0.8.0] - 2026-08-07
 
 ### Changed
