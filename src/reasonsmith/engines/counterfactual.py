@@ -45,6 +45,14 @@ What a reader must not break:
     and replays the counterexample it found. Checking one half of a 2-safety witness would leave
     this engine's runtime-agreement guarantee weaker than every other engine's while it claims the
     same rung.
+  - **A disagreement between the two rungs names its cause and never moves a verdict.** The rungs
+    do not range over the same object — the proof quantifies over the *declared rules* on the
+    *declared input space*, the replay runs the *implementation* on the *logged* cases — so a
+    disagreement eliminates a disjunction rather than impeaching a rung. `cross_rung_signal` is
+    the whole of it, and the relation it rests on is stated in `docs/formal.md` §6.6.
+    Why this matters: "the two rungs disagree" tells an adopter nothing it can act on. Which
+    disjunct failed tells it either to widen its log or to fix a declaration its own procedure
+    does not implement, and those are opposite instructions.
   - **Every result carries `TREATMENT_LIMIT`.** A satisfied verdict here is about one named
     variable and says nothing about a proxy for it.
     Why this matters: a rule set that never reads the protected variable and decides by postcode is
@@ -60,6 +68,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import replace
 from typing import Any, Optional
 
 import z3
@@ -68,6 +77,9 @@ from reasonsmith.report import PROBE_BUDGET_KEY, RequirementResult
 from reasonsmith.rulelang import (
     UnsupportedConstructError,
     counterfactual_atom,
+    eval_expression,
+    is_unknown,
+    kleene_value,
     parse_expression,
     parse_property,
 )
@@ -79,10 +91,13 @@ __all__ = [
     "DEFAULT_MAX_PAIRS",
     "DEFAULT_MAX_VALUES",
     "PAIR_SEMANTICS",
+    "RUNG_DISAGREEMENT_FIELDS",
+    "RUNG_DISAGREEMENT_KEY",
     "STRATEGY",
     "TREATMENT_LIMIT",
     "CounterfactualProofEngine",
     "PairedReplayEngine",
+    "cross_rung_signal",
 ]
 
 #: What this duty cannot see, carried on every result it produces rather than left to a renderer.
@@ -125,6 +140,33 @@ STRATEGY = (
 #: budget it reports, and a default an adopter waits minutes for is a default nobody runs.
 DEFAULT_MAX_VALUES = 4
 DEFAULT_MAX_PAIRS = 200
+
+#: Where a result records what a disagreement between this duty's two rungs *eliminated*. It is a
+#: signal beside the verdict and never a verdict: `cross_rung_signal` returns the reported rung's
+#: own result with this key added, and changes nothing else on it.
+RUNG_DISAGREEMENT_KEY = "rung_disagreement"
+
+#: The fields that key carries, named here for the reason `report.PROBE_BUDGET_FIELDS` is: a
+#: rendering asks the result rather than parsing a sentence that is free to be reworded. `cause`
+#: is one of `RUNG_DISAGREEMENT_CAUSES` and is the whole point of the signal — which disjunct of
+#: the claim in `docs/formal.md` §6.6 failed, rather than the bare fact that two rungs differ.
+RUNG_DISAGREEMENT_FIELDS = (
+    "reported_rung",
+    "reported_verdict",
+    "lower_rung",
+    "lower_verdict",
+    "cause",
+    "account",
+)
+
+#: The four causes, and there is no fifth: one for each direction of disagreement, and the second
+#: direction splits on the membership question `_pair_membership` decides.
+RUNG_DISAGREEMENT_CAUSES = (
+    "trace_does_not_exercise_the_declared_space",
+    "replay_input_outside_the_declared_space",
+    "declaration_unfaithful_to_the_implementation",
+    "membership_undetermined",
+)
 
 _UNSET_LOGIC = object()
 
@@ -1008,3 +1050,168 @@ class PairedReplayEngine:
             ),
             details={"engine": "paired-replay", PROBE_BUDGET_KEY: budget()},
         )
+
+
+def _pair_membership(
+    case: Mapping[str, Any],
+    protected: str,
+    values: Iterable[Any],
+    constraints: Iterable[str],
+) -> tuple[str, str | None]:
+    """Whether the replayed pair lies in the input space the proof rung quantified over.
+
+    Three answers and not two, because a decision record is not obliged to carry every variable
+    the declaration names: `('inside', None)`, `('outside', constraint)` naming the first declared
+    constraint the pair fails, or `('undetermined', constraint)` naming the first the record
+    leaves unsettled. Read through `rulelang.kleene_value`, so a flag logged as `1` is a truth
+    value here exactly as it is at every other rung.
+
+    Both halves are tested, and the protected value is one of the two the replay used rather than
+    the one the record carries: the pair the replay ran is the pair whose membership decides
+    whether the proof said anything about it.
+    """
+    undetermined: str | None = None
+    values = list(values)
+    for text in constraints:
+        try:
+            node = parse_expression(text)
+            held = [
+                kleene_value(eval_expression(node, {**case, protected: value}))
+                for value in values
+            ]
+        except UnsupportedConstructError:
+            # A constraint this interpreter cannot read is one whose truth on the replayed pair is
+            # unknown, which is the third answer rather than a reason to claim either of the other
+            # two.
+            undetermined = undetermined or text
+            continue
+        if any(val is False for val in held):
+            return "outside", text
+        if any(is_unknown(val) for val in held):
+            undetermined = undetermined or text
+    if undetermined is not None:
+        return "undetermined", undetermined
+    return "inside", None
+
+
+def _residual(
+    replay: RequirementResult,
+    outcome: str,
+    protected: str,
+    logic_data: Any,
+) -> tuple[str, str]:
+    """The cause and the account for a replay that violated where the proof was satisfied.
+
+    The proof is universal over the declared input space and the replay is existential over the
+    logged one, so this direction is only possible if the replayed pair left that space, or if the
+    system's `decide()` does not implement the `logic()` it declared. The first is cheap and
+    decidable, so it is discharged here before anything is said about the second — reporting the
+    unfaithful declaration without eliminating the escaped pair would accuse a compliant system of
+    the more serious of the two.
+    """
+    # Read again rather than threaded through: the proof rung read the same declaration to reach
+    # the verdict this is annotating, so it is there and it parses.
+    from reasonsmith.engines.proved import read_declared_logic
+
+    opening = (
+        f"The lower rung disagrees with this proof: replaying a decision this system logged, with "
+        f"{protected!r} moved and nothing else changed, produced two different values for "
+        f"{outcome!r}. Only two things can make that happen — a replayed pair outside the input "
+        "space this proof quantified over, or a decide() that does not implement the declared "
+        "rules"
+    )
+    case = replay.details.get("counterexample")
+    pair = replay.details.get("counterexample_pair") or []
+    values = [half[protected] for half in pair if isinstance(half, Mapping) and protected in half]
+    _, _, constraints, _ = read_declared_logic(logic_data)
+    if not isinstance(case, Mapping) or not values:
+        return "membership_undetermined", (
+            f"{opening} — and which of them it is could not be decided here: the lower rung "
+            "reported no replayed pair this check could test against the declared constraints, so "
+            "neither possibility is eliminated."
+        )
+
+    state, constraint = _pair_membership(case, protected, values, constraints)
+    if state == "outside":
+        return "replay_input_outside_the_declared_space", (
+            f"{opening} — and it is the first: the replayed pair fails the system's own constraint "
+            f"{constraint!r}, so it is not a pair this proof ever claimed anything about. Nothing "
+            "here says the declaration is unfaithful, and what the disagreement names is the log: "
+            "it holds a decision the declared input space does not admit."
+        )
+    if state == "undetermined":
+        return "membership_undetermined", (
+            f"{opening} — and which of them it is could not be decided here: the recorded decision "
+            f"leaves the system's own constraint {constraint!r} unsettled, so whether the replayed "
+            "pair is inside the space this proof quantified over is unknown and neither "
+            "possibility is eliminated."
+        )
+    return "declaration_unfaithful_to_the_implementation", (
+        f"{opening} — and the first is eliminated: the replayed pair satisfies every constraint "
+        "the system declares, so it is inside the space this proof quantified over. One "
+        "possibility remains, that the system's decide() does not implement the logic() it "
+        "declares. Read this proof as a proof about the declared rules and not about the "
+        "procedure that took the decisions in the log."
+    )
+
+
+def cross_rung_signal(
+    req: Requirement,
+    proof: RequirementResult,
+    replay: RequirementResult,
+    logic_data: Any,
+) -> RequirementResult:
+    """`proof`, with what the lower rung's disagreement eliminated recorded on it.
+
+    The two rungs do not range over the same object. The proof asks whether the *declared rules*
+    treat alike every pair the *declared constraints* admit; the replay asks whether the
+    *implementation* treated alike the pairs built from the decisions the system *logged*. So a
+    disagreement is not a contradiction to be resolved by trusting a rung: it eliminates a
+    disjunction, and which disjunct failed is what an adopter can act on. `docs/formal.md` §6.6
+    states the claim and its contrapositive.
+
+    Nothing here moves a verdict, a strength or a witness: the reported rung's own result comes
+    back with one key added. A rung that established nothing, and two rungs that agree, are
+    returned unchanged — this signal exists for the disagreement and says nothing in its absence.
+    """
+    decided = (Verdict.SATISFIED, Verdict.VIOLATED)
+    atom = _atom(req)
+    if (
+        atom is None
+        or replay.strength is None
+        or replay.verdict not in decided
+        or proof.verdict not in decided
+        or proof.verdict == replay.verdict
+    ):
+        return proof
+    outcome, protected = atom
+
+    if proof.verdict == Verdict.VIOLATED:
+        # The expected direction, and not a defect in either rung: the proof reaches the whole
+        # declared input space and the replay reaches only what the log exercises.
+        cause = "trace_does_not_exercise_the_declared_space"
+        account = (
+            "The lower rung was run and did not reproduce this finding: replaying the decisions "
+            f"this system logged, with {protected!r} moved across the values its own constraints "
+            f"admit, moved no {outcome!r}. That is the expected relation between these two rungs "
+            "rather than a defect in either — this proof quantifies over every input the declared "
+            "constraints admit, and the replay reaches only the cases the log exercises — so the "
+            "finding above stands, and what the disagreement names is the log: it does not "
+            "exercise what the rules permit."
+        )
+    else:
+        cause, account = _residual(replay, outcome, protected, logic_data)
+
+    disagreement = {
+        "reported_rung": proof.strength.value if proof.strength else None,
+        "reported_verdict": proof.verdict.value,
+        "lower_rung": replay.strength.value,
+        "lower_verdict": replay.verdict.value,
+        "cause": cause,
+        "account": account,
+    }
+    return replace(
+        proof,
+        evidence_summary=f"{proof.evidence_summary} {account}",
+        details={**proof.details, RUNG_DISAGREEMENT_KEY: disagreement},
+    )

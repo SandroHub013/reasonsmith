@@ -102,9 +102,13 @@ def test_a_rule_set_reading_the_protected_variable_yields_a_witness_pair(outcome
 
 from reasonsmith.adapters.rules import RulesAdapter  # noqa: E402
 from reasonsmith.engines.counterfactual import (  # noqa: E402
+    RUNG_DISAGREEMENT_CAUSES,
+    RUNG_DISAGREEMENT_FIELDS,
+    RUNG_DISAGREEMENT_KEY,
     TREATMENT_LIMIT,
     CounterfactualProofEngine,
     PairedReplayEngine,
+    cross_rung_signal,
 )
 from reasonsmith.report import evaluate_requirement  # noqa: E402
 from reasonsmith.rulelang import UnsupportedConstructError, classify_fragment  # noqa: E402
@@ -547,6 +551,211 @@ def test_a_replay_that_did_exhaust_the_admitted_values_says_so():
     result = PairedReplayEngine.evaluate(_requirement(), _aware_system())
     assert (result.verdict, result.strength) == (Verdict.SATISFIED, Strength.PROBED)
     assert "every one of the 2 values the declared constraints admit" in result.evidence_summary
+
+
+# --- when the two rungs disagree ----------------------------------------------------------------
+#
+# The two rungs do not range over the same object — the proof quantifies over the declared rules on
+# the declared input space, the replay runs the implementation on the logged cases — so a
+# disagreement eliminates a disjunction rather than impeaching a rung. `docs/formal.md` §6.6 states
+# the claim and its contrapositive; these are its witnesses, one per direction.
+
+#: Rules that are invariant on every input the declared constraints admit and discriminate only
+#: below the band. The witness for the first disjunct of the contrapositive: a logged decision the
+#: declared input space does not admit builds a replay pair the proof never claimed anything about.
+OUTSIDE_THE_SPACE_RULES = [
+    (
+        "if credit_score >= 300:\n"
+        "    approved = credit_score >= 640\n"
+        "else:\n"
+        f"    approved = {PROTECTED} == 0\n"
+    ),
+    (
+        "if approved:\n"
+        f'    {OUTCOME} = "credit granted on this application"\n'
+        "else:\n"
+        f'    {OUTCOME} = "adverse action taken on this application"\n'
+    ),
+]
+
+
+def _outside_the_space_system():
+    sut = _aware_system(rules=OUTSIDE_THE_SPACE_RULES)
+    # A logged decision below the declared band: the input space this system declares does not
+    # admit it, so the pair the replay builds around it is outside the one the proof quantified
+    # over.
+    sut._test_inputs = [{"credit_score": 100, PROTECTED: 0}]
+    return sut
+
+
+class _UnfaithfulRules(RulesAdapter):
+    """Declares the invariant rules and runs a decide() that reads the protected variable anyway.
+
+    The witness for the second disjunct: the proof rung is answered about `logic()` and never
+    executes `decide()` when it comes back `unsat`, so a declaration its own procedure does not
+    implement is invisible to it — and visible to the rung below.
+    """
+
+    def decide(self, case):
+        env = super().decide(dict(case))
+        env["approved"] = case["credit_score"] >= 640 + 40 * case.get(PROTECTED, 0)
+        env[OUTCOME] = (
+            "credit granted on this application"
+            if env["approved"]
+            else "adverse action taken on this application"
+        )
+        return env
+
+
+def _unfaithful_system(variables=None, constraints=None):
+    return _UnfaithfulRules(
+        rules=list(AWARE_RULES),
+        variables=dict(AWARE_VARIABLES if variables is None else variables),
+        constraints=list(AWARE_CONSTRAINTS if constraints is None else constraints),
+        declared_capabilities={"decision", OUTCOME},
+        # 660 clears the declared threshold under basis 0 and misses the one this decide() applies
+        # under basis 1, and it is inside every constraint the system declares.
+        test_inputs=[{"credit_score": 660, PROTECTED: 0}],
+    )
+
+
+def _disagreement(sut):
+    result = evaluate_requirement(_requirement(), sut, system_domains=("consumer-credit",))
+    signal = result.details.get(RUNG_DISAGREEMENT_KEY)
+    assert signal is not None, "the lower rung was not run, or was not compared"
+    assert set(RUNG_DISAGREEMENT_FIELDS) <= set(signal)
+    assert signal["cause"] in RUNG_DISAGREEMENT_CAUSES
+    assert signal["account"] in result.evidence_summary
+    return result, signal
+
+
+def test_a_proof_the_log_does_not_reach_names_the_log():
+    """Direction 1: proved violated, probed satisfied. Expected, and not a defect in either rung."""
+    result, signal = _disagreement(_aware_system(rules=DISCRIMINATING_RULES))
+
+    assert (result.verdict, result.strength) == (Verdict.VIOLATED, Strength.PROVED)
+    assert signal["cause"] == "trace_does_not_exercise_the_declared_space"
+    assert (signal["reported_verdict"], signal["lower_verdict"]) == ("violated", "satisfied")
+    assert "does not exercise what the rules permit" in signal["account"]
+
+
+def test_a_replay_outside_the_declared_input_space_is_named_before_the_declaration_is():
+    """Direction 2, first disjunct: R ⊄ P, so the proof said nothing about the pair that broke.
+
+    Discharged before anything is said about the implementation: reporting an unfaithful
+    declaration here would accuse a compliant system of the more serious of the two failures.
+    """
+    result, signal = _disagreement(_outside_the_space_system())
+
+    assert (result.verdict, result.strength) == (Verdict.SATISFIED, Strength.PROVED)
+    assert signal["cause"] == "replay_input_outside_the_declared_space"
+    assert "'credit_score >= 300'" in signal["account"]
+    assert "unfaithful" in signal["account"]  # named only to say nothing here establishes it
+
+
+def test_a_declaration_its_own_decide_does_not_implement_is_the_residual():
+    """Direction 2, second disjunct, and the negative result the item allowed for did not happen.
+
+    The replayed pair satisfies every declared constraint, so the first disjunct is eliminated and
+    what remains is that `decide()` does not implement `logic()`. The proof rung cannot see it: it
+    is answered about the declared rules, and an `unsat` never replays anything.
+    """
+    result, signal = _disagreement(_unfaithful_system())
+
+    assert (result.verdict, result.strength) == (Verdict.SATISFIED, Strength.PROVED)
+    assert signal["cause"] == "declaration_unfaithful_to_the_implementation"
+    assert (signal["reported_verdict"], signal["lower_verdict"]) == ("satisfied", "violated")
+    assert "does not implement the logic() it declares" in signal["account"]
+
+
+def test_a_record_that_leaves_a_declared_constraint_unsettled_eliminates_neither():
+    """The third answer the membership question needs: a record need not carry every variable."""
+    result, signal = _disagreement(
+        _unfaithful_system(
+            variables={**AWARE_VARIABLES, "applicant_age": "int"},
+            constraints=[*AWARE_CONSTRAINTS, "applicant_age >= 18"],
+        )
+    )
+
+    assert (result.verdict, result.strength) == (Verdict.SATISFIED, Strength.PROVED)
+    assert signal["cause"] == "membership_undetermined"
+    assert "'applicant_age >= 18'" in signal["account"]
+    assert "neither possibility is eliminated" in signal["account"]
+
+
+def test_a_lower_rung_that_established_nothing_carries_no_signal():
+    """One rung answering and one refusing is not a disagreement, and must not read as one."""
+    sut = _aware_system(rules=DISCRIMINATING_RULES)
+    sut._test_inputs = []  # nothing logged, so the replay rung has no decision to build a twin of
+
+    result = evaluate_requirement(_requirement(), sut, system_domains=("consumer-credit",))
+    assert (result.verdict, result.strength) == (Verdict.VIOLATED, Strength.PROVED)
+    assert RUNG_DISAGREEMENT_KEY not in result.details
+
+
+def test_a_disagreement_with_no_witness_to_test_eliminates_neither():
+    """The membership question needs the pair the replay ran, and says so when it has none."""
+    from dataclasses import replace
+
+    sut = _unfaithful_system()
+    req = _requirement()
+    proof = CounterfactualProofEngine.evaluate(req, sut)
+    replayed = PairedReplayEngine.evaluate(req, sut)
+    stripped = replace(
+        replayed,
+        details={k: v for k, v in replayed.details.items() if k != "counterexample_pair"},
+    )
+
+    signal = cross_rung_signal(req, proof, stripped, sut.logic()).details[RUNG_DISAGREEMENT_KEY]
+    assert signal["cause"] == "membership_undetermined"
+    assert "reported no replayed pair" in signal["account"]
+
+
+def test_a_constraint_the_interpreter_cannot_read_is_undetermined_and_not_a_breach():
+    """A constraint whose truth on the pair is unknown is the third answer, not the first."""
+    from reasonsmith.engines.counterfactual import _pair_membership
+
+    assert _pair_membership({"credit_score": 660}, PROTECTED, [0, 1], ["len(x) > 0"]) == (
+        "undetermined",
+        "len(x) > 0",
+    )
+
+
+def test_two_rungs_that_agree_carry_no_signal_at_all():
+    """The control. This is evidence about a disagreement and says nothing in its absence."""
+    result = evaluate_requirement(
+        _requirement(), _aware_system(), system_domains=("consumer-credit",)
+    )
+    assert (result.verdict, result.strength) == (Verdict.SATISFIED, Strength.PROVED)
+    assert RUNG_DISAGREEMENT_KEY not in result.details
+
+
+@pytest.mark.parametrize(
+    "sut_factory",
+    [
+        lambda: _aware_system(rules=DISCRIMINATING_RULES),
+        _outside_the_space_system,
+        _unfaithful_system,
+    ],
+)
+def test_the_signal_moves_no_verdict_no_strength_and_no_witness(sut_factory):
+    """It is a signal beside the verdict, so the proof rung's own result must survive it intact.
+
+    Asked of the one proof result rather than of two runs of the engine: a violated verdict names
+    whichever admissible pair the solver produced, and two runs need not produce the same one.
+    """
+    sut = sut_factory()
+    req = _requirement()
+    proof = CounterfactualProofEngine.evaluate(req, sut)
+    signalled = cross_rung_signal(
+        req, proof, PairedReplayEngine.evaluate(req, sut), sut.logic()
+    )
+
+    assert RUNG_DISAGREEMENT_KEY in signalled.details, "the fixture's two rungs did not disagree"
+    assert (signalled.verdict, signalled.strength) == (proof.verdict, proof.strength)
+    rest = {k: v for k, v in signalled.details.items() if k != RUNG_DISAGREEMENT_KEY}
+    assert rest == proof.details
+    assert signalled.evidence_summary.startswith(proof.evidence_summary)
 
 
 # --- the shipped pack ---------------------------------------------------------------------------

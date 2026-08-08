@@ -1636,7 +1636,12 @@ def _engine_ladder(
     the solver encoding the declared rules twice, and the paired replay running `decide()` on a
     recorded decision and on its twin. Neither is appended alongside a plug-in rung, for the reason
     the certificate duty below returns early: an installed package this repository never audited
-    must not be able to answer a counterfactual duty off a log either.
+    must not be able to answer a counterfactual duty off a log either. This is also the one
+    fragment whose *lower* rung is run after the higher one has already answered: the two do not
+    range over the same object, so their disagreement is evidence in its own right and
+    `engines.counterfactual.cross_rung_signal` records what it eliminates. It changes no verdict
+    and no strength, and it runs only when the proof rung reached one, so nothing here pays for it
+    twice.
 
     One duty is deliberately given a ladder of **one** rung: a duty gating on
     `engines.certificate.DELETED_REASON_COUNT` asks whether the reasons a decision states are all
@@ -1671,29 +1676,29 @@ def _engine_ladder(
         from reasonsmith.engines.counterfactual import (
             CounterfactualProofEngine,
             PairedReplayEngine,
+            cross_rung_signal,
         )
+
+        def replay() -> RequirementResult:
+            return PairedReplayEngine.evaluate(
+                req,
+                sut,
+                records,
+                trace_provider=resources.trace if records is None else None,
+            )
+
+        def proof() -> RequirementResult:
+            proved = _run_proof_rung(
+                req, sut, records, resources, engine=CounterfactualProofEngine
+            )
+            if proved.verdict not in (Verdict.SATISFIED, Verdict.VIOLATED):
+                return proved
+            return cross_rung_signal(req, proved, replay(), resources.logic())
 
         counterfactual: list[tuple[Strength, Any]] = []
         if callable(getattr(sut, "logic", None)):
-            counterfactual.append(
-                (
-                    Strength.PROVED,
-                    lambda: _run_proof_rung(
-                        req, sut, records, resources, engine=CounterfactualProofEngine
-                    ),
-                )
-            )
-        counterfactual.append(
-            (
-                Strength.PROBED,
-                lambda: PairedReplayEngine.evaluate(
-                    req,
-                    sut,
-                    records,
-                    trace_provider=resources.trace if records is None else None,
-                ),
-            )
-        )
+            counterfactual.append((Strength.PROVED, proof))
+        counterfactual.append((Strength.PROBED, replay))
         return counterfactual
 
     ladder: list[tuple[Strength, Any]] = []
