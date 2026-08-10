@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import reasonsmith.autoformalize as harness
+import reasonsmith.proposer as proposer
 from reasonsmith.spec import list_packs, load_pack
 
 
@@ -58,6 +59,11 @@ def test_round_trip_reports_stronger_weaker_and_incomparable_without_rewriting()
     assert incomparable.status == "incomparable" and incomparable.witness
     assert not stronger.passed and not weaker.passed and not incomparable.passed
     assert stronger.candidate == stronger_candidate
+    assert "stricter" in stronger.repair_message
+    assert "weaker" in weaker.repair_message
+    assert "both directions" in incomparable.repair_message
+    assert "equivalent" in harness.round_trip_check(req, req.spec).repair_message
+    assert "cannot be compared" in harness.round_trip_check(req, "present(bad").repair_message
 
 
 RECORD_CHALLENGE_REQUIREMENTS = frozenset({
@@ -110,6 +116,31 @@ def test_principal_reasons_set_catches_omitting_the_deletion_bound():
     assert {case.case_id for case in check.failures} >= {
         "complete-reasons", "deleted-principal-reason"
     }
+
+
+def test_challenge_scope_rejects_missing_or_wrong_typed_signal():
+    with pytest.raises(ValueError, match="does not provide"):
+        harness._ChallengeScope({}, {}).read("missing")
+    with pytest.raises(ValueError, match="must be true or false"):
+        harness._ChallengeScope({"flag": "bool"}, {"flag": 1}).read("flag")
+
+
+def test_challenge_scope_reads_declared_scalar_types():
+    scope = harness._ChallengeScope(
+        {"count": "int", "text": "str", "amount": "real"},
+        {"count": 2, "text": "notice", "amount": 1.5},
+    )
+    assert str(scope.read("count")) == "2"
+    assert str(scope.read("text")) == '"notice"'
+    assert str(scope.read("amount")) == "3/2"
+    with pytest.raises(ValueError, match="must be an integer"):
+        harness._ChallengeScope({"count": "int"}, {"count": 1.5}).read("count")
+    with pytest.raises(ValueError, match="must be text"):
+        harness._ChallengeScope({"text": "str"}, {"text": 1}).read("text")
+    with pytest.raises(ValueError, match="must be numeric"):
+        harness._ChallengeScope({"amount": "real"}, {"amount": "bad"}).read("amount")
+
+
 
 
 def test_wrong_specific_reasons_candidate_is_caught_by_near_misses():
@@ -173,15 +204,16 @@ signals = {}
         harness._load_file(path)
 
 
-def test_harness_has_no_model_or_conformance_surface():
+def test_harness_and_proposer_have_no_conformance_surface():
     from types import ModuleType
 
-    bound_names = vars(harness)
-    bound_modules = {
-        value.__name__ for value in bound_names.values() if isinstance(value, ModuleType)
-    }
-    assert "RequirementResult" not in bound_names
-    assert "check_conformance" not in bound_names
-    assert "evaluate_requirement" not in bound_names
-    assert "reasonsmith.conformance" not in bound_modules
-    assert not any(name.startswith("reasonsmith.engines") for name in bound_modules)
+    for module in (harness, proposer):
+        bound_names = vars(module)
+        bound_modules = {
+            value.__name__ for value in bound_names.values() if isinstance(value, ModuleType)
+        }
+        assert "RequirementResult" not in bound_names
+        assert "check_conformance" not in bound_names
+        assert "evaluate_requirement" not in bound_names
+        assert "reasonsmith.conformance" not in bound_modules
+        assert not any(name.startswith("reasonsmith.engines") for name in bound_modules)
