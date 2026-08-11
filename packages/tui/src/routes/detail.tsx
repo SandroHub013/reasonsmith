@@ -26,11 +26,18 @@
  *     artefact, never read from the log. It is the sharpest thing this tool produces, so it is
  *     printed in the verdict's own colour rather than dimmed into the rest of the details. The
  *     decision *index* inside it is a pointer at a real record and is behind `witnesses`.
+ *   - **A failed certificate is shown beside the verdict it disagrees with, not instead of it.**
+ *     `result.findings` may report a `certificate` `FAIL` on a duty whose verdict is `satisfied`,
+ *     and that pairing *is* the finding: the duty was cleared on what its engine could check, and
+ *     the certificate measurement over the same decision failed. Reconciling the two here — showing
+ *     the verdict and dropping the finding, or letting the finding colour the verdict — would be
+ *     this renderer deciding which half of a measured disagreement its reader may see.
  */
 
 import { For, Show } from "solid-js"
 import { SyntaxStyle } from "@opentui/core"
 import {
+  CERTIFICATE_KEY,
   CERTIFICATES_KEY,
   COUNTEREXAMPLE_KEY,
   OFFENDING_TRACE_SEGMENT_KEY,
@@ -41,6 +48,7 @@ import {
   VIOLATION_STEP_INDICES_KEY,
 } from "../types/detail-keys.ts"
 import type { RequirementResult } from "../types/schema.ts"
+import { isClaimedSemantics } from "../types/verdict.ts"
 import { basisSentence } from "../types/render.ts"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
@@ -149,6 +157,14 @@ function Body(props: { result: RequirementResult }) {
         <text fg={tone().color} attributes={t.attr.bold} wrapMode="none" content={tone().label} />
       </box>
 
+      {/*
+        Beside the verdict and before anything else, because a certificate that failed under a
+        satisfied duty is the one thing on this screen a reader would otherwise not go looking for.
+      */}
+      <Show when={view().evidence}>
+        <Findings result={props.result} showDecisionIndex={view().witnesses} />
+      </Show>
+
       {/* On every row of the projection table: no audience is shown a verdict without its clause. */}
       <Field label="clause" value={props.result.source_clause} />
 
@@ -157,11 +173,21 @@ function Body(props: { result: RequirementResult }) {
       </Show>
 
       {/*
-        Gated on `strength`, not on a flag of its own: the lay projection is shown no basis at all,
-        on the same flag that already withholds the rung.
+        The clause's own words, quoted from the pack and never reflowed. Behind the same flag as the
+        rest of the legal metadata (`legal_metadata` on the Python side): the lay projection is not
+        shown statutory text, which is the other half of the rule that it paraphrases none.
       */}
-      <Show when={view().strength}>
-        <Field label="evidence basis" value={basisSentence(props.result.basis)} />
+      <Show when={view().classification && props.result.verbatim_text.trim() !== ""}>
+        <Paragraph label="the clause, as the regulation writes it" text={props.result.verbatim_text} />
+      </Show>
+
+      {/*
+        Gated on `strength`, not on a flag of its own: the lay projection is shown no basis at all,
+        on the same flag that already withholds the rung. `basisSentence` is null for the
+        behavioural basis, where the Python renders nothing — an absent ceiling, not a missing row.
+      */}
+      <Show when={view().strength && basisSentence(props.result.basis)}>
+        {(sentence) => <Field label="evidence basis" value={sentence()} />}
       </Show>
 
       <Show when={view().signalNames && props.result.signals_required.length > 0}>
@@ -200,6 +226,7 @@ function Body(props: { result: RequirementResult }) {
         <VacuousTrigger result={props.result} />
         <TruthDegree result={props.result} />
         <Certificates result={props.result} showDecisionIndex={view().witnesses} />
+        <SemanticsGap result={props.result} />
       </Show>
 
       <Show when={view().plainAccount}>
@@ -250,6 +277,127 @@ function MarkdownField(props: { label: string; text: string }) {
         bg={t.color.bg}
       />
     </box>
+  )
+}
+
+/**
+ * The findings reported beside this verdict, and nothing about the verdict itself.
+ *
+ * The wording is chosen so the pairing survives being read quickly: a `FAIL` under a `satisfied`
+ * duty says *the duty was cleared on what it could check, and this measurement failed*, which is
+ * two facts and not a contradiction. The block is drawn in the violation colour whatever the
+ * verdict is, because the finding's own severity is not the verdict's.
+ */
+function Findings(props: { result: RequirementResult; showDecisionIndex: boolean }) {
+  const t = useTheme()
+  const certificateFailures = () => props.result.findings.filter((f) => f.type === "certificate")
+
+  return (
+    <Show when={certificateFailures().length > 0}>
+      <box flexDirection="column" marginTop={1}>
+        <text
+          fg={t.color.bad}
+          attributes={t.attr.bold}
+          wrapMode="none"
+          content={
+            props.result.verdict === "satisfied"
+              ? "a certificate measurement failed under this satisfied duty"
+              : "a certificate measurement failed"
+          }
+        />
+        <For
+          each={wrap(
+            "The duty above was settled on what its engine could check. Separately, the " +
+              "reason-deletion certificate over the decision(s) named below did not hold. Both are " +
+              "reported; neither stands in for the other.",
+            WIDTH,
+          )}
+        >
+          {(line) => <text fg={t.color.textSecondary} wrapMode="none" content={line} />}
+        </For>
+        <For each={certificateFailures()}>
+          {(finding) => (
+            <text
+              fg={t.color.bad}
+              wrapMode="none"
+              content={
+                props.showDecisionIndex && finding.decision_index !== null
+                  ? `  · certificate FAIL at decision #${finding.decision_index}`
+                  : "  · certificate FAIL at a certified decision"
+              }
+            />
+          )}
+        </For>
+      </box>
+    </Show>
+  )
+}
+
+/**
+ * The semantics an artefact claimed, beside the semantics it was measured against.
+ *
+ * A value gap is only readable next to what produced it, which is why the pair is printed together
+ * and never the claim alone. `claimed_semantics` is a closed vocabulary on the Python side, so a
+ * value outside it is named as unrecognised rather than printed as though it were one more
+ * semantics this tool knows how to compare — an author's prose is not a semantics.
+ */
+function SemanticsGap(props: { result: RequirementResult }) {
+  const t = useTheme()
+  const records = () => {
+    const raw = props.result.details[CERTIFICATE_KEY]
+    return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
+  }
+  const gaps = () =>
+    records().filter((r) => r.claimed_semantics !== undefined || r.exact_semantics !== undefined)
+
+  const claim = (record: Record<string, unknown>): string => {
+    const claimed = record.claimed_semantics
+    if (claimed === null || claimed === undefined) return "no semantics declared"
+    if (!isClaimedSemantics(claimed)) {
+      return `${JSON.stringify(claimed)} (not a semantics this build recognises)`
+    }
+    return claimed
+  }
+
+  return (
+    <Show when={gaps().length > 0}>
+      <box flexDirection="column" marginTop={1}>
+        <text
+          fg={t.color.textMuted}
+          attributes={t.attr.dim}
+          wrapMode="none"
+          content="claimed semantics, and what it was measured against"
+        />
+        <For each={gaps()}>
+          {(record) => (
+            <box flexDirection="column">
+              <text
+                fg={t.color.text}
+                wrapMode="none"
+                content={
+                  `decision #${String(record.decision_index)}  ·  claimed ${claim(record)}  ·  ` +
+                  `measured against ${
+                    record.exact_semantics === null || record.exact_semantics === undefined
+                      ? "nothing exact"
+                      : String(record.exact_semantics)
+                  }`
+                }
+              />
+              <Show when={record.value_gap !== null && record.value_gap !== undefined}>
+                <text
+                  fg={t.color.bad}
+                  wrapMode="none"
+                  content={
+                    `  value gap ${String(record.value_gap)}  ·  engine ` +
+                    `${String(record.engine_value)} vs exact ${String(record.exact_value)}`
+                  }
+                />
+              </Show>
+            </box>
+          )}
+        </For>
+      </box>
+    </Show>
   )
 }
 
@@ -448,31 +596,84 @@ function Certificates(props: { result: RequirementResult; showDecisionIndex: boo
  * and a reason left unstated out of the certificate engine's own measurement. Nothing here
  * paraphrases a statute, explains a decision, or advises.
  *
- * The second heading is printed whether or not anything was found, because **absence of a finding is
- * never completeness**: silence under it reads to this reader as a clean result, and it is not one.
+ * Three sections, against `render._lay_sections`'s three. The second is printed whether or not
+ * anything was found, because **absence of a finding is never completeness**: silence under it reads
+ * to this reader as a clean result, and it is not one. The third states how much of the pack this
+ * run never settled, and is the bound on everything above it.
+ *
+ * Where the wording departs from the Python it is because the JSON cannot carry what the text
+ * rendering quotes, and each departure says so on the spot. The *branches* never depart: which
+ * sentence a reader gets is decided by the same counts the Python decides it by, and a divergence
+ * there is a defect rather than an adaptation.
  */
 function LayAccount() {
   const t = useTheme()
   const report = useReport()
 
   /**
-   * Every duty answered on the `artifact` basis — whatever its verdict — because a reader shown only
-   * the breaches would read the silence on the others as a clean result. `anyMeasured` and `missing`
-   * are the two facts the three branches below turn on, and they are exactly `render.laySections`'s.
+   * The certificates this run produced and the reasons they found unstated — gathered exactly as
+   * `render._lay_sections` gathers them, which is over **every** result and with **no** deduplication.
+   *
+   * Both of those were wrong here, in ways that changed what this reader was told. The gather was
+   * restricted to the `artifact` basis, and `anyMeasured` was set from the mere presence of the key
+   * rather than from a certificate existing — so a result carrying an empty certificate list took
+   * the *"every reason was stated"* branch where the Python takes the *"nothing measured that"*
+   * branch, which are opposite claims to make to someone asking why they were refused. And the
+   * reasons were passed through a `Set`, so two decisions that each left the same reason unstated
+   * were reported as one.
    */
   const certified = () => {
     const missing: string[] = []
-    let anyMeasured = false
-    for (const result of report.results().filter((r) => r.basis === "artifact")) {
+    let certificates = 0
+    for (const result of report.results()) {
       const raw = result.details[CERTIFICATES_KEY]
       if (!Array.isArray(raw)) continue
-      anyMeasured = true
       for (const cert of raw as Record<string, unknown>[]) {
+        certificates += 1
         const reasons = cert.missing_reasons
         if (Array.isArray(reasons)) missing.push(...reasons.map(String))
       }
     }
-    return { anyMeasured, missing: [...new Set(missing)] }
+    return { certificates, missing }
+  }
+
+  /**
+   * `WHAT THIS REPORT COULD NOT CHECK`, in `render._lay_sections`'s three branches and its wording.
+   *
+   * The section is the whole reason the lay account can be read as an answer rather than as a
+   * verdict: it is where a run says how much of the pack it never settled. Dropping it left this
+   * reader — the one least able to notice the omission — with the findings and none of their
+   * bounds. The section is omitted only when all three counts are zero, exactly as the Python omits
+   * it, because a heading over nothing is the other half of the same defect.
+   */
+  const unchecked = () => {
+    const results = report.results()
+    const duties = (n: number) => (n === 1 ? "duty" : "duties")
+    const lines: string[] = []
+    const unattainable = results.filter((r) => r.strength === "unattainable").length
+    const unsettled = results.filter(
+      (r) => r.strength === null && r.verdict !== "not_applicable",
+    ).length
+    const inapplicable = results.filter((r) => r.verdict === "not_applicable").length
+    if (unattainable > 0) {
+      lines.push(
+        `${unattainable} ${duties(unattainable)}: the system supplied nothing any check here ` +
+          "could read, so it was not checked either way.",
+      )
+    }
+    if (unsettled > 0) {
+      lines.push(
+        `${unsettled} ${duties(unsettled)}: no check in this report could settle it, so it was ` +
+          "left open rather than answered.",
+      )
+    }
+    if (inapplicable > 0) {
+      lines.push(
+        `${inapplicable} ${duties(inapplicable)}: not one this run applies to this system, so ` +
+          "nothing here says it was met.",
+      )
+    }
+    return lines
   }
 
   return (
@@ -504,9 +705,13 @@ function LayAccount() {
 
       {/*
         Printed whatever the answer — including when nothing measured it. Silence under this heading
-        reads to this reader as a clean result and it is not one. The three branches and their
-        wording are `render.laySections`'s, so the TUI and `reasonsmith check --audience
-        affected-individual` tell the same person the same thing.
+        reads to this reader as a clean result and it is not one.
+
+        The three branches are `render._lay_sections`'s, decided by the same two counts. The
+        sentences are not quite its sentences: the Python's say "the reasons above", pointing at the
+        decisions it quoted in its first section, and this rendering has no first section to point
+        at — the JSON carries the findings of the run, not the log it read. Quoting the Python
+        verbatim here would leave a reader chasing a passage that is not on the screen.
       */}
       <box flexDirection="column" marginTop={1}>
         <text
@@ -516,7 +721,7 @@ function LayAccount() {
           content="WHETHER THE STATED REASONS WERE ALL THE REASONS"
         />
         <Show
-          when={certified().anyMeasured}
+          when={certified().certificates > 0}
           fallback={
             <For
               each={wrap(
@@ -556,6 +761,28 @@ function LayAccount() {
           </Show>
         </Show>
       </box>
+
+      {/*
+        The third section of `render._lay_sections`, in its wording. It is dropped only when it has
+        no line to carry, which is the Python's own condition.
+      */}
+      <Show when={unchecked().length > 0}>
+        <box flexDirection="column" marginTop={1}>
+          <text
+            fg={t.color.text}
+            attributes={t.attr.bold}
+            wrapMode="none"
+            content="WHAT THIS REPORT COULD NOT CHECK"
+          />
+          <For each={unchecked()}>
+            {(line) => (
+              <For each={wrap(line, WIDTH)}>
+                {(row) => <text fg={t.color.textMuted} wrapMode="none" content={row} />}
+              </For>
+            )}
+          </For>
+        </box>
+      </Show>
     </box>
   )
 }

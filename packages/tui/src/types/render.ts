@@ -1,46 +1,52 @@
 /**
  * The one place any rendering words an evidence basis.
  *
- * The wording is `render.basisSentence` from `packages/core/src/render.ts` and the Python's
- * `docs/semantics.md` §10 — a basis is a *kind*, never a rank, and its sentence carries the rungs
- * the basis admits so the ceiling reads as the duty's, not as an exposure the system withheld.
+ * The wording is `basis_sentence` in `src/reasonsmith/render.py`, quoted, and the rule it exists to
+ * keep is `docs/semantics.md` §10's: **a basis is a kind and never a rank**. It keeps that rule by
+ * saying, wherever a basis is shown, which rungs the duty cannot reach and that the reason is the
+ * duty's rather than the system's — a bare word beside a rung word would be read as a fifth rung.
  *
  * What a reader must not break:
  *
  *   - **The basis sentence is rendered in exactly one place.** A second wording here would be the
  *     second-source-of-truth problem this module exists to prevent.
- *   - **The four sentences are kept verbatim from the Python.** A paraphrase would be this TUI
- *     saying what the basis means in its own voice — which is the move every rule in this
- *     repository is written to prevent.
+ *   - **The three sentences are the Python's, character for character.** They were a paraphrase
+ *     once, under a comment claiming they were verbatim, which is the worse of the two failures: a
+ *     reader who checked the citation would have found a file that said something else. If the
+ *     Python's wording changes, this file changes with it — it is not a place to improve a sentence.
+ *   - **The behavioural basis has no sentence, and that is the Python's answer, not a gap.** It
+ *     reaches every rung, so there is no ceiling to explain, and a sentence on every result is the
+ *     noise that makes the other three unreadable. `null` here means *say nothing*; a caller that
+ *     substituted a default would put the noise back.
  */
 
 import type { EvidenceBasis } from "./verdict.ts"
 
-/** The rungs each basis admits. Mirrors `BASIS_RUNGS` in `src/reasonsmith/verdict.py`. */
-export const BASIS_RUNGS: Record<EvidenceBasis, readonly string[]> = {
-  behavioural: ["unattainable", "observed", "probed", "proved"],
-  relational: ["unattainable", "probed", "proved"],
-  artifact: ["unattainable", "recounted", "probed"],
-  assessment: ["unattainable"],
-}
-
-export function basisSentence(basis: EvidenceBasis): string {
-  const rungs = BASIS_RUNGS[basis]
-  switch (basis) {
-    case "behavioural":
-      return `evidence about the system's own executions, one at a time (rungs: ${rungs.join(", ")})`
-    case "relational":
-      return `evidence about a pair of executions — a 2-safety property, which no trace establishes (rungs: ${rungs.join(", ")})`
-    case "artifact":
-      return `evidence measured against the inference artefact behind a decision (rungs: ${rungs.join(", ")})`
-    case "assessment":
-      return "a predicate an authority applies rather than anything measured from the system (no rung on the lattice)"
-  }
-}
-
 /**
- * The limits text every report carries, verbatim from `src/reasonsmith/report.py`. It is rendered
- * on the `limits` route and is also the prompt for the header's `i` key — a reader who wants to
- * know what this report cannot claim is shown the same words the JSON carries.
+ * `_BASIS_SENTENCES` from `src/reasonsmith/render.py`, verbatim. Behavioural is absent there and
+ * absent here — `basis_sentence` returns `None` for it.
  */
-export const LIMITS_DOCUMENTATION_URL = "https://reasonsmith.dev/limits"
+const BASIS_SENTENCES: Partial<Record<EvidenceBasis, string>> = {
+  relational:
+    "relational — this duty is a property of a pair of executions, and a decision record holds " +
+    "one. No length of decision log observes it, so the rungs it can reach are probed and " +
+    "proved; a system exposing only a log cannot discharge it, and that is a fact about the " +
+    "kind of property and not about how much the system exposed",
+  artifact:
+    "artifact — this duty is measured against the inference artefact behind a decision rather " +
+    "than against what the system decided. No trace holds that artefact and the enumeration is " +
+    "exact only on the one artefact it ran over, so the rungs above unattainable are recounted " +
+    "and probed, and neither observed nor proved is reachable however much the system exposes. " +
+    "Which of the two a verdict reaches is a fact about the artefact and not about the search: " +
+    "probed measures a reason set enumerated from a model encoding, recounted measures one the " +
+    "system recounted about its own inference",
+  assessment:
+    "assessment — this duty rests on how an open-textured predicate applies, which a named " +
+    "authority settles and no engine here does. No rung of the strength lattice ranks it, " +
+    "because the lattice ranks ways of interrogating a system and no system was interrogated",
+}
+
+/** The basis sentence, or `null` where the Python renders none. */
+export function basisSentence(basis: EvidenceBasis): string | null {
+  return BASIS_SENTENCES[basis] ?? null
+}

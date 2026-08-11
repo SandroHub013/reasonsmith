@@ -39,8 +39,11 @@ belong to the Python. The TUI never asks an engine a question. A run that the Py
 **Packs.** No `.toml` is loaded in the TypeScript process. The TUI's report header carries whatever
 the Python's run printed, and the active pack appears in the settings panel as `pack_id`.
 
-**Systems.** No system under test is built in this build. A user supplies `--system <path.jsonl>`
-or `--system-module <module:attr>` and the Python loads it.
+**Systems.** No system under test is built in this build. A user supplies `--system`, either a
+`decisions.jsonl` path or a `module:attribute` reference to a Python system, and the Python loads
+it. The TUI takes one flag for both and forwards the module form to the Python as
+`--system-module`; it has no `--system-module` flag of its own, and `packages/tui/src/args.ts`
+refuses any argument it does not list.
 
 **Audiences.** Five audience projections (`developer`, `deployer`, `auditor`, `regulator`,
 `affected-individual`) are declared in `packages/tui/src/types/audiences.ts`. They are the same five
@@ -52,10 +55,26 @@ Python owns the projection and emits the projected report.
 
 `reasonsmith check --json` emits the contract. One subprocess call, one parse, one render. The full
 shape is documented in `packages/tui/src/types/schema.ts`, and the parser refuses anything whose
-`schema_version` does not match. The fields it does not carry today (`verbatim_text`, the per-decision
-deletion certificate identity) are listed in `packages/tui/src/types/detail-keys.ts` and stubbed in
-the detail panel; the issues for them are on the Python side and the TUI will read them when they
-land.
+`schema_version` does not match.
+
+`schema_version` is the shape's, not the package's, and it does **not** move when a key is added —
+so the version alone cannot tell a record carrying `undeclared_domain_notice` from one emitted
+before that key existed. The parser therefore names a missing additive key in its own error and says
+which Python emits it, rather than rendering a report that quietly says less than the run measured.
+
+Four things the record carries that the renderer reads rather than derives:
+
+- `undeclared_domain_notice` — the sentence a run owes a reader when domain-limited duties went
+  unchecked, `null` when none did. The TUI rebuilt this from `details` once and drifted from the
+  Python's wording; it is read now.
+- `results[].findings` — findings reported beside a verdict. A `certificate` `FAIL` here may sit
+  next to a `satisfied` duty, and the detail pane shows both: the duty was cleared on what its
+  engine could check, and the certificate measurement over the same decision failed.
+- `results[].verbatim_text` — the clause as the regulation writes it, quoted in the detail pane
+  behind the same flag as the rest of the legal metadata.
+- `audience` — the projection the run was asked for, declared rather than applied. The TUI keeps
+  its own projection table because audience cycling is local and the subprocess ran once, and
+  `checkAudienceBlock` refuses a run whose flags disagree with it.
 
 ## What a reader must not break
 

@@ -21,7 +21,6 @@ import { useKeybind } from "../context/keybind.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { wrap } from "../theme.ts"
 import { Clickable } from "./clickable.tsx"
-import { undeclaredDomainNotice } from "../types/schema.ts"
 
 const TABS = [
   { type: "findings", label: "Findings" },
@@ -34,7 +33,8 @@ export function ReportHeader() {
   const route = useRoute()
   const report = useReport()
   const keybind = useKeybind()
-  const notice = () => undeclaredDomainNotice(report.report)
+  // Read, never re-derived: the sentence is the Python's, and the record carries it whole.
+  const notice = () => report.report.undeclared_domain_notice
   const [hovered, setHovered] = createSignal<string | null>(null)
 
   return (

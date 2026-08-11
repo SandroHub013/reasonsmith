@@ -9,8 +9,29 @@
  */
 
 import { describe, expect, test } from "bun:test"
-import { isEvaluated, parseReport, type ConformanceReport } from "./types/schema.ts"
+import { isEvaluated, parseReport, type ConformanceReport, type RequirementResult } from "./types/schema.ts"
+import { matchesCategory } from "./types/categories.ts"
+import { basisSentence } from "./types/render.ts"
+import { PROJECTIONS } from "./types/audiences.ts"
 import { parseArgs } from "./args.ts"
+
+/**
+ * The `audience` block a run with no `--audience` emits: `name` null, and the full report's flags
+ * under the Python's own spellings. Kept next to the fixtures because every report needs one — the
+ * parser refuses a record without it.
+ */
+const FULL_AUDIENCE_BLOCK = {
+  name: null,
+  overview: true,
+  strength: true,
+  legal_metadata: true,
+  signals: true,
+  missing_signals: true,
+  evidence_summary: true,
+  probe_budget: true,
+  witnesses: true,
+  plain_account: false,
+}
 
 const NOT_EVALUATED: ConformanceReport = makeReport([
   {
@@ -53,6 +74,8 @@ function makeReport(
     strength: "unattainable" | "observed" | "recounted" | "probed" | "proved" | null
     basis: "behavioural" | "relational" | "artifact" | "assessment"
     evidence_summary: string
+    binding?: boolean
+    findings?: RequirementResult["findings"]
   }>,
 ): ConformanceReport {
   return {
@@ -91,18 +114,22 @@ function makeReport(
     results: results.map((r) => ({
       requirement_id: r.requirement_id,
       source_clause: r.source_clause,
+      verbatim_text: "",
       verdict: r.verdict,
       strength: r.strength,
       signals_required: [],
       signals_missing: [],
       evidence_summary: r.evidence_summary,
       details: {},
-      binding: true,
+      findings: r.findings ?? [],
+      binding: r.binding ?? true,
       scope: "",
       domains: [],
       basis: r.basis,
     })),
     limits: "test limits",
+    undeclared_domain_notice: null,
+    audience: { name: null, projection: PROJECTIONS.auditor },
   }
 }
 
@@ -137,22 +164,194 @@ describe("the argument parser", () => {
   })
 })
 
+/**
+ * A record shaped the way `ConformanceReport.to_dict()` shapes one — the raw JSON, before parsing,
+ * with the Python's own key spellings. The parser tests run against this and not against the typed
+ * fixtures above: `audience` arrives as nine flat flags and leaves as a projection, so a fixture
+ * that could be fed straight back in would be a fixture that had stopped testing the boundary.
+ */
+function rawReport(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const typed = makeReport([
+    {
+      requirement_id: "ecoa_b_2",
+      source_clause: "12 CFR 1002.9(b)(2)",
+      verdict: "satisfied",
+      strength: "probed",
+      basis: "artifact",
+      evidence_summary: "certified",
+    },
+  ])
+  return {
+    ...typed,
+    audience: FULL_AUDIENCE_BLOCK,
+    ...overrides,
+  }
+}
+
 describe("the JSON parser", () => {
   test("refuses a wrong schema_version", () => {
-    const wrong = { ...NOT_EVALUATED, schema_version: 999 }
-    expect(() => parseReport(wrong)).toThrow(/schema_version/)
+    expect(() => parseReport(rawReport({ schema_version: 999 }))).toThrow(/schema_version/)
   })
 
   test("refuses a missing field", () => {
-    const missing: Record<string, unknown> = { ...NOT_EVALUATED }
+    const missing = rawReport()
     delete missing["headline"]
     expect(() => parseReport(missing)).toThrow(/headline/)
   })
 
   test("accepts a well-formed record", () => {
-    const parsed = parseReport(NOT_EVALUATED)
+    const parsed = parseReport(rawReport())
     expect(parsed.results.length).toBe(1)
-    expect(parsed.results[0]!.strength).toBeNull()
+    expect(parsed.results[0]!.verbatim_text).toBe("")
+    expect(parsed.results[0]!.findings).toEqual([])
+  })
+
+  test("refuses a record with no `undeclared_domain_notice`, naming the additive key", () => {
+    const missing = rawReport()
+    delete missing["undeclared_domain_notice"]
+    // The schema version does not move for an added key, so absence cannot be inferred from it —
+    // the error has to name the key and say which Python emits it.
+    expect(() => parseReport(missing)).toThrow(/undeclared_domain_notice/)
+    expect(() => parseReport(missing)).toThrow(/schema_version/)
+  })
+
+  test("carries the notice through as prose, and null as a value", () => {
+    expect(parseReport(rawReport()).undeclared_domain_notice).toBeNull()
+    const notice = "2 domain-limited duties were reported not applicable without being checked."
+    expect(parseReport(rawReport({ undeclared_domain_notice: notice })).undeclared_domain_notice).toBe(
+      notice,
+    )
+  })
+
+  test("refuses an audience projection that disagrees with this build's table", () => {
+    const drifted = rawReport({
+      audience: { ...FULL_AUDIENCE_BLOCK, name: "regulator", witnesses: true },
+    })
+    expect(() => parseReport(drifted)).toThrow(/disagrees/)
+    // And the agreeing one passes, so the check is not vacuous.
+    const agreeing = rawReport({
+      audience: {
+        ...FULL_AUDIENCE_BLOCK,
+        name: "regulator",
+        signals: false,
+        missing_signals: false,
+        witnesses: false,
+      },
+    })
+    expect(parseReport(agreeing).audience.name).toBe("regulator")
+  })
+
+  test("refuses a finding kind it has no wording for", () => {
+    const unknown = rawReport()
+    const results = (unknown["results"] as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      findings: [{ type: "provenance", verdict: "FAIL", decision_index: 0 }],
+    }))
+    expect(() => parseReport({ ...unknown, results })).toThrow(/provenance/)
+  })
+})
+
+describe("a failed certificate beside a satisfied duty", () => {
+  test("is carried, not reconciled away", () => {
+    const raw = rawReport()
+    const results = (raw["results"] as Record<string, unknown>[]).map((r) => ({
+      ...r,
+      verdict: "satisfied",
+      findings: [{ type: "certificate", verdict: "FAIL", decision_index: 2 }],
+    }))
+    const parsed = parseReport({ ...raw, results })
+    const result = parsed.results[0]!
+    // Both facts survive the parse. The duty was cleared on what its engine could check; the
+    // certificate measurement over decision 2 failed. Neither is allowed to overwrite the other.
+    expect(result.verdict).toBe("satisfied")
+    expect(result.findings).toEqual([{ type: "certificate", verdict: "FAIL", decision_index: 2 }])
+  })
+})
+
+describe("the category filter", () => {
+  const binding: RequirementResult = makeReport([
+    {
+      requirement_id: "binding_violated",
+      source_clause: "c",
+      verdict: "violated",
+      strength: "observed",
+      basis: "behavioural",
+      evidence_summary: "e",
+    },
+  ]).results[0]!
+  const interpretive: RequirementResult = makeReport([
+    {
+      requirement_id: "interpretive_violated",
+      source_clause: "c",
+      verdict: "violated",
+      strength: "observed",
+      basis: "behavioural",
+      evidence_summary: "e",
+      binding: false,
+    },
+  ]).results[0]!
+
+  test("matches only binding results, because the counts it answers for are binding-only", () => {
+    expect(matchesCategory(binding, "violated")).toBe(true)
+    expect(matchesCategory(interpretive, "violated")).toBe(false)
+  })
+
+  test("counts a rung only where the verdict is satisfied", () => {
+    const violatedAtProbed = makeReport([
+      {
+        requirement_id: "r",
+        source_clause: "c",
+        verdict: "violated",
+        strength: "probed",
+        basis: "artifact",
+        evidence_summary: "e",
+      },
+    ]).results[0]!
+    expect(matchesCategory(violatedAtProbed, "probed")).toBe(false)
+    expect(matchesCategory(violatedAtProbed, "violated")).toBe(true)
+  })
+
+  test("splits `not_evaluated` from `on_an_assessment` by basis", () => {
+    const [graded, unsettled] = makeReport([
+      {
+        requirement_id: "graded",
+        source_clause: "c",
+        verdict: "inconclusive",
+        strength: null,
+        basis: "assessment",
+        evidence_summary: "e",
+      },
+      {
+        requirement_id: "unsettled",
+        source_clause: "c",
+        verdict: "inconclusive",
+        strength: null,
+        basis: "behavioural",
+        evidence_summary: "e",
+      },
+    ]).results
+    expect(matchesCategory(graded!, "on_an_assessment")).toBe(true)
+    expect(matchesCategory(graded!, "not_evaluated")).toBe(false)
+    expect(matchesCategory(unsettled!, "not_evaluated")).toBe(true)
+    expect(matchesCategory(unsettled!, "on_an_assessment")).toBe(false)
+  })
+
+  test("an unrecognised category matches nothing rather than everything", () => {
+    expect(matchesCategory(binding, "no_such_category")).toBe(false)
+  })
+})
+
+describe("the evidence basis sentence", () => {
+  test("says nothing for the behavioural basis, as the Python says nothing", () => {
+    // `basis_sentence` returns None there: the basis reaches every rung, so there is no ceiling to
+    // explain, and a sentence on every result is what makes the other three unreadable.
+    expect(basisSentence("behavioural")).toBeNull()
+  })
+
+  test("words the three bases that carry a ceiling", () => {
+    for (const basis of ["relational", "artifact", "assessment"] as const) {
+      expect(basisSentence(basis)).toContain(basis)
+    }
   })
 })
 

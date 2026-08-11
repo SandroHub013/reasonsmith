@@ -12,6 +12,11 @@
  *   - **`binding` vs `interpretive` is shown.** A recital informs how a duty is read but creates no
  *     obligation of its own, and `ConformanceReport.counts` keeps the two halves apart precisely so
  *     neither number can be read as the other. A list that flattened them would undo that.
+ *   - **A category filter answers with the rows that number counted, and no others.** The counters
+ *     it is driven from are the record's unprefixed counts, which are binding-only; the membership
+ *     test is `types/categories.ts` and lives there once, for the bar and this list together. The
+ *     filter chip says `binding` out loud, so the narrowing is on screen rather than inferred from a
+ *     shorter list.
  *   - **The undeclared-domain notice is not tucked away.** A run that skipped domain-limited duties
  *     exits exactly as a clean run does, so the report has to carry what the exit code cannot; the
  *     header prints it in full whenever it is present.
@@ -19,38 +24,13 @@
 
 import { For, Show, createMemo, createSignal } from "solid-js"
 import type { RequirementResult } from "../types/schema.ts"
+import { matchesCategory } from "../types/categories.ts"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
 import { ReportHeader } from "../ui/header.tsx"
 import { VerdictChip } from "../ui/verdict-chip.tsx"
 import { Clickable } from "../ui/clickable.tsx"
-
-function matchesCategoryFilter(
-  result: RequirementResult,
-  key: string,
-): boolean {
-  if (key === "violated") return result.verdict === "violated"
-  if (key === "not_applicable") return result.verdict === "not_applicable"
-  if (key === "unattainable") return result.strength === "unattainable"
-  if (key === "not_evaluated")
-    return (
-      result.strength === null && result.verdict !== "not_applicable" && result.basis !== "assessment"
-    )
-  if (key === "on_an_assessment")
-    return (
-      result.strength === null && result.verdict !== "not_applicable" && result.basis === "assessment"
-    )
-  if (key === "inconclusive")
-    return (
-      result.verdict === "inconclusive" &&
-      result.strength !== null &&
-      result.strength !== "unattainable"
-    )
-  if (key === "proved" || key === "probed" || key === "recounted" || key === "observed")
-    return result.verdict === "satisfied" && result.strength === key
-  return true
-}
 
 export function Findings() {
   const t = useTheme()
@@ -66,10 +46,22 @@ export function Findings() {
       rows = rows.filter((r) => r.requirement_id.toLowerCase().includes(query))
     }
     if (category) {
-      rows = rows.filter((r) => matchesCategoryFilter(r, category))
+      rows = rows.filter((r) => matchesCategory(r, category))
     }
     return rows
   })
+
+  // Name whichever filter emptied the list. A category filter that matched nothing used to report
+  // `no requirement matches ""`, which reads as a broken search rather than as an empty category.
+  const emptyMessage = () => {
+    const query = filter().trim()
+    const category = report.categoryFilter()
+    if (category && query) {
+      return `no binding requirement is ${category.replace(/_/g, " ")} with "${query}" in its id`
+    }
+    if (category) return `no binding requirement is ${category.replace(/_/g, " ")}`
+    return `no requirement matches "${query}"`
+  }
 
   return (
     <box
@@ -137,7 +129,7 @@ export function Findings() {
               fg={t.color.textMuted}
               attributes={t.attr.dim}
               wrapMode="none"
-              content={`no requirement matches "${filter()}"`}
+              content={emptyMessage()}
             />
           }
         >

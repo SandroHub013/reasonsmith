@@ -44,6 +44,26 @@ export const BASISES: readonly EvidenceBasis[] = [
   "assessment",
 ] as const
 
+/**
+ * The semantics an inference artefact may claim, from `spec.CLAIMED_SEMANTICS`.
+ *
+ * Closed on the Python side deliberately, so that a consumer may *compare* two declarations without
+ * treating an author's prose as a new semantics it has to interpret. The TUI's job with a closed
+ * vocabulary is the same as with the other four: refuse a value outside it where it is read, rather
+ * than printing an unknown string beside a measured one as though the pair meant something.
+ */
+export type ClaimedSemantics = "distribution semantics" | "weighted sum" | "free-text rationale"
+
+export const CLAIMED_SEMANTICS: readonly ClaimedSemantics[] = [
+  "distribution semantics",
+  "weighted sum",
+  "free-text rationale",
+] as const
+
+export function isClaimedSemantics(value: unknown): value is ClaimedSemantics {
+  return typeof value === "string" && (CLAIMED_SEMANTICS as readonly string[]).includes(value)
+}
+
 /** A `strength` is a value of `Strength | null`; `null` means *not evaluated*. */
 export function isStrength(value: unknown): value is Strength {
   return typeof value === "string" && (STRENGTHS as readonly string[]).includes(value)

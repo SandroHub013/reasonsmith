@@ -27,6 +27,6 @@ export const AUDIENCE_HELP: Record<Audience, string> = {
   developer: "every verdict, every rung; drops classification",
   deployer: "every verdict; drops witness records and signal names",
   auditor: "the full report — every row, every flag",
-  regulator: "strength + basis + probe budget; drops signal names and witnesses",
+  regulator: "strength + basis + probe budget; drops signal names, missing capabilities, witnesses",
   "affected-individual": "the plain account of what the system recorded",
 }

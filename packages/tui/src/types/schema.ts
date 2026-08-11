@@ -17,11 +17,29 @@
  *   - **The details bag is intentionally untyped.** It is the place every engine stores whatever
  *     that engine alone produces, and a typed details bag here would force the TUI to track engines
  *     it does not own. The keys the TUI *does* read are listed in `./detail-keys.ts`.
+ *   - **No sentence of the report is rebuilt here.** `undeclared_domain_notice` arrives as prose the
+ *     Python wrote and is rendered as prose; the TUI does not recompute it from the results it was
+ *     derived from. A notice two programs have to keep in step is a notice that drifts, and this one
+ *     had already drifted before the key existed.
+ *   - **A vocabulary the Python closed is refused at this boundary.** Verdicts, strengths, bases,
+ *     finding kinds and the audience flags are all checked here, so an unrecognised value fails at
+ *     the parse with the value in the error, rather than reaching a renderer that has no wording for
+ *     it and silently shows nothing.
  */
 
+import { checkAudienceBlock, type AudienceBlock } from "./audiences.ts"
 import { isBasis, isStrength, isVerdict, type EvidenceBasis, type StrengthOrNull, type Verdict } from "./verdict.ts"
 
-/** `JSON_SCHEMA_VERSION` from `src/reasonsmith/report.py`. Bump on the Python side, then here. */
+/**
+ * `JSON_SCHEMA_VERSION` from `src/reasonsmith/report.py`. Bump on the Python side, then here.
+ *
+ * It is deliberately *not* bumped when a key is added, which is the convention
+ * `tests/test_json_schema_version.py` records — so this number cannot tell a record carrying
+ * `undeclared_domain_notice` from one emitted before that key existed. The parser therefore names
+ * a missing additive key in its own error rather than inferring a version from its absence: a
+ * reader is told which key is missing and which Python to run, not handed a renderer that quietly
+ * shows less than the run measured.
+ */
 export const REPORT_SCHEMA_VERSION = 2
 
 /**
@@ -39,6 +57,21 @@ export interface ConformanceReport {
   readonly counts: ReportCounts
   readonly results: readonly RequirementResult[]
   readonly limits: string
+  /**
+   * The one sentence a run owes a reader when domain-limited duties went unchecked, or `null` when
+   * none did. **The wording is the Python's and is read, never re-derived here.** The TUI used to
+   * rebuild this sentence from `details["skipped_for_undeclared_domain"]`, which made a compliance
+   * notice a thing two programs had to keep in step; it drifted in the obvious way, losing the
+   * final clause that names where the vocabulary is written down. `null` is a value and not an
+   * absence: the declared case is defined rather than missing.
+   */
+  readonly undeclared_domain_notice: string | null
+  /**
+   * The projection this record was *asked* for, declared rather than applied — `--json` is the
+   * complete machine record and no audience filters it. It is what lets a consumer tell `absent
+   * because this audience is not shown it` from `absent because the run never established it`.
+   */
+  readonly audience: AudienceBlock
 }
 
 /**
@@ -74,6 +107,24 @@ export interface ReportCounts {
 }
 
 /**
+ * A finding reported *beside* a result rather than through its verdict.
+ *
+ * The only kind today is `certificate`, and the thing to understand before rendering one is that
+ * **a `FAIL` here may sit beside a `satisfied` duty, and that pairing is the finding rather than a
+ * contradiction to reconcile**. The duty was cleared on what its engine could check; the
+ * certificate measurement over the same decision failed. A viewer that showed one and suppressed
+ * the other would be picking which half of a measured disagreement its reader is allowed to see.
+ */
+export interface CertificateFinding {
+  readonly type: "certificate"
+  readonly verdict: "FAIL"
+  /** Index of the decision the failed certificate was measured over, or `null` if unrecorded. */
+  readonly decision_index: number | null
+}
+
+export type Finding = CertificateFinding
+
+/**
  * One requirement's result. The fields here are exactly the keys every result carries — no field is
  * optional, every field is what the Python reports. `details` is the bag every engine writes into;
  * the TUI reads only the keys it has a name for.
@@ -81,12 +132,21 @@ export interface ReportCounts {
 export interface RequirementResult {
   readonly requirement_id: string
   readonly source_clause: string
+  /**
+   * The statutory quotation the duty restates, carried through from the pack unchanged — never
+   * reflowed, truncated or whitespace-normalised. The pack's copy is the authority and this is a
+   * passthrough, which is the whole reason a detail pane may print it: quoting is not this tool
+   * speaking about a statute in its own voice. Empty on a result no run stamped.
+   */
+  readonly verbatim_text: string
   readonly verdict: Verdict
   readonly strength: StrengthOrNull
   readonly signals_required: readonly string[]
   readonly signals_missing: readonly string[]
   readonly evidence_summary: string
   readonly details: Readonly<Record<string, unknown>>
+  /** Findings reported beside the verdict; empty when there is nothing to say. */
+  readonly findings: readonly Finding[]
   readonly binding: boolean
   readonly scope: string
   readonly domains: readonly string[]
@@ -96,24 +156,6 @@ export interface RequirementResult {
 /** `evaluated` and `unevaluated` are the two predicates the lay projection's branches turn on. */
 export function isEvaluated(result: RequirementResult): boolean {
   return result.verdict !== "not_applicable"
-}
-
-/**
- * The full notice that runs of duties skipped for an undeclared domain. This mirrors
- * `ConformanceReport.undeclaredDomainNotice` from the Python and is printed in the findings header
- * exactly the way the Python prints it in stderr and `render_text` prints it on the text surface —
- * the TUI agrees because the wording is in `LIMITS_DOCUMENTATION_URL` below.
- */
-export function undeclaredDomainNotice(report: ConformanceReport): string | null {
-  const skipped = report.results.filter((r) => r.details["skipped_for_undeclared_domain"] === true)
-  if (skipped.length === 0) return null
-  const duties = skipped.length === 1 ? "duty was" : "duties were"
-  return (
-    `${skipped.length} domain-limited ${duties} reported not applicable without being checked, ` +
-    "because this system declares no decision domain. Nothing in this report says those duties " +
-    "are met. Declare what kind of decision this system makes — --system-domain <domain>, " +
-    "repeatable, or a system_domains attribute on the adapter — and run it again."
-  )
 }
 
 /**
@@ -143,14 +185,28 @@ export function parseReport(value: unknown): ConformanceReport {
     "counts",
     "results",
     "limits",
+    "undeclared_domain_notice",
+    "audience",
   ] as const) {
     if (!(key in obj)) {
-      throw new Error(`the JSON record is missing ${JSON.stringify(key)}`)
+      throw new Error(
+        `the JSON record is missing ${JSON.stringify(key)}. The key is additive, so ` +
+          `\`schema_version\` is still ${REPORT_SCHEMA_VERSION} without it; run \`reasonsmith ` +
+          "check --json` against a Python reasonsmith that emits it.",
+      )
     }
   }
   if (!Array.isArray(obj["results"])) {
     throw new Error("`results` must be an array")
   }
+  const rawNotice = obj["undeclared_domain_notice"]
+  if (rawNotice !== null && typeof rawNotice !== "string") {
+    throw new Error(
+      "`undeclared_domain_notice` must be a string or null; got " + JSON.stringify(rawNotice),
+    )
+  }
+  // Narrowed by the throw above; TypeScript cannot carry that narrowing out of `unknown` itself.
+  const notice = rawNotice as string | null
   return {
     schema_version: REPORT_SCHEMA_VERSION,
     pack_id: String(obj["pack_id"]),
@@ -164,6 +220,8 @@ export function parseReport(value: unknown): ConformanceReport {
       parseResult(r, `results[${i}]`),
     ),
     limits: String(obj["limits"]),
+    undeclared_domain_notice: notice,
+    audience: checkAudienceBlock(obj["audience"]),
   }
 }
 
@@ -216,12 +274,14 @@ function parseResult(value: unknown, path: string): RequirementResult {
   for (const key of [
     "requirement_id",
     "source_clause",
+    "verbatim_text",
     "verdict",
     "strength",
     "signals_required",
     "signals_missing",
     "evidence_summary",
     "details",
+    "findings",
     "binding",
     "scope",
     "domains",
@@ -260,17 +320,56 @@ function parseResult(value: unknown, path: string): RequirementResult {
   return {
     requirement_id: String(obj["requirement_id"]),
     source_clause: String(obj["source_clause"]),
+    verbatim_text: String(obj["verbatim_text"]),
     verdict,
     strength,
     signals_required: asStringArray(obj["signals_required"], `${path}.signals_required`),
     signals_missing: asStringArray(obj["signals_missing"], `${path}.signals_missing`),
     evidence_summary: String(obj["evidence_summary"]),
     details: obj["details"] as Record<string, unknown>,
+    findings: parseFindings(obj["findings"], `${path}.findings`),
     binding: Boolean(obj["binding"]),
     scope: String(obj["scope"]),
     domains: asStringArray(obj["domains"], `${path}.domains`),
     basis,
   }
+}
+
+/**
+ * Findings are a closed list, so an unrecognised `type` is refused rather than carried through as
+ * free prose the detail pane would have to word for itself. The refusal is the point: a finding
+ * kind this build has no wording for is a finding it cannot show, and showing nothing while
+ * reporting success is the failure this whole package is written against.
+ */
+function parseFindings(value: unknown, path: string): readonly Finding[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${path} must be an array`)
+  }
+  return value.map((item, i) => {
+    const at = `${path}[${i}]`
+    if (item === null || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error(`${at} must be an object`)
+    }
+    const f = item as Record<string, unknown>
+    if (f["type"] !== "certificate") {
+      throw new Error(`${at}.type is not a finding kind this build renders: ${JSON.stringify(f["type"])}`)
+    }
+    if (f["verdict"] !== "FAIL") {
+      throw new Error(
+        `${at}.verdict must be "FAIL" — the Python reports a certificate finding only where the ` +
+          `measurement failed; got ${JSON.stringify(f["verdict"])}`,
+      )
+    }
+    const index = f["decision_index"]
+    if (index !== null && index !== undefined && typeof index !== "number") {
+      throw new Error(`${at}.decision_index must be a number or null; got ${JSON.stringify(index)}`)
+    }
+    return {
+      type: "certificate",
+      verdict: "FAIL",
+      decision_index: typeof index === "number" ? index : null,
+    } satisfies CertificateFinding
+  })
 }
 
 function asStringArray(value: unknown, path: string): readonly string[] {

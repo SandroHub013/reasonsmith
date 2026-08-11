@@ -1,9 +1,19 @@
 /**
- * Enterprise status bar — verdict counters with mouse filter + ladder summary.
+ * The status bar — the record's category counts, each one a filter, and the ladder.
+ *
+ * Every number here is `ConformanceReport.counts` read straight off the JSON. The bar counts
+ * nothing itself, and the membership test behind each filter is `types/categories.ts`, shared with
+ * the list the filter narrows: these counters are the *only* way into that list, so a bar with its
+ * own copy of the test is a bar that can disagree with what clicking it shows. It had one, and the
+ * two copies had already drifted.
+ *
+ * The counts are the unprefixed ones, which cover the binding requirements alone — so the filter
+ * chip on the right says so rather than leaving the reader to work out why the list got shorter.
  */
 
 import { For, Show } from "solid-js"
 import { CATEGORY_LABELS } from "../types/audiences.ts"
+import { matchesCategory } from "../types/categories.ts"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
@@ -97,7 +107,7 @@ export function StatusBar() {
       <Show when={activeFilter()}>
         {(key) => (
           <Clickable cursor="pointer" onClick={() => report.clearCategoryFilter()}>
-            <text fg={t.color.warn} wrapMode="none" content={`filter: ${key()} ✕`} />
+            <text fg={t.color.warn} wrapMode="none" content={`filter: ${key()} · binding ✕`} />
           </Clickable>
         )}
       </Show>
@@ -106,34 +116,4 @@ export function StatusBar() {
       </text>
     </box>
   )
-}
-
-function matchesCategory(
-  result: { verdict: string; strength: string | null; basis: string },
-  key: string,
-): boolean {
-  if (key === "violated") return result.verdict === "violated"
-  if (key === "not_applicable") return result.verdict === "not_applicable"
-  if (key === "unattainable") return result.strength === "unattainable"
-  if (key === "not_evaluated")
-    return (
-      result.strength === null &&
-      result.verdict !== "not_applicable" &&
-      result.basis !== "assessment"
-    )
-  if (key === "on_an_assessment")
-    return (
-      result.strength === null &&
-      result.verdict !== "not_applicable" &&
-      result.basis === "assessment"
-    )
-  if (key === "inconclusive")
-    return (
-      result.verdict === "inconclusive" &&
-      result.strength !== null &&
-      result.strength !== "unattainable"
-    )
-  if (key === "proved" || key === "probed" || key === "recounted" || key === "observed")
-    return result.verdict === "satisfied" && result.strength === key
-  return false
 }

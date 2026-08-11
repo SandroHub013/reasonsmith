@@ -12,14 +12,25 @@
  *   - **The TUI does not compute these.** Every key here is the Python's own, copied from the
  *     JSON the subprocess emits. The TUI never derives a "vacuous trigger" finding or a "probe
  *     budget" from inputs — both come from the engine that emitted them.
- *   - **`THREE_FIELDS_NOT_IN_JSON_YET` is the open work.** `verbatim_text` and the per-decision
- *     deletion certificate identities are not yet in the Python JSON. The detail panel stubs them
- *     rather than computing them locally; the fields the comment in PR 129 named are owned by the
- *     Python side and arrive when the issues land there.
+ *   - **Nothing here is stubbed for a field the Python has not got yet.** Both fields this file
+ *     once listed as open work have landed: `verbatim_text` is a top-level key of every result and
+ *     is typed in `./schema.ts`, and the per-decision certificate identities are `CERTIFICATE_KEY`
+ *     below. A list of things the Python does not carry goes stale the moment it does carry them,
+ *     and a stub left behind it renders as an absence a reader reads as a finding.
  */
 
-/** The reason-deletion certificate block, in `details["certificates"]`. */
+/** The reason-deletion certificate summary, one entry per certified decision, in `details["certificates"]`. */
 export const CERTIFICATES_KEY = "certificates"
+
+/**
+ * The full machine record the summary condenses, in `details["certificate"]` — one entry per
+ * certified decision, carrying the semantics the artefact *claimed*, the semantics it was measured
+ * *against*, and the gap between the two.
+ *
+ * Present only where the certificate engine settled the duty. Absence means no certificate exists,
+ * never an empty measurement, and the two must not render alike.
+ */
+export const CERTIFICATE_KEY = "certificate"
 
 /** The search budget a probed/recounted claim carries, in `details["probe_budget"]`. */
 export const PROBE_BUDGET_KEY = "probe_budget"
@@ -44,18 +55,3 @@ export const VIOLATION_STEP_INDICES_KEY = "violation_step_indices"
 
 /** A counterexample input a proved/probed witness produced, in `details["counterexample"]`. */
 export const COUNTEREXAMPLE_KEY = "counterexample"
-
-/**
- * The three fields the TUI does not yet have. The Python side adds them in the order this list
- * names; until each one lands, the detail panel stubs the view rather than computing a value that
- * would be its own second source of truth.
- */
-export const THREE_FIELDS_NOT_IN_JSON_YET = {
-  /** `RequirementResult.verbatim_text` — the clause as the regulation writes it. */
-  verbatimText: "verbatim_text",
-  /**
-   * The per-decision deletion certificate detail — *which* reasons were struck — surfaced at the
-   * top of the result rather than only inside `details.certificates[].missing_reasons`.
-   */
-  deletionCertificate: "deletion_certificate_detail",
-} as const

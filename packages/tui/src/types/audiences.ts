@@ -22,6 +22,11 @@
  *     notice.** No audience may disagree with another about a verdict.
  *   - **`projectionFor` refuses an unknown audience rather than widening to the full report.**
  *     A typo in `--audience` should fail loudly, not silently show everything.
+ *   - **This table is a *checked* copy, not a trusted one.** The record's `audience` block carries
+ *     the flags the Python resolved, and `checkAudienceBlock` refuses a run whose projection
+ *     disagrees with the one here. The copy has to exist — audience cycling is local and the
+ *     subprocess ran once — so the guarantee that can be had is that drift stops the run instead of
+ *     showing a reader a projection no Python would emit.
  */
 
 export const AUDIENCES = [
@@ -99,6 +104,84 @@ export function projectionFor(audience: string): AudienceProjection {
     )
   }
   return PROJECTIONS[audience as Audience]
+}
+
+/**
+ * The Python's own name for each flag above, in `report._audience_block`'s spelling.
+ *
+ * The table above has to exist — a reader cycles audience with `a` and the run happened once, so
+ * there is no second subprocess call to ask the Python what the next projection suppresses. What
+ * the record *can* do is settle whether this copy still agrees, for the one audience the run was
+ * asked for, and `checkAudienceBlock` makes that a refusal rather than a hope. That is the whole
+ * job of this map: it is not a rename, it is the join between two spellings of one table.
+ */
+const PYTHON_FLAG_NAMES: Record<keyof AudienceProjection, string> = {
+  headline: "overview",
+  strength: "strength",
+  classification: "legal_metadata",
+  signalNames: "signals",
+  missingCapabilities: "missing_signals",
+  evidence: "evidence_summary",
+  probeBudget: "probe_budget",
+  witnesses: "witnesses",
+  plainAccount: "plain_account",
+}
+
+/**
+ * The `audience` block of the machine record: the projection the run was *asked* for, declared
+ * rather than applied. `name` is null when no `--audience` was given, which the Python resolves to
+ * the full report — the auditor's projection by identity.
+ */
+export interface AudienceBlock {
+  readonly name: Audience | null
+  readonly projection: AudienceProjection
+}
+
+/**
+ * Parse the record's `audience` block and refuse a projection that disagrees with the table above.
+ *
+ * A disagreement is not repaired and not preferred one way: it is thrown, naming the flag and both
+ * values. The alternative — taking the JSON's flags and rendering with them — would look more
+ * deferential and be worse, because the other four projections in this file would go on disagreeing
+ * silently while the one the run named quietly agreed. A drifted table is a defect to fix in this
+ * file against `src/reasonsmith/render.py`, not a value to paper over at runtime.
+ */
+export function checkAudienceBlock(value: unknown): AudienceBlock {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("`audience` must be an object")
+  }
+  const block = value as Record<string, unknown>
+  const rawName = block["name"]
+  if (rawName !== null && (typeof rawName !== "string" || !(AUDIENCES as readonly string[]).includes(rawName))) {
+    throw new Error(
+      `audience.name is not a recognised audience (or null): ${JSON.stringify(rawName)}; ` +
+        `valid: ${AUDIENCES.join(", ")}`,
+    )
+  }
+  // A null name is the full report, which `auditor` is by identity — so even a run given no
+  // `--audience` checks one row of the table rather than none.
+  const name = (rawName as Audience | null) ?? null
+  const projection = PROJECTIONS[name ?? "auditor"]
+  for (const [flag, pythonName] of Object.entries(PYTHON_FLAG_NAMES) as [
+    keyof AudienceProjection,
+    string,
+  ][]) {
+    const reported = block[pythonName]
+    if (typeof reported !== "boolean") {
+      throw new Error(
+        `audience.${pythonName} must be a boolean; got ${JSON.stringify(reported)}`,
+      )
+    }
+    if (reported !== projection[flag]) {
+      throw new Error(
+        `the audience projection in this build disagrees with the one the Python reported for ` +
+          `${JSON.stringify(name)}: \`${flag}\` is ${projection[flag]} here and ` +
+          `\`${pythonName}\` is ${reported} there. The Python owns the projection ` +
+          "(`src/reasonsmith/render.py`); fix `PROJECTIONS` in this file to match it.",
+      )
+    }
+  }
+  return { name, projection }
 }
 
 /**
