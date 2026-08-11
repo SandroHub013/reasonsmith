@@ -875,6 +875,23 @@ decision tree after them — an adapter rather than a second branch in the core
 `test_the_protocol_is_satisfiable_without_a_ground_program`). The two shipped families do not report
 at the same strength, and the paragraph below on `recounted` is why.
 
+**The semantics claim is a closed vocabulary.** `claimed_semantics` must be one of the
+values in `reasonsmith.spec.CLAIMED_SEMANTICS`; a declaration outside that set is refused at the
+artefact/certificate boundary rather than carried as prose that no consumer can interpret. The
+members currently mean:
+
+| Declaration | Commitment |
+|---|---|
+| `distribution semantics` | The inference claims to compute the distribution semantics of its underlying model. |
+| `weighted sum` | The inference claims its answer is the weighted sum of the declared reasons. |
+| `free-text rationale` | The artefact claims only a recounted rationale, not a model-level semantics; consumers must not treat it as an exact distribution claim. |
+
+The vocabulary is owned in one place (`spec.py`), and its refusal names every accepted value
+(`test_claimed_semantics_outside_vocabulary_is_refused_with_accepted_set`). The certificate boundary
+refuses independently (`test_certificate_post_init_refuses_unknown_claimed_semantics`), and the
+source-derived declaration inventory is checked by
+`test_every_shipped_claimed_semantics_literal_is_in_the_vocabulary`.
+
 **Three states, and only the first is measured.** `engines/certificate.py` asks the declaration
 before it certifies anything, and asks it again of the measurement afterwards; every refusal is
 *not evaluated*, naming the reason, and none is ever `violated`, `satisfied`, or handed down to the
