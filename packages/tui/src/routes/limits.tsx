@@ -22,6 +22,7 @@
  */
 
 import { SyntaxStyle } from "@opentui/core"
+import { useLayout } from "../context/layout.tsx"
 import { useReport } from "../context/report.tsx"
 import { useTheme } from "../context/theme.tsx"
 
@@ -63,14 +64,15 @@ const STANDING_MARKDOWN =
 export function Limits() {
   const t = useTheme()
   const report = useReport()
+  const layout = useLayout()
 
   return (
     <scrollbox
       flexGrow={1}
       minHeight={0}
       width="100%"
-      paddingLeft={1}
-      paddingRight={1}
+      paddingLeft={layout.pad()}
+      paddingRight={layout.pad()}
       backgroundColor={t.color.bg}
       verticalScrollbarOptions={{
         showArrows: true,
@@ -86,8 +88,8 @@ export function Limits() {
         borderStyle="rounded"
         borderColor={t.color.border}
         backgroundColor={t.color.surface}
-        paddingLeft={1}
-        paddingRight={1}
+        paddingLeft={layout.pad()}
+        paddingRight={layout.pad()}
         title="Limits of this report"
         titleAlignment="left"
       >

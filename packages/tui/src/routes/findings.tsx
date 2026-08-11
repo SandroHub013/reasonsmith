@@ -25,10 +25,10 @@
 import { For, Show, createMemo, createSignal } from "solid-js"
 import type { RequirementResult } from "../types/schema.ts"
 import { matchesCategory } from "../types/categories.ts"
+import { useLayout } from "../context/layout.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
-import { ReportHeader } from "../ui/header.tsx"
 import { VerdictChip } from "../ui/verdict-chip.tsx"
 import { Clickable } from "../ui/clickable.tsx"
 
@@ -36,6 +36,7 @@ export function Findings() {
   const t = useTheme()
   const report = useReport()
   const route = useRoute()
+  const layout = useLayout()
   const [filter, setFilter] = createSignal("")
 
   const filtered = createMemo(() => {
@@ -63,6 +64,14 @@ export function Findings() {
     return `no requirement matches "${query}"`
   }
 
+  // The panel frame carries the count, and says when it is showing fewer than all of them — a title
+  // reading `Findings (18)` over eleven rows is the frame contradicting its own contents.
+  const panelTitle = () => {
+    const shown = filtered().length
+    const all = report.results().length
+    return shown === all ? `Findings (${all})` : `Findings (${shown} of ${all})`
+  }
+
   return (
     <box
       flexDirection="column"
@@ -74,17 +83,16 @@ export function Findings() {
       backgroundColor={t.color.surface}
       paddingLeft={1}
       paddingRight={1}
-      title={`Findings (${report.results().length})`}
+      title={panelTitle()}
       titleAlignment="left"
     >
-      <ReportHeader />
       <box
         flexDirection="row"
         flexShrink={0}
         width="100%"
-        paddingLeft={1}
-        paddingRight={1}
-        paddingTop={1}
+        paddingLeft={layout.pad()}
+        paddingRight={layout.pad()}
+        paddingTop={layout.gap()}
         gap={1}
       >
         <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none" content="filter:" />
@@ -104,8 +112,8 @@ export function Findings() {
         flexGrow={1}
         minHeight={0}
         width="100%"
-        paddingLeft={1}
-        paddingRight={1}
+        paddingLeft={layout.pad()}
+        paddingRight={layout.pad()}
         backgroundColor={t.color.bg}
         verticalScrollbarOptions={{
           showArrows: true,
@@ -155,6 +163,7 @@ export function Findings() {
 function Row(props: { result: RequirementResult; selected: boolean; onHover: () => void; onOpen: () => void }) {
   const t = useTheme()
   const report = useReport()
+  const layout = useLayout()
 
   return (
     <Clickable
@@ -188,7 +197,12 @@ function Row(props: { result: RequirementResult; selected: boolean; onHover: () 
           {props.selected ? <b>{props.result.requirement_id}</b> : props.result.requirement_id}
         </span>
       </text>
-      <Show when={report.view().classification}>
+      {/*
+        The classification column is dropped on a narrow terminal rather than truncated. `binding`
+        and `interpretive` share no prefix, so a clipped column would read `bindin` / `interpr` and
+        cost a reader more attention than it returns; the same fact is on the detail screen in full.
+      */}
+      <Show when={report.view().classification && layout.showCounterLabels()}>
         <text
           fg={t.color.textMuted}
           attributes={t.attr.dim}

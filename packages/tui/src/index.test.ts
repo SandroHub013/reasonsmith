@@ -12,6 +12,7 @@ import { describe, expect, test } from "bun:test"
 import { isEvaluated, parseReport, type ConformanceReport, type RequirementResult } from "./types/schema.ts"
 import { matchesCategory } from "./types/categories.ts"
 import { basisSentence } from "./types/render.ts"
+import { wrap } from "./theme.ts"
 import { PROJECTIONS } from "./types/audiences.ts"
 import { parseArgs } from "./args.ts"
 
@@ -400,5 +401,33 @@ describe("violated runs carry the documented exit code", () => {
   test("violated results are reached, not just satisfied", () => {
     expect(VIOLATED.results[0]!.verdict).toBe("violated")
     expect(VIOLATED.results[0]!.strength).toBe("probed")
+  })
+})
+
+describe("wrapping to a terminal width", () => {
+  test("keeps every line inside the measure", () => {
+    const text =
+      "2 domain-limited duties were reported not applicable without being checked, because this " +
+      "system declares no decision domain."
+    for (const measure of [24, 40, 72, 92]) {
+      for (const line of wrap(text, measure)) {
+        expect(line.length).toBeLessThanOrEqual(measure)
+      }
+    }
+  })
+
+  test("breaks a token too long to fit rather than letting it overflow", () => {
+    // A terminal does not clip an over-long line, it wraps it into the row beneath and shears the
+    // panel below down a line — so one unbroken requirement id would corrupt the whole layout.
+    const id = "ecoa_reg_b_1002_9_b_2_principal_reasons_complete"
+    const lines = wrap(id, 20)
+    expect(lines.length).toBeGreaterThan(1)
+    for (const line of lines) expect(line.length).toBeLessThanOrEqual(20)
+    expect(lines.join("")).toBe(id)
+  })
+
+  test("loses no word of a sentence it wraps", () => {
+    const text = "no check in this report could settle it, so it was left open rather than answered."
+    expect(wrap(text, 30).join(" ")).toBe(text)
   })
 })

@@ -122,17 +122,35 @@ export function strengthWord(strength: string | null): string {
   return strength ?? "not evaluated"
 }
 
-/** Greedy wrap, shared by every panel that prints a sentence. */
+/**
+ * Greedy wrap, shared by every panel that prints a sentence.
+ *
+ * A word longer than the measure is hard-split rather than left to overflow. In a terminal an
+ * over-long line is not clipped, it wraps into the row beneath and shears everything below it down
+ * a line, so one unbroken token — a requirement id, a signal name, a URL in a limits paragraph —
+ * silently corrupts the layout of the whole panel. Splitting is the lesser damage and the visible
+ * one.
+ */
 export function wrap(text: string, width: number): string[] {
-  const words = text.split(/\s+/).filter(Boolean)
+  const measure = Math.max(1, Math.floor(width))
   const lines: string[] = []
   let line = ""
-  for (const word of words) {
-    if (line && line.length + 1 + word.length > width) {
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    let token = word
+    // A token that cannot fit on a line of its own is broken across as many as it needs.
+    while (token.length > measure) {
+      if (line) {
+        lines.push(line)
+        line = ""
+      }
+      lines.push(token.slice(0, measure))
+      token = token.slice(measure)
+    }
+    if (line && line.length + 1 + token.length > measure) {
       lines.push(line)
-      line = word
+      line = token
     } else {
-      line = line ? `${line} ${word}` : word
+      line = line ? `${line} ${token}` : token
     }
   }
   if (line) lines.push(line)

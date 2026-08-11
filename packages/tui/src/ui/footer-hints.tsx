@@ -12,6 +12,7 @@
 
 import { For, Show } from "solid-js"
 import { useKeybind } from "../context/keybind.tsx"
+import { useLayout } from "../context/layout.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
@@ -22,16 +23,26 @@ export function FooterHints() {
   const keybind = useKeybind()
   const route = useRoute()
   const report = useReport()
+  const layout = useLayout()
 
-  const shown = () => keybind.bindings.filter((b) => b.on.includes(route.route().type))
+  const forRoute = () => keybind.bindings.filter((b) => b.on.includes(route.route().type))
+
+  /**
+   * As many hints as the terminal has room for, in `BINDINGS` order — which puts the keys a reader
+   * needs to move and to leave ahead of the ones that open a panel. Overflow is counted rather than
+   * hidden, because `?` opens the help dialog and a reader who can see that three keys are missing
+   * knows there is somewhere to go and look.
+   */
+  const shown = () => forRoute().slice(0, layout.footerHints())
+  const hidden = () => forRoute().length - shown().length
 
   return (
     <box
       flexDirection="row"
       width="100%"
       height={1}
-      paddingLeft={1}
-      paddingRight={1}
+      paddingLeft={layout.pad()}
+      paddingRight={layout.pad()}
       gap={1}
       borderStyle="rounded"
       borderColor={t.color.borderSubtle}
@@ -60,10 +71,23 @@ export function FooterHints() {
           </Clickable>
         )}
       </For>
+      <Show when={hidden() > 0}>
+        <text
+          fg={t.color.textMuted}
+          attributes={t.attr.dim}
+          wrapMode="none"
+          content={`+${hidden()} (?)`}
+        />
+      </Show>
       <box flexGrow={1} />
       <Show when={keybind.leader()}>
         <text fg={t.color.warn} attributes={t.attr.bold} wrapMode="none" content="LEADER " />
       </Show>
+      {/*
+        The audience stays at every width. It decides what every other panel withholds, and a reader
+        who cannot see which projection they are in cannot tell a field that is absent from a field
+        that was suppressed — which is the distinction this whole tool is built to keep.
+      */}
       <text fg={t.color.info} wrapMode="none">
         for: <b>{report.audience()}</b>
       </text>

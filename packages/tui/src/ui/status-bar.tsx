@@ -14,6 +14,7 @@
 import { For, Show } from "solid-js"
 import { CATEGORY_LABELS } from "../types/audiences.ts"
 import { matchesCategory } from "../types/categories.ts"
+import { useLayout } from "../context/layout.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
@@ -29,6 +30,7 @@ export function StatusBar() {
   const t = useTheme()
   const report = useReport()
   const route = useRoute()
+  const layout = useLayout()
 
   const counters = (): CounterSpec[] => {
     const c = report.report.counts
@@ -63,15 +65,18 @@ export function StatusBar() {
       width="100%"
       height={1}
       flexShrink={0}
-      paddingLeft={1}
-      paddingRight={1}
+      paddingLeft={layout.pad()}
+      paddingRight={layout.pad()}
       gap={1}
       borderStyle="single"
       borderColor={t.color.borderSubtle}
       backgroundColor={t.color.surface}
     >
-      <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="ENTERPRISE" />
-      <text fg={t.color.borderSubtle} wrapMode="none" content="│" />
+      {/*
+        This row used to open with the word ENTERPRISE, in the accent colour and bold — ten columns
+        of brand adjective, held at the highest emphasis on the screen, in front of the counts it
+        pushed rightward. It said nothing about the run and outranked everything that did.
+      */}
       <text fg={t.color.textSecondary} wrapMode="none">
         {total()} req
       </text>
@@ -91,10 +96,17 @@ export function StatusBar() {
               active={activeFilter() === counter.key}
               onClick={() => filterBy(counter.key)}
             >
+              {/*
+                The number is never dropped and never abbreviated; the word beside it is, on a
+                terminal too narrow to carry both. A count with no word is still a count a reader can
+                click, and the filter chip on the right names the category they landed in.
+              */}
               <text fg={t.color[counter.colorKey]} wrapMode="none">
                 <b>{String(report.report.counts[counter.key] ?? 0)}</b>
-                {" "}
-                {counter.label}
+                <Show when={layout.showCounterLabels()}>
+                  {" "}
+                  {counter.label}
+                </Show>
               </text>
             </Clickable>
             <Show when={index() < counters().length - 1}>
@@ -111,9 +123,12 @@ export function StatusBar() {
           </Clickable>
         )}
       </Show>
-      <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none">
-        ladder: unattainable → observed → recounted → probed → proved
-      </text>
+      {/* A caption, and the last thing on this row that is not a number. It goes first. */}
+      <Show when={layout.showLadder()}>
+        <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none">
+          ladder: unattainable → observed → recounted → probed → proved
+        </text>
+      </Show>
     </box>
   )
 }

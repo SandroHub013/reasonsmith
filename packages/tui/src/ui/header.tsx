@@ -15,6 +15,7 @@
  */
 
 import { For, Show, createSignal } from "solid-js"
+import { useLayout } from "../context/layout.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useKeybind } from "../context/keybind.tsx"
@@ -33,6 +34,7 @@ export function ReportHeader() {
   const route = useRoute()
   const report = useReport()
   const keybind = useKeybind()
+  const layout = useLayout()
   // Read, never re-derived: the sentence is the Python's, and the record carries it whole.
   const notice = () => report.report.undeclared_domain_notice
   const [hovered, setHovered] = createSignal<string | null>(null)
@@ -48,13 +50,21 @@ export function ReportHeader() {
       paddingLeft={1}
       paddingRight={1}
     >
-      <box flexDirection="row" height={3} width="100%">
-        {/*
-          `tiny` is the smallest ASCII art font OpenTUI ships. The user asked for "1Row" or "small";
-          neither exists, so we use the smallest available. The masthead sits in a 3-row row so the
-          font's vertical extent fits without clipping.
-        */}
-        <ascii_font text="REASONSMITH" font="tiny" color={t.color.info} />
+      {/*
+        Three rows where the masthead fits, one where it does not. `tiny` is the smallest ASCII art
+        font OpenTUI ships and it still needs three rows and roughly a third of an 88-column
+        terminal; below that the brand mark is the first thing to go, because it is the only element
+        in this header that tells a reader nothing about their run.
+      */}
+      <box flexDirection="row" height={layout.showMasthead() ? 3 : 1} width="100%">
+        <Show
+          when={layout.showMasthead()}
+          fallback={
+            <text fg={t.color.info} attributes={t.attr.bold} wrapMode="none" content="reasonsmith" />
+          }
+        >
+          <ascii_font text="REASONSMITH" font="tiny" color={t.color.info} />
+        </Show>
         <text fg={t.color.borderSubtle} wrapMode="none">
           {"  "}
           {SEPARATOR.vertical}
@@ -96,19 +106,30 @@ export function ReportHeader() {
         <text fg={t.color.textMuted} wrapMode="none" attributes={t.attr.dim}>
           pack {report.report.pack_id}
         </text>
-        <text fg={t.color.borderSubtle} wrapMode="none">
-          {"  "}
-          {SEPARATOR.dot}
-          {"  "}
-        </text>
-        <text fg={t.color.textMuted} wrapMode="none" attributes={t.attr.dim}>
-          {report.report.results.length} requirements
-        </text>
+        {/*
+          The requirement count and the palette hint are the two things on this row a reader can get
+          elsewhere — the count from the findings panel's own frame, the hint from the footer — so
+          they are what the breadcrumb sheds first. The system name, the pack and the audience stay
+          at every width: they are what the report is *of*, and a screen that cannot say which run it
+          is showing is not a smaller screen, it is an unattributed one.
+        */}
+        <Show when={layout.showCounterLabels()}>
+          <text fg={t.color.borderSubtle} wrapMode="none">
+            {"  "}
+            {SEPARATOR.dot}
+            {"  "}
+          </text>
+          <text fg={t.color.textMuted} wrapMode="none" attributes={t.attr.dim}>
+            {report.report.results.length} requirements
+          </text>
+        </Show>
         <box flexGrow={1} />
-        <Clickable cursor="pointer" onClick={() => keybind.openCommandPalette()}>
-          <text fg={t.color.textMuted} wrapMode="none" content="ctrl+p" />
-        </Clickable>
-        <text fg={t.color.borderSubtle} wrapMode="none" content=" · " />
+        <Show when={layout.breakpoint() !== "xs"}>
+          <Clickable cursor="pointer" onClick={() => keybind.openCommandPalette()}>
+            <text fg={t.color.textMuted} wrapMode="none" content="ctrl+p" />
+          </Clickable>
+          <text fg={t.color.borderSubtle} wrapMode="none" content=" · " />
+        </Show>
         <Clickable cursor="pointer" onClick={() => report.cycleAudience()}>
           <text fg={t.color.info} wrapMode="none">
             for: <b>{report.audience()}</b>
@@ -116,7 +137,11 @@ export function ReportHeader() {
         </Clickable>
       </box>
 
-      <Show when={report.view().headline}>
+      {/*
+        The headline is a summary of counts the status bar shows individually one row below, so on a
+        short terminal it is the row that buys the most and costs the least.
+      */}
+      <Show when={report.view().headline && layout.showHeadline()}>
         <box flexDirection="row" height={1}>
           <text fg={t.color.textSecondary} wrapMode="none">
             {report.report.headline}
@@ -124,10 +149,17 @@ export function ReportHeader() {
         </box>
       </Show>
 
+      {/*
+        Never behind a breakpoint, at any width or height. A run that skipped domain-limited duties
+        exits exactly as a clean run does, so this sentence is what the exit code cannot carry — and
+        a layout that dropped it to fit would turn a rendering decision into a compliance one. It
+        wraps to the terminal's own width, which is what it failed to do when it wrapped to 96 in an
+        80-column window and tore across the rows beneath it.
+      */}
       <Show when={notice()}>
         {(text) => (
-          <box flexDirection="column" marginTop={0} marginBottom={1}>
-            <For each={wrap(text(), 96)}>
+          <box flexDirection="column" marginTop={0} marginBottom={layout.gap()}>
+            <For each={wrap(text(), Math.max(layout.cols() - 4, 24))}>
               {(line) => <text fg={t.color.warn} wrapMode="none" content={line} />}
             </For>
           </box>

@@ -50,6 +50,7 @@ import {
 import type { RequirementResult } from "../types/schema.ts"
 import { isClaimedSemantics } from "../types/verdict.ts"
 import { basisSentence } from "../types/render.ts"
+import { useLayout } from "../context/layout.tsx"
 import { useReport } from "../context/report.tsx"
 import { useRoute } from "../context/route.tsx"
 import { useTheme } from "../context/theme.tsx"
@@ -65,12 +66,11 @@ import { type Color, wrap } from "../theme.ts"
  */
 const SYNTAX_STYLE = SyntaxStyle.create()
 
-const WIDTH = 94
-
 export function Detail() {
   const t = useTheme()
   const report = useReport()
   const route = useRoute()
+  const layout = useLayout()
 
   return (
     <box
@@ -81,15 +81,20 @@ export function Detail() {
       borderStyle="rounded"
       borderColor={t.color.border}
     >
-      <Clickable cursor="pointer" paddingLeft={1} paddingRight={1} onClick={() => route.back()}>
+      <Clickable
+        cursor="pointer"
+        paddingLeft={layout.pad()}
+        paddingRight={layout.pad()}
+        onClick={() => route.back()}
+      >
         <text fg={t.color.info} attributes={t.attr.underline} wrapMode="none" content="← back to findings" />
       </Clickable>
       <scrollbox
         flexGrow={1}
         minHeight={0}
         width="100%"
-        paddingLeft={1}
-        paddingRight={1}
+        paddingLeft={layout.pad()}
+        paddingRight={layout.pad()}
         backgroundColor={t.color.bg}
         verticalScrollbarOptions={{
           showArrows: true,
@@ -178,7 +183,7 @@ function Body(props: { result: RequirementResult }) {
         shown statutory text, which is the other half of the rule that it paraphrases none.
       */}
       <Show when={view().classification && props.result.verbatim_text.trim() !== ""}>
-        <Paragraph label="the clause, as the regulation writes it" text={props.result.verbatim_text} />
+        <Verbatim label="the clause, as the regulation writes it" text={props.result.verbatim_text} />
       </Show>
 
       {/*
@@ -238,10 +243,11 @@ function Body(props: { result: RequirementResult }) {
 
 function Field(props: { label: string; value: string; color?: Color }) {
   const t = useTheme()
+  const layout = useLayout()
   return (
     <box flexDirection="column" marginTop={1}>
       <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none" content={props.label} />
-      <For each={wrap(props.value, WIDTH)}>
+      <For each={wrap(props.value, layout.measure())}>
         {(line) => <text fg={props.color ?? t.color.text} wrapMode="none" content={line} />}
       </For>
     </box>
@@ -250,11 +256,48 @@ function Field(props: { label: string; value: string; color?: Color }) {
 
 function Paragraph(props: { label: string; text: string }) {
   const t = useTheme()
+  const layout = useLayout()
   return (
     <box flexDirection="column" marginTop={1}>
       <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none" content={props.label} />
-      <For each={wrap(props.text, WIDTH)}>
+      <For each={wrap(props.text, layout.measure())}>
         {(line) => <text fg={t.color.textSecondary} wrapMode="none" content={line} />}
+      </For>
+    </box>
+  )
+}
+
+/**
+ * Quoted text, set with its own line structure kept.
+ *
+ * `Paragraph` cannot be used for this. It runs the text through `wrap`, which splits on any
+ * whitespace and rejoins on single spaces — so a clause whose paragraphs, sub-clause indents and
+ * hard breaks are part of how it reads comes out as one reflowed block. The Python carries
+ * `verbatim_text` "unchanged and never reflowed, truncated or whitespace-normalised" precisely
+ * because the pack's copy is the authority and every rendering of it is a passthrough.
+ *
+ * So the source's own newlines are the line breaks, and wrapping happens only where a single line is
+ * wider than the terminal — the one reflow a fixed grid leaves no choice about, and it is marked by
+ * indenting the continuation so a reader can see which breaks are the clause's and which are ours.
+ */
+function Verbatim(props: { label: string; text: string }) {
+  const t = useTheme()
+  const layout = useLayout()
+  const lines = () =>
+    props.text.split("\n").flatMap((line) => {
+      const measure = layout.measure() - 2
+      if (line.length <= measure) return [line]
+      const [first, ...rest] = wrap(line, measure)
+      return [first ?? "", ...rest.map((row) => `  ${row}`)]
+    })
+
+  return (
+    <box flexDirection="column" marginTop={1}>
+      <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none" content={props.label} />
+      <For each={lines()}>
+        {(line) => (
+          <text fg={t.color.textSecondary} attributes={t.attr.italic} wrapMode="none" content={line} />
+        )}
       </For>
     </box>
   )
@@ -290,6 +333,7 @@ function MarkdownField(props: { label: string; text: string }) {
  */
 function Findings(props: { result: RequirementResult; showDecisionIndex: boolean }) {
   const t = useTheme()
+  const layout = useLayout()
   const certificateFailures = () => props.result.findings.filter((f) => f.type === "certificate")
 
   return (
@@ -310,7 +354,7 @@ function Findings(props: { result: RequirementResult; showDecisionIndex: boolean
             "The duty above was settled on what its engine could check. Separately, the " +
               "reason-deletion certificate over the decision(s) named below did not hold. Both are " +
               "reported; neither stands in for the other.",
-            WIDTH,
+            layout.measure(),
           )}
         >
           {(line) => <text fg={t.color.textSecondary} wrapMode="none" content={line} />}
@@ -471,6 +515,7 @@ function ProbeBudget(props: { result: RequirementResult }) {
 
 function VacuousTrigger(props: { result: RequirementResult }) {
   const t = useTheme()
+  const layout = useLayout()
   const trigger = () =>
     props.result.details[VACUOUS_TRIGGER_KEY] as Record<string, unknown> | undefined
 
@@ -489,7 +534,7 @@ function VacuousTrigger(props: { result: RequirementResult }) {
               `Nothing in ${String(v().domain)} made the antecedent ${String(v().antecedent)} ` +
                 "true, so this evidence would report every system alike satisfied and says nothing " +
                 "about this one.",
-              WIDTH,
+              layout.measure(),
             )}
           >
             {(line) => <text fg={t.color.textSecondary} wrapMode="none" content={line} />}
@@ -523,6 +568,7 @@ function TruthDegree(props: { result: RequirementResult }) {
 
 function Certificates(props: { result: RequirementResult; showDecisionIndex: boolean }) {
   const t = useTheme()
+  const layout = useLayout()
   const certs = () => {
     const raw = props.result.details[CERTIFICATES_KEY]
     return Array.isArray(raw) ? (raw as Record<string, unknown>[]) : []
@@ -569,7 +615,7 @@ function Certificates(props: { result: RequirementResult; showDecisionIndex: boo
                   </For>
                 </Show>
                 <Show when={typeof cert.attribution === "string"}>
-                  <For each={wrap(String(cert.attribution), WIDTH - 2)}>
+                  <For each={wrap(String(cert.attribution), layout.measure() - 2)}>
                     {(line) => (
                       <text
                         fg={t.color.textMuted}
@@ -609,6 +655,7 @@ function Certificates(props: { result: RequirementResult; showDecisionIndex: boo
 function LayAccount() {
   const t = useTheme()
   const report = useReport()
+  const layout = useLayout()
 
   /**
    * The certificates this run produced and the reasons they found unstated — gathered exactly as
@@ -697,7 +744,7 @@ function LayAccount() {
           "This tool's JSON record does not carry the source log; it carries the findings of " +
             "the run that read it. The same wording appears in `reasonsmith check --audience " +
             "affected-individual`, where the source log is in hand and is quoted in full.",
-          WIDTH,
+          layout.measure(),
         )}
       >
         {(line) => <text fg={t.color.textMuted} wrapMode="none" content={line} />}
@@ -728,7 +775,7 @@ function LayAccount() {
                 "Nothing in this run measured that. No inference artefact was opened up, so this " +
                   "report does not say the reasons you were given were complete, and does not say " +
                   "they were not.",
-                WIDTH,
+                layout.measure(),
               )}
             >
               {(line) => <text fg={t.color.textMuted} wrapMode="none" content={line} />}
@@ -743,7 +790,7 @@ function LayAccount() {
                   "Every reason the decision's own inference used is one the statement names, as " +
                     "far as this run could measure. It measured only the decisions the system " +
                     "opened up.",
-                  WIDTH,
+                  layout.measure(),
                 )}
               >
                 {(line) => <text fg={t.color.textMuted} wrapMode="none" content={line} />}
@@ -776,7 +823,7 @@ function LayAccount() {
           />
           <For each={unchecked()}>
             {(line) => (
-              <For each={wrap(line, WIDTH)}>
+              <For each={wrap(line, layout.measure())}>
                 {(row) => <text fg={t.color.textMuted} wrapMode="none" content={row} />}
               </For>
             )}

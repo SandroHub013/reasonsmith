@@ -24,6 +24,7 @@ import type { ConformanceReport } from "./types/schema.ts"
 import { DialogProviderWithOverlay } from "./ui/dialog.tsx"
 import { ExitProvider } from "./context/exit.tsx"
 import { KeybindProvider } from "./context/keybind.tsx"
+import { LayoutProvider, useLayout } from "./context/layout.tsx"
 import { ReportProvider } from "./context/report.tsx"
 import { RouteProvider, useRoute } from "./context/route.tsx"
 import { ThemeProvider, useTheme } from "./context/theme.tsx"
@@ -68,17 +69,19 @@ export async function tui(report: ConformanceReport): Promise<void> {
         }}
       >
         <ThemeProvider>
-          <ExitProvider>
-            <ReportProvider report={report}>
-              <RouteProvider>
-                <DialogProviderWithOverlay>
-                  <KeybindProvider>
-                    <App />
-                  </KeybindProvider>
-                </DialogProviderWithOverlay>
-              </RouteProvider>
-            </ReportProvider>
-          </ExitProvider>
+          <LayoutProvider>
+            <ExitProvider>
+              <ReportProvider report={report}>
+                <RouteProvider>
+                  <DialogProviderWithOverlay>
+                    <KeybindProvider>
+                      <App />
+                    </KeybindProvider>
+                  </DialogProviderWithOverlay>
+                </RouteProvider>
+              </ReportProvider>
+            </ExitProvider>
+          </LayoutProvider>
         </ThemeProvider>
       </ErrorBoundary>
     ),
@@ -98,12 +101,26 @@ export async function tui(report: ConformanceReport): Promise<void> {
 function App() {
   const t = useTheme()
   const route = useRoute()
+  const layout = useLayout()
 
   return (
     <box flexDirection="column" width="100%" height="100%" backgroundColor={t.color.bg}>
+      {/*
+        The masthead is mounted here and **only** here. It was mounted a second time inside the
+        findings route, so that one screen — the one a reader lands on — drew the brand mark, the tab
+        row and the breadcrumb twice, costing four rows of findings to say the same thing again.
+      */}
       <ReportHeader />
       <StatusBar />
-      <box flexGrow={1} minHeight={0} width="100%" paddingLeft={1} paddingRight={1} paddingTop={1} paddingBottom={0}>
+      <box
+        flexGrow={1}
+        minHeight={0}
+        width="100%"
+        paddingLeft={layout.pad()}
+        paddingRight={layout.pad()}
+        paddingTop={layout.gap()}
+        paddingBottom={0}
+      >
         <Switch>
           <Match when={route.route().type === "findings"}>
             <Findings />
