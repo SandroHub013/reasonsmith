@@ -20,6 +20,11 @@
  *   - **`measure` is a *text* width, not the panel width.** It already has the app gutter, the panel
  *     border and the panel padding subtracted, so a component may hand it straight to `wrap()`. It is
  *     also capped: prose set across 200 columns is unreadable, and a compliance notice is prose.
+ *   - **A cap is measured, never guessed.** Two thresholds started life here as constants — how
+ *     many footer hints fit, and how wide a terminal must be for the ladder caption — and both were
+ *     wrong the same way: the width of a row's contents is not a function of the terminal's, it
+ *     grows with the pack. Where contents can grow, the component measures them against `cols()`
+ *     itself. The booleans below are only for elements whose own width is fixed and known.
  *   - **Vertical rhythm collapses before content does.** On a short terminal `gap` goes to 0 and the
  *     headline row is dropped, which buys rows without withholding a finding; the notice is never
  *     dropped, at any height.
@@ -64,14 +69,10 @@ export interface Layout {
   readonly gap: () => number
   /** The ASCII masthead fits beside the tab row. */
   readonly showMasthead: () => boolean
-  /** The strength-ladder caption fits in the status bar. */
-  readonly showLadder: () => boolean
   /** The counters can afford their words, not just their numbers. */
   readonly showCounterLabels: () => boolean
   /** The report headline row fits without costing a row of findings. */
   readonly showHeadline: () => boolean
-  /** How many footer hints fit on one row. */
-  readonly footerHints: () => number
 }
 
 const LayoutContext = createContext<Layout>()
@@ -122,21 +123,8 @@ export function LayoutProvider(props: { children: JSX.Element }): JSX.Element {
     pad: () => (breakpoint() === "xs" ? 0 : 1),
     gap: () => (rows() < 24 ? 0 : 1),
     showMasthead: () => cols() >= 88,
-    showLadder: () => cols() >= 96,
     showCounterLabels: () => cols() >= 72,
     showHeadline: () => rows() >= 22,
-    footerHints: () => {
-      switch (breakpoint()) {
-        case "xs":
-          return 3
-        case "sm":
-          return 5
-        case "md":
-          return 7
-        default:
-          return Number.MAX_SAFE_INTEGER
-      }
-    },
   }
 
   return <LayoutContext.Provider value={layout}>{props.children}</LayoutContext.Provider>

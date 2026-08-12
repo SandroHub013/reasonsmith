@@ -39,6 +39,34 @@ export function ReportHeader() {
   const notice = () => report.report.undeclared_domain_notice
   const [hovered, setHovered] = createSignal<string | null>(null)
 
+  /**
+   * The breadcrumb's parts, measured against the row they share.
+   *
+   * `flexGrow` cannot save a row that is already over budget: once the contents exceed the width the
+   * spacer collapses to nothing and the two halves are drawn touching — `6 requirementsctrl+p`. So
+   * the optional parts are dropped by measurement, in the order they are least missed, and what
+   * remains is what fits.
+   */
+  // The header's own frame (two border cells) and padding (two), plus two cells so the two halves
+  // of the row are visibly apart rather than merely not overlapping.
+  const BREADCRUMB_CHROME = 6
+
+  const breadcrumbTail = () => `ctrl+p · for: ${report.audience()}`
+  const breadcrumbHead = () => `${report.report.system_name}  ·  pack ${report.report.pack_id}`
+  const requirementsPart = () => `  ·  ${report.report.results.length} requirements`
+  const showRequirements = () =>
+    breadcrumbHead().length + requirementsPart().length + breadcrumbTail().length +
+    BREADCRUMB_CHROME <=
+    layout.cols()
+  const showPaletteHint = () =>
+    breadcrumbHead().length + breadcrumbTail().length + BREADCRUMB_CHROME <= layout.cols()
+
+  /** A headline that does not fit is clipped mid-count, which reads as a wrong number. */
+  const showHeadline = () =>
+    report.view().headline &&
+    layout.showHeadline() &&
+    report.report.headline.length + 2 <= layout.cols()
+
   return (
     <box
       flexDirection="column"
@@ -82,16 +110,13 @@ export function ReportHeader() {
             />
           )}
         </For>
+        {/*
+          There was a second `+ settings` tab pinned to the right of this row, in the accent colour,
+          navigating to the route the `Settings` tab three cells to the left already navigates to.
+          Two controls for one destination is not a shortcut, it is a reader wondering what the
+          difference is.
+        */}
         <box flexGrow={1} />
-        <Tab
-          label="+ settings"
-          active={false}
-          hovered={hovered() === "settings"}
-          onHover={() => setHovered("settings")}
-          onLeave={() => setHovered((cur) => (cur === "settings" ? null : cur))}
-          onClick={() => route.navigate({ type: "settings" })}
-          accent
-        />
       </box>
 
       <box flexDirection="row" height={1} width="100%">
@@ -113,7 +138,7 @@ export function ReportHeader() {
           at every width: they are what the report is *of*, and a screen that cannot say which run it
           is showing is not a smaller screen, it is an unattributed one.
         */}
-        <Show when={layout.showCounterLabels()}>
+        <Show when={showRequirements()}>
           <text fg={t.color.borderSubtle} wrapMode="none">
             {"  "}
             {SEPARATOR.dot}
@@ -124,7 +149,7 @@ export function ReportHeader() {
           </text>
         </Show>
         <box flexGrow={1} />
-        <Show when={layout.breakpoint() !== "xs"}>
+        <Show when={showPaletteHint()}>
           <Clickable cursor="pointer" onClick={() => keybind.openCommandPalette()}>
             <text fg={t.color.textMuted} wrapMode="none" content="ctrl+p" />
           </Clickable>
@@ -141,7 +166,7 @@ export function ReportHeader() {
         The headline is a summary of counts the status bar shows individually one row below, so on a
         short terminal it is the row that buys the most and costs the least.
       */}
-      <Show when={report.view().headline && layout.showHeadline()}>
+      <Show when={showHeadline()}>
         <box flexDirection="row" height={1}>
           <text fg={t.color.textSecondary} wrapMode="none">
             {report.report.headline}

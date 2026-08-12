@@ -203,14 +203,21 @@ function Row(props: { result: RequirementResult; selected: boolean; onHover: () 
         cost a reader more attention than it returns; the same fact is on the detail screen in full.
       */}
       <Show when={report.view().classification && layout.showCounterLabels()}>
+        {/*
+          Two leading spaces inside the text, not a gap: the row's gap does not apply between these
+          children, so a long requirement id was drawn hard against the word after it —
+          `..._timing_of_notice binding` with a single cell between them, at the width where the id
+          is longest.
+        */}
         <text
           fg={t.color.textMuted}
           attributes={t.attr.dim}
           wrapMode="none"
           flexShrink={0}
-          width={12}
-          content={props.result.binding ? "binding" : "interpretive"}
-        />
+          width={14}
+        >
+          {`  ${props.result.binding ? "binding" : "interpretive"}`}
+        </text>
       </Show>
     </Clickable>
   )

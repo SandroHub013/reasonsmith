@@ -9,6 +9,12 @@
  *
  * The counts are the unprefixed ones, which cover the binding requirements alone — so the filter
  * chip on the right says so rather than leaving the reader to work out why the list got shorter.
+ *
+ * **This bar carries no border.** It is one row tall, and a bordered box one row tall has no room
+ * left for its own contents: the frame takes the row and every counter is drawn into the border
+ * line and clipped mid-word — `3 observe·`, `2 unattainabl`. A border here would cost two further
+ * rows to be legible, which on a status bar is two rows of findings spent on a rectangle. The
+ * surface colour is the separation, and the header's own frame sits directly above it.
  */
 
 import { For, Show } from "solid-js"
@@ -49,8 +55,30 @@ export function StatusBar() {
   }
 
   const total = () => report.report.counts.total ?? report.results().length
-  const violated = () => report.report.counts.violated ?? 0
   const activeFilter = () => report.categoryFilter()
+
+  const LADDER = "ladder: unattainable → observed → recounted → probed → proved"
+
+  /**
+   * Roughly how many columns the counts occupy, so the ladder caption is shown only where there is
+   * room left for it rather than wherever the terminal happens to be wider than a fixed threshold.
+   *
+   * A fixed threshold was wrong in the way this kind of threshold always is: the bar's own content
+   * grows with the pack, so at 112 columns a six-requirement run cleared it and the caption was
+   * drawn straight into the last counter — `2 unattainableladder: …` — and then clipped mid-arrow.
+   * The estimate is deliberately generous; being one column pessimistic hides a caption, being one
+   * column optimistic corrupts the row.
+   */
+  const countsWidth = () => {
+    const digits = (n: number) => String(n).length
+    const counted = counters().reduce((sum, spec) => {
+      const value = report.report.counts[spec.key] ?? 0
+      const label = layout.showCounterLabels() ? spec.label.length + 1 : 0
+      return sum + digits(value) + label + 3
+    }, 0)
+    const chip = activeFilter() ? activeFilter()!.length + 12 : 0
+    return `${total()} req`.length + 2 + counted + chip
+  }
 
   const filterBy = (key: string) => {
     report.setCategoryFilter(activeFilter() === key ? null : key)
@@ -68,8 +96,6 @@ export function StatusBar() {
       paddingLeft={layout.pad()}
       paddingRight={layout.pad()}
       gap={1}
-      borderStyle="single"
-      borderColor={t.color.borderSubtle}
       backgroundColor={t.color.surface}
     >
       {/*
@@ -80,13 +106,12 @@ export function StatusBar() {
       <text fg={t.color.textSecondary} wrapMode="none">
         {total()} req
       </text>
-      <Show when={violated() > 0}>
-        <Clickable cursor="pointer" onClick={() => filterBy("violated")} active={activeFilter() === "violated"}>
-          <text fg={t.color.bad} attributes={t.attr.bold} wrapMode="none">
-            {violated()} violated
-          </text>
-        </Clickable>
-      </Show>
+      {/*
+        The violated count had a chip of its own here, ahead of the separator, *and* an entry in the
+        loop below — so a run with one breach printed `1 violated` twice, three cells apart, and a
+        reader counting them read two. It is one counter among the others now, and it keeps the
+        violation colour there.
+      */}
       <text fg={t.color.borderSubtle} wrapMode="none" content="│" />
       <For each={counters()}>
         {(counter, index) => (
@@ -124,10 +149,13 @@ export function StatusBar() {
         )}
       </Show>
       {/* A caption, and the last thing on this row that is not a number. It goes first. */}
-      <Show when={layout.showLadder()}>
-        <text fg={t.color.textMuted} attributes={t.attr.dim} wrapMode="none">
-          ladder: unattainable → observed → recounted → probed → proved
-        </text>
+      <Show when={layout.cols() - countsWidth() >= LADDER.length + 2}>
+        <text
+          fg={t.color.textMuted}
+          attributes={t.attr.dim}
+          wrapMode="none"
+          content={LADDER}
+        />
       </Show>
     </box>
   )

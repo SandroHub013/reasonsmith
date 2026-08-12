@@ -81,8 +81,15 @@ export function Detail() {
       borderStyle="rounded"
       borderColor={t.color.border}
     >
+      {/*
+        `height` and `flexShrink` are both load-bearing. Without them this row claimed no height and
+        the scroll region below drew over it, interleaving the two lines character by character —
+        `←cbacketobfindingsb_2_principal_reasons_complete`.
+      */}
       <Clickable
         cursor="pointer"
+        height={1}
+        flexShrink={0}
         paddingLeft={layout.pad()}
         paddingRight={layout.pad()}
         onClick={() => route.back()}
@@ -144,22 +151,30 @@ function Body(props: { result: RequirementResult }) {
 
   return (
     <box flexDirection="column" width="100%">
-      <box
-        flexDirection="row"
-        gap={1}
-        height={1}
-        borderStyle="rounded"
-        borderColor={t.color.border}
-        title={props.result.requirement_id}
-        titleAlignment="left"
-      >
-        <VerdictChip
-          verdict={props.result.verdict}
-          strength={props.result.strength}
-          showStrength={view().strength}
-          bold
+      {/*
+        The requirement id as a heading, the verdict on the row beneath it, and no frame around
+        either. This was a bordered box one row tall — the same defect the status bar and the footer
+        carried — so its top border was drawn over the `← back to findings` link above it and the two
+        came out interleaved: `←─back_togfindings9_b_2_principal_reasons_complete`. A border needs
+        three rows to hold one row of content, and a frame here would be three rows spent saying
+        what bold already says.
+      */}
+      <box flexDirection="column" width="100%">
+        <text
+          fg={t.color.text}
+          attributes={t.attr.bold}
+          wrapMode="none"
+          content={props.result.requirement_id}
         />
-        <text fg={tone().color} attributes={t.attr.bold} wrapMode="none" content={tone().label} />
+        <box flexDirection="row" gap={1} height={1}>
+          <VerdictChip
+            verdict={props.result.verdict}
+            strength={props.result.strength}
+            showStrength={view().strength}
+            bold
+          />
+          <text fg={tone().color} attributes={t.attr.bold} wrapMode="none" content={tone().label} />
+        </box>
       </box>
 
       {/*
