@@ -13,6 +13,8 @@ releases before it predate the file and are not reconstructed here.
 ### Fixed
 
 - Mermaid diagrams used `<br/>` line breaks that GitHub strips, so labels rendered with glued words; diagrams now use single-line labels and clearer visual categories.
+- The panel grouping exposed surfaces became a node they point into, so the edge into the applicability question is drawn and the surfaces sit in a row.
+- The organising diagram now keeps its decision nodes and edge destinations legible in GitHub dark mode.
 
 ## [0.9.1] - 2026-08-12
 
