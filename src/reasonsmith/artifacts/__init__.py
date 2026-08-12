@@ -58,6 +58,26 @@ What a reader must not break:
     package is allowed to fail in.
     Why this matters: the cheap version of this module would take any object that can list something
     reason-shaped and hand its output the rung exact inference earned.
+  - **The perturbation surface is wider than the deletion probe, and the deletion probe did not
+    move.** This module used to state that there is no `with_(fact)` and that adding one was work no
+    verdict here is authorised to rest on. That refusal is **reversed, in one direction and no
+    other**, and `at(fact, probability)` is the reversal: a family may now be asked for its
+    inference at an arbitrary probability for one fact, not only at zero. What did *not* change is
+    the definition of a reason. `certificate.py` and `explanations.py` still call `without` and
+    nothing else, `deleted` is still the one-directional claim §3 of `docs/formal.md` proves it to
+    be, and the deletion lattice `L(β)` those lemmas quantify over is the same lattice it was.
+    A family that offers no `at` is not weaker on any duty: no shipped verdict reads the wider
+    surface, and `reason_trace` deliberately does not offer one, because a rationale the system
+    recounted has no interpretation to move.
+    Why this matters, and why it was reversed: the refusal was written for the deletion definition
+    of a reason and its ground was the soundness of `deleted`. A measurement that never touches
+    `deleted` does not inherit it, and one such measurement was designed and shown to need the
+    width: `semantic_laws` refutes a false `claimed_semantics` from the system's own answers, with
+    no reference implementation anywhere in the loop, and the measured discrimination lives in
+    perturbing a fact across the whole of `[0,1]` — neither one-directional variant refutes a
+    top-`k` engine at all, because a top-`k` engine's kept-proof set is locally constant and the
+    kink only shows where the ranking changes. `docs/formal.md` §3.6 records the reversal in that
+    document's notation, with what is still refused.
 """
 
 from __future__ import annotations
@@ -68,13 +88,19 @@ __all__ = [
     "DECLARATION_REFUTED",
     "DECLARED_NON_MONOTONE",
     "EXACT_REASONS_KEY",
+    "EXACT_SEMANTICS_KEY",
     "MONOTONE_KEY",
+    "NO_INTERPRETATION",
+    "NO_SEMANTICS_REFERENCE",
     "RECOUNTED_REASONS",
     "UNDECLARED_MONOTONICITY",
     "InferenceArtifact",
+    "admits_interpretation",
     "default_label",
     "deletion_semantics_refusal",
     "reason_set_is_exact",
+    "reference_semantics",
+    "semantics_reference_refusal",
 ]
 
 #: The name of the declaration, on an artefact object and in the mapping form of `artifact()`.
@@ -82,6 +108,12 @@ MONOTONE_KEY = "monotone"
 
 #: The name of the exactness declaration, on an artefact object and in the mapping form.
 EXACT_REASONS_KEY = "reasons_are_exact"
+
+#: The name of the reference declaration: which semantics this family's own `exact_value()`
+#: *computes*, as a member of `spec.CLAIMED_SEMANTICS`. It is a fact about the adapter, not about
+#: the audited system — `claimed_semantics` is the system's claim and this is what the artefact can
+#: hold that claim against.
+EXACT_SEMANTICS_KEY = "exact_semantics"
 
 
 #: Said on every verdict measured from a reason set the system recounted, and the whole of what
@@ -96,6 +128,30 @@ RECOUNTED_REASONS = (
 )
 
 
+#: Said where a measurement needs the artefact at an interpretation of its own choosing and the
+#: family offers none. Deliberately the *tool's* limit and never a finding about the system: the
+#: deletion probe still reaches such a family, and every shipped verdict is measured from that.
+NO_INTERPRETATION = (
+    "this artefact family exposes only the deletion perturbation — the inference with one fact "
+    "switched off — and this measurement needs the inference at an interpretation of its own "
+    "choosing, which is `at(fact, probability)`. Nothing weaker stands in for it: a probe that "
+    "only lowers a fact's probability cannot separate an inference that is multilinear in that "
+    "fact from one that is merely locally so, which is the whole of what is being asked here"
+)
+
+
+def admits_interpretation(artifact: object) -> bool:
+    """Whether this artefact can be asked for its inference at an interpretation of our choosing.
+
+    Read with `hasattr` and defaulting to **False**, for the reason `reason_set_is_exact` defaults
+    the way it does: silence claims the narrower surface. Both members are needed and neither is
+    useful alone — `at` moves one fact and `probability` says where it started.
+    """
+    return callable(getattr(artifact, "at", None)) and callable(
+        getattr(artifact, "probability", None)
+    )
+
+
 def reason_set_is_exact(artifact: object) -> bool:
     """Whether this artefact's reasons were enumerated exactly, rather than recounted by the system.
 
@@ -105,6 +161,51 @@ def reason_set_is_exact(artifact: object) -> bool:
     understates one.
     """
     return bool(getattr(artifact, EXACT_REASONS_KEY, False))
+
+
+def reference_semantics(artifact: object) -> str | None:
+    """Which semantics this artefact's own `exact_value()` computes, or None where it computes none.
+
+    Read with `getattr` and defaulting to **None**, on the same terms as `reason_set_is_exact`: a
+    family that does not say claims nothing, and a duty comparing the system's answer against a
+    reference is *unattainable* on it rather than measured against a number that answers a
+    different question. `artifacts.reason_trace` is the shipped family that says None — its
+    `exact_value()` is the sum of the weights the system itself recounted, so a gap measured there
+    is a faithfulness figure about a rationale and never evidence about a semantics.
+    """
+    value = getattr(artifact, EXACT_SEMANTICS_KEY, None)
+    return value if isinstance(value, str) else None
+
+
+#: Said where an artefact's family computes no semantics reference at all.
+NO_SEMANTICS_REFERENCE = (
+    "this artefact's family computes no reference for any semantics: its exact side is the weight "
+    "the system itself recounted, not inference over a model encoding, so the difference between "
+    "it and the system's answer measures how faithful a rationale is to an answer and not whether "
+    "an inference is the semantics it claims. The two look identical as a number and instruct a "
+    "reader to do opposite things. Nothing weaker stands in for the measurement"
+)
+
+
+def semantics_reference_refusal(claimed: str, reference: str | None) -> str | None:
+    """Why this artefact grounds no semantics-agreement measurement, or None where it does.
+
+    Worded once, for the reason `deletion_semantics_refusal` is: the engine asks this of the
+    artefact and a reader meets it on the result, and two wordings would drift. The two refusals
+    are deliberately different *outcomes* — a family with no reference is a gap in the system
+    (expose a model encoding), a claim this build computes no reference for is a gap in this tool
+    (`docs/semantics.md` §4) — and this function only supplies the words.
+    """
+    if reference is None:
+        return NO_SEMANTICS_REFERENCE
+    if claimed != reference:
+        return (
+            f"this artefact claims {claimed!r} and the only reference its family computes is "
+            f"{reference!r}. Comparing the system's answer against a semantics it never claimed "
+            "would report a system that documents its own approximation exactly as it reports one "
+            "that hides it, which is the accusation this duty is ordered to avoid"
+        )
+    return None
 
 
 #: Said where an artefact declares its inference non-monotone. The refusal is structural: there is
@@ -175,12 +276,26 @@ class InferenceArtifact(Protocol):
     what a fact is belongs to the family, and the certificate only ever counts, sorts and switches
     them off.
 
-    One member is **optional and deliberately not annotated below**: `reasons_are_exact: bool`, True
-    where `reasons()` is an exact enumeration over a model encoding and absent or False where the
-    system recounted the set instead. It is read through `reason_set_is_exact` and never off the
-    attribute, and it is not a protocol member because a `runtime_checkable` protocol tests every
-    annotated member with `hasattr` — declaring it here would make a family that does not mention it
-    fail `isinstance`, which is the opposite of a default that claims the weaker rung.
+    Four members are **optional and deliberately not declared below**, for the same mechanical
+    reason: a `runtime_checkable` protocol tests every annotated member and every method in its body
+    with `hasattr`, so declaring one here would make a family that does not offer it fail
+    `isinstance` — the opposite of a default that claims the narrower surface.
+
+    - `reasons_are_exact: bool` — True where `reasons()` is an exact enumeration over a model
+      encoding, absent or False where the system recounted the set instead. Read through
+      `reason_set_is_exact` and never off the attribute.
+    - `exact_semantics: str | None` — which member of `spec.CLAIMED_SEMANTICS` this family's own
+      `exact_value()` computes, absent or None where it computes none. Read through
+      `reference_semantics`. It is not a second `claimed_semantics`: that one is the audited
+      system's claim about its own inference, this one is what the adapter beside it can compute. A
+      duty asking whether an inference *is* the semantics it claims needs both, and needs them to be
+      the same member before it may compare two numbers at all.
+    - `at(fact, probability) -> InferenceArtifact` and `probability(fact) -> float` — the widened
+      perturbation and the reading of the base interpretation it moves from. A family offering both
+      can be asked for its inference at an interpretation the *caller* chose, which is strictly more
+      than `without`; one offering neither is reached by every shipped verdict all the same. Read
+      through `admits_interpretation`, and see the module docstring for what this reversed and what
+      it did not.
     """
 
     #: Whether this artefact's inference is monotone in its facts: adding a fact never retracts a
@@ -191,8 +306,8 @@ class InferenceArtifact(Protocol):
     #: The decision this artefact is the inference behind, named on the certificate.
     query: Any
 
-    #: The engine whose answer is being compared against exact inference, and the semantics it
-    #: claims. Both are printed on the certificate and neither is checked.
+    #: The engine whose answer is being compared against exact inference, and its closed-vocabulary
+    #: semantics claim. Both are printed on the certificate; the claim is refused if unknown.
     engine_name: str
     claimed_semantics: str
 
@@ -229,10 +344,11 @@ class InferenceArtifact(Protocol):
     def without(self, fact: Any) -> InferenceArtifact:
         """The same inference with one fact switched off, and the same reason set to score it over.
 
-        The probe is one-directional by construction of this method: there is no `with_(fact)`, and
-        adding one is the level-2 work no verdict here is authorised to rest on. The returned
-        artefact must enumerate the *same* reasons — the perturbation is to the interpretation and
-        never to what exact inference found — or the drop it reports is a comparison of two
-        different questions.
+        This is the whole of what the **deletion probe** calls, and the probe is one-directional
+        because of that and not because it is all a family can do: a family may also offer the wider
+        `at(fact, probability)` above, and `certificate.py` and `explanations.py` still call neither
+        it nor anything else. The returned artefact must enumerate the *same* reasons — the
+        perturbation is to the interpretation and never to what exact inference found — or the drop
+        it reports is a comparison of two different questions.
         """
         ...

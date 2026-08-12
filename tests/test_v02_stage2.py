@@ -13,11 +13,13 @@ Covers:
 from __future__ import annotations
 
 import json
+from io import StringIO
 from pathlib import Path
 
 import pytest
 
 from reasonsmith.adapters import CallableAdapter, JSONLAdapter
+from reasonsmith.adapters.rules import RulesAdapter
 from reasonsmith.cli import main as cli_main
 from reasonsmith.engines.observed import ObservedEngine
 from reasonsmith.engines.record import RecordEngine
@@ -731,10 +733,8 @@ class TestObservedEngine:
         )
         records = [{"signal_a": True}, {"signal_a": float("nan")}]
         result = ObservedEngine.evaluate(req, sut, records)
-        assert result.verdict == Verdict.VIOLATED
-        assert all(
-            score == score for _, score in result.details["evaluation_scores"]
-        ), "a NaN robustness score would also make the report's JSON unparseable"
+        assert result.verdict == Verdict.INCONCLUSIVE
+        assert result.strength is None
 
     @pytest.mark.parametrize(
         "spec",
@@ -811,7 +811,7 @@ class TestRequirementsMeasureTheirDuty:
             {"artifact_logs_decision_record": {"id": "dec-1"},
              "artifact_logs_notification_latency_days": 12},
             {"artifact_logs_decision_record": {"id": "dec-2"},
-             "artifact_logs_notification_latency_days": 45},
+             "artifact_logs_notification_latency_days": 200},
         ]
         result = ObservedEngine.evaluate(req, sut, records)
         assert result.verdict == Verdict.VIOLATED
@@ -863,6 +863,25 @@ class TestRequirementsMeasureTheirDuty:
         result = ObservedEngine.evaluate(req, sut, records)
         assert result.verdict == Verdict.VIOLATED
         assert result.details["violation_step_indices"] == [0, 1]
+
+    def test_ecoa_notice_undetermined_when_latency_30_to_90_counteroffer_absent(self):
+        """When latency is between 31 and 90 days and counteroffer is absent,
+
+        the requirement is NOT EVALUATED (verdict=INCONCLUSIVE, strength=None),
+        naming absent signal.
+        """
+        req = load_pack("ecoa").get_requirement("ecoa_reg_b_1002_9_a_1_timing_of_notice")
+        sut = BaseSUT(set(req.requires))
+        records = [
+            {"artifact_logs_decision_record": {"id": "dec-1"},
+             "artifact_logs_notification_latency_days": 12},
+            {"artifact_logs_decision_record": {"id": "dec-2"},
+             "artifact_logs_notification_latency_days": 45},
+        ]
+        result = ObservedEngine.evaluate(req, sut, records)
+        assert result.verdict == Verdict.INCONCLUSIVE
+        assert result.strength is None
+        assert "artifact_logs_counteroffer_not_accepted" in result.evidence_summary
 
     @pytest.mark.parametrize(
         "unmeasured_latency",
@@ -1133,3 +1152,56 @@ class TestDefinitionOfDoneEndToEnd:
         captured = capsys.readouterr()
         assert "violated" in captured.out
         assert "provenance_active_exceptions" in captured.out
+
+
+# Coverage boundary cases for this subject.
+def test_callable_adapter_rejects_missing_target():
+    with pytest.raises(ValueError, match="non-None"):
+        CallableAdapter(None, {"decision"})
+
+
+def test_callable_adapter_calls_plain_function_and_formats_cases():
+    sut = CallableAdapter(lambda value: value * 2, {"decision"}, test_inputs=[3, 4])
+    assert list(sut.decisions()) == [{"input": 3, "decision": 6}, {"input": 4, "decision": 8}]
+
+
+def test_callable_adapter_preserves_dict_output_and_precomputed_records():
+    sut = CallableAdapter(
+        lambda case: {"decision": case["x"]}, {"decision"}, test_inputs=[{"x": 2}]
+    )
+    assert list(sut.decisions()) == [{"decision": 2}]
+    scalar = CallableAdapter(lambda case: case["x"] + 1, {"decision"}, test_inputs=[{"x": 2}])
+    assert list(scalar.decisions()) == [{"x": 2, "decision": 3}]
+    assert list(CallableAdapter(lambda _: 1, {"decision"}).decisions()) == []
+    precomputed = [{"decision": "approved"}]
+    ready = CallableAdapter(lambda _: None, {"decision"}, decisions=precomputed)
+    assert list(ready.decisions()) == precomputed
+
+
+def test_jsonl_adapter_rejects_missing_file_and_bad_records():
+    with pytest.raises(FileNotFoundError, match="not found"):
+        JSONLAdapter("not-a-jsonl-path")
+    with pytest.raises(ValueError, match="Line 1"):
+        JSONLAdapter(StringIO("not json\n"))
+    with pytest.raises(TypeError, match="JSON object"):
+        JSONLAdapter(StringIO("[1]\n"))
+
+
+def test_jsonl_adapter_accepts_blank_lines_and_empty_log():
+    sut = JSONLAdapter(StringIO("\n"))
+    assert list(sut.decisions()) == []
+    assert sut.capabilities() == set()
+
+
+def test_rules_adapter_string_inputs_and_invalid_declarations():
+    sut = RulesAdapter(
+        "approved = income >= 10\n", constraints="income >= 0", test_inputs=[{"income": 12}]
+    )
+    assert list(sut.decisions())[0]["approved"] is True
+    with pytest.raises(ValueError, match="collection of names"):
+        RulesAdapter("x = 1", computes="x")
+    with pytest.raises(TypeError, match="cannot be iterated"):
+        RulesAdapter("x = 1", computes=1)
+    RulesAdapter("x = 1", constraints="not valid ???")
+    with pytest.raises(ValueError, match="Invalid rule syntax"):
+        RulesAdapter("x =").decide({})

@@ -21,6 +21,10 @@ Where this document and the code disagree, the code is right and this document h
 one exception, §4, which records three places where the code disagrees *with itself* and says which
 side this document takes.
 
+[`formal.md`](formal.md) §2 states this document's §2 in the notation the rest of the repository's
+mathematics is written in, and carries the **bibliography** every citation here resolves to. The
+grammar, the refusals and the four divergences of §4 live here and nowhere else.
+
 ---
 
 ## 1. The grammar
@@ -246,6 +250,8 @@ one witness per row and fails if a row here has no witness or a witness here has
 | Id | Refused |
 |---|---|
 | `R-PROSE` | text CPython cannot parse as an expression, English included |
+| `R-NOT-READ-WHOLE` | text CPython parsed without reading whole, a comment or a token of the input dropped |
+| `R-NOT-TOKENISED-WHOLE` | text CPython parsed and its tokeniser would not read whole, so whether anything was dropped cannot be established |
 | `R-UNTERMINATED-STRING` | an unterminated string literal, found by the rewriter |
 | `R-UNBALANCED-PARENS` | unbalanced parentheses, found by the rewriter |
 | `R-EMPTY-ARROW-OPERAND` | a missing operand on either side of an arrow |
@@ -275,10 +281,26 @@ one witness per row and fails if a row here has no witness or a witness here has
 | `R-TEMPORAL-BOOLEAN-COMPARISON` | `== `/`!=` against a Boolean literal inside the temporal fragment |
 
 `test_every_documented_refusal_is_refused` and `test_every_refusal_the_grammar_test_knows_is_named_here`
-are the two halves of that pin. One refusal in `rulelang` has no row and cannot have one: the walk
-refuses a Boolean operator outside `and` and `or`, and CPython's grammar produces no third — `&`
-and `|` are binary operators and are refused as those. It is a defensive branch with no witness,
-and a table row with no witness is what this pin exists to catch.
+are the two halves of that pin, and what they hold is stated exactly: **this table is the refusals
+reachable from `classify_fragment`** — the rewriter, the parse, the whitelist walk, and
+`validate_temporal_property` — which is the entry point every witness runs through. It is not every
+refusal `rulelang` raises.
+
+One refusal on that path has no row and cannot have one: the walk refuses a Boolean operator
+outside `and` and `or`, and CPython's grammar produces no third — `&` and `|` are binary operators
+and are refused as those. It is a defensive branch with no witness, and a table row with no witness
+is what this pin exists to catch.
+
+Three refusals are **outside this table's scope** rather than missing from it, and they are not
+defensive branches: `classify_fragment` *accepts* each of these specifications and assigns it a
+fragment, and the refusal fires later, when an engine evaluates the formula against a decision
+record. They are `counterfactually_invariant()`, `undetermined()` and `degree()` reached by
+`eval_expression`. The first is the whole of the guarantee that no rung ever reads the relational
+atom off a trace (`docs/semantics.md` §3, *counterfactual*); the other two are the two open-texture
+constructs, which reach no engine at all. What each of them means, and what it costs, is stated in
+`docs/semantics.md` §3 and §9. No row is added for them here: a witness for one would have to run
+through an engine rather than through `classify_fragment`, so a row would be a rule this pin cannot
+check, which is the hollow pin this section exists to prevent.
 
 ### 1.8 The grammar is checked
 
@@ -306,7 +328,7 @@ Three parameters, each a decision recorded in
   strength lattice are different instantiations of this one denotation and not two denotations
   joined by a bridge theorem.
 - **`𝒫(Trace_M)`, sets of traces**, uniformly — Clarkson & Schneider's hyperproperties
-  (*Hyperproperties*, CSF 2008 / JCS 2010). This is how the counterfactual atom is typed: it is a
+  (*Hyperproperties*, CSF 2008 / JCS 2010 — `[@clarkson-2010]`). This is how the counterfactual atom is typed: it is a
   2-safety property and therefore not a property of any single execution. It is heavier than three
   quarters of the language needs, and §2.9 states the cost and the theorem that discharges it. The
   uniformity is the decision: a semantics that typed one fragment differently because it was
@@ -349,7 +371,7 @@ Two instantiations ship.
   but `graded` is read here.
 - **`[0,1]` under a declared t-norm** — `manyvalued.ALGEBRAS`: Łukasiewicz, Gödel and product, the
   three fundamental continuous t-norms from which every continuous t-norm is an ordinal sum (Hájek,
-  *Metamathematics of Fuzzy Logic*, 1998). Each stores its residuum rather than deriving one, and
+  *Metamathematics of Fuzzy Logic*, 1998 — `[@hajek-1998]`). Each stores its residuum rather than deriving one, and
   `¬` and the biresiduum are derived from it, so a member is internally consistent by construction
   (`test_each_algebra_is_a_residuated_lattice_on_the_grid`). Which one is a **declared parameter of
   the pack** (`[grading] algebra`) and never a default: a conjunction of two halves is `0` under
@@ -471,23 +493,119 @@ the *graded* reading of equality and precisely not the crisp comparison `==` den
 refused: it states a threshold, and a threshold written into a pack is the author's number
 presented as the regulation's (`test_a_graded_comparison_the_author_wrote_is_still_refused`).
 
-### 2.8 Temporal formulas, and what this package does not define
+### 2.8 Temporal formulas denotation over finite traces
 
-For a trace σ of length `n > 0` and a position `i < n`, `⟦φ⟧^pos(σ, i) ∈ 𝔹` is the standard
-finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and
-linear dynamic logic on finite traces* (IJCAI 2013) — with the past operators read as their usual
-mirror images over the prefix.
+For a trace $\sigma$ of length $n = |\sigma| > 0$ and a position $i \in \{0, \dots, n-1\}$, $\llbracket \phi \rrbracket^{\text{pos}}(\sigma, i)$ defines the semantics of every temporal formula $\phi$ at position $i$. The trace verdict is evaluated at position 0: $\llbracket \phi \rrbracket^{\text{tr}}(\sigma) = \llbracket \phi \rrbracket^{\text{pos}}(\sigma, 0)$ (§2.9). The **future** clauses are the standard finite-trace semantics of LTL over finite traces — De Giacomo & Vardi, *Linear temporal logic and linear dynamic logic on finite traces* (IJCAI 2013 — `[@degiacomo-2013]`) — with **one exception**, stated here rather than left for a reader to find in clause 3: `next` is the **weak** next, true at the final position $n-1$. De Giacomo & Vardi's $X$ is the **strong** next and is *false* there, for want of a successor to satisfy it; the weak next is its dual, $N \phi \equiv \neg X \neg \phi$. Every other future clause is theirs as written. The **past** clauses are not the mirror images of the future ones, and this document does not claim they are: their conventions at position 0 are **rtamt's**. Both departures are adopted for the same reason, deliberately. rtamt is the monitor that computes the robustness reported beside every verdict `engines/observed.py` produces — the `observed` verdicts of `engines/record.py` run no monitor and carry none — and a denotation that diverged from it at a boundary would make the documented semantics and the executed semantics disagree, which is worse than adopting a convention this section can simply state. Each was read off the monitor, and the probes are recorded below.
 
-**This package implements none of it, and this document defines none of it.** The clauses are
-named, not restated, and the reason is a rule in the tree: rtamt owns the temporal semantics at the
-`observed` rung and `flloat` owns them in the analysis, and a second implementation of one is the
-thing to refuse if it is ever proposed. The property language's whole contribution here is a
-**syntax mapping** — prefix calls, because it parses through Python's `ast`, rendered back into
-rtamt's infix by `engines/observed.to_stl` and into `flloat`'s by `ltlf.to_ltlf`
-(`test_the_rendered_form_is_rtamt_infix_and_rtamt_monitors_it`).
+They are **restated here rather than named**, and the reason is a change in the code that this
+section is the contract for. `rulelang.eval_temporal_trace` evaluates these clauses directly, over
+the Kleene chain of §2.12 rather than over `𝔹`, and `engines/observed.py` takes its verdict from
+that evaluation. It does **not** take it from a robustness sign, and that is the whole point of the
+clauses being written down: $\rho > 0$ implies satisfaction and $\rho < 0$ implies violation, but
+$\rho = 0$ implies neither, and $\rho$ does not represent strictness at all — $\rho(x > c) = \rho(x
+\ge c)$. A Boolean question answered by comparing a robustness number is therefore a defect, and a
+definition that only *named* its clauses gave no statement against which to find one.
 
-One clause the package does own, because `engines/temporal.py` implements it:
+What is still owned elsewhere, and what may still never be implemented twice: rtamt owns the
+real-valued monitoring at the `observed` rung and BLACK owns the decision procedure in the
+analysis, and a second monitor, automaton construction or tableau is the thing to refuse if it is
+ever proposed. The property language's contribution to *those two* remains a **syntax mapping** —
+prefix calls, because it parses through Python's `ast`, rendered back into rtamt's infix by
+`engines/observed.to_stl` and into BLACK's by `ltlf.to_ltlf`
+(`test_the_rendered_form_is_rtamt_infix_and_rtamt_monitors_it`). The clauses below are the
+statement those renderings are checked *against*, which is what §4 does when it reports four shapes
+on which the rtamt rendering and this definition part company.
 
+State predicates without temporal operators are evaluated per-record via $\llbracket f \rrbracket^{\text{rec}}(\sigma_i)$ using `rulelang.eval_expression`. The connective and temporal operator denotations over finite traces are stated below, and every one of them is checked against what `rtamt` does on a discrete trace:
+
+#### Connectives
+- $\llbracket \text{not } \phi \rrbracket^{\text{pos}}(\sigma, i) = \neg \llbracket \phi \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \phi_1 \text{ and } \phi_2 \rrbracket^{\text{pos}}(\sigma, i) = \llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) \land \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \phi_1 \text{ or } \phi_2 \rrbracket^{\text{pos}}(\sigma, i) = \llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) \lor \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \text{Implies}(\phi_1, \phi_2) \rrbracket^{\text{pos}}(\sigma, i) = \neg \llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) \lor \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i)$
+- $\llbracket \text{Iff}(\phi_1, \phi_2) \rrbracket^{\text{pos}}(\sigma, i) = (\llbracket \phi_1 \rrbracket^{\text{pos}}(\sigma, i) == \llbracket \phi_2 \rrbracket^{\text{pos}}(\sigma, i))$
+
+#### Temporal Operators
+1. `always(f)`: $\bigwedge_{j=i}^{n-1} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+2. `eventually(f)`: $\bigvee_{j=i}^{n-1} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+3. `next(f)`: $\llbracket f \rrbracket^{\text{pos}}(\sigma, i+1)$ if $i+1 < n$, else $1$ (weak `next`)
+4. `prev(f)`: $\llbracket f \rrbracket^{\text{pos}}(\sigma, i-1)$ if $i > 0$, else $1$ (weak `prev`)
+5. `historically(f)`: $\bigwedge_{j=0}^{i} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+6. `once(f)`: $\bigvee_{j=0}^{i} \llbracket f \rrbracket^{\text{pos}}(\sigma, j)$
+7. `rise(f)`: $\llbracket f \rrbracket^{\text{pos}}(\sigma, 0)$ if $i = 0$, else $\llbracket f \rrbracket^{\text{pos}}(\sigma, i) \land \neg \llbracket f \rrbracket^{\text{pos}}(\sigma, i-1)$
+8. `fall(f)`: $\neg \llbracket f \rrbracket^{\text{pos}}(\sigma, 0)$ if $i = 0$, else $\neg \llbracket f \rrbracket^{\text{pos}}(\sigma, i) \land \llbracket f \rrbracket^{\text{pos}}(\sigma, i-1)$
+9. `until(a, b)`: $\bigvee_{j=i}^{n-1} \left( \llbracket b \rrbracket^{\text{pos}}(\sigma, j) \land \bigwedge_{k=i}^{j-1} \llbracket a \rrbracket^{\text{pos}}(\sigma, k) \right)$
+10. `since(a, b)`: $\bigvee_{j=0}^{i} \left( \llbracket b \rrbracket^{\text{pos}}(\sigma, j) \land \bigwedge_{k=j+1}^{i} \llbracket a \rrbracket^{\text{pos}}(\sigma, k) \right)$
+
+#### Boundary Edge Cases & Empirical `rtamt` Evidence
+
+The finite-trace boundary edge cases are determined by running `rtamt` over discrete traces:
+
+- **`next` at position $n - 1$**: Weak `next` (evaluates to `True`).
+  *Empirical probe*: `next(b >= 0.5)` on $b = [1.0, 0.0]$:
+  ```python
+  spec = rtamt.StlDiscreteTimeSpecification()
+  spec.declare_var('b', 'float')
+  spec.spec = 'next(b >= 0.5)'
+  spec.parse()
+  spec.evaluate({'time': [0, 1], 'b': [1.0, 0.0]})
+  # Output: [[0, -0.5], [1, inf]]  --> robustness +inf at t=1 implies True
+  ```
+- **`prev` at position 0**: Weak `prev` (evaluates to `True`).
+  *Empirical probe*: `prev(b >= 0.5)` on $b = [0.0, 1.0]$:
+  ```python
+  spec.spec = 'prev(b >= 0.5)'
+  spec.evaluate({'time': [0, 1], 'b': [0.0, 1.0]})
+  # Output: [[0, inf], [1, -0.5]]  --> robustness +inf at t=0 implies True
+  ```
+- **`until(a, b)`**: Search interval $[i, n-1]$ is inclusive. If $b$ never holds on $[i, n-1]$, returns `False`.
+  *Empirical probe*: `until(a >= 0.5, b >= 0.5)` on $a = [1, 1], b = [0, 0]$:
+  ```python
+  spec.evaluate({'time': [0, 1], 'a': [1.0, 1.0], 'b': [0.0, 0.0]})
+  # Output: [[0, -0.5], [1, -0.5]] --> robustness -0.5 implies False
+  ```
+- **`since`, `once`, `historically` at position 0**: Evaluated over prefix $[0, 0]$.
+  *Empirical probe*: `since(a >= 0.5, b >= 0.5)` on $a = [0, 1], b = [1, 0]$:
+  ```python
+  spec.evaluate({'time': [0, 1], 'a': [0.0, 1.0], 'b': [1.0, 0.0]})
+  # Output: [[0, 0.5], [1, 0.5]]   --> robustness +0.5 implies True
+  ```
+- **`rise` and `fall` at position 0**: Implicitly assumes initial boundary conditions $f(-1) = 0$ for `rise` and $f(-1) = 1$ for `fall`.
+  *Empirical probe*: `rise(b >= 0.5)` on $b = [1.0, 0.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`), and `fall(b >= 0.5)` on $b = [0.0, 1.0]$ evaluates to `True` at $t=0$ (`[[0, 0.5], [1, -0.5]]`).
+- **Strictness at threshold $\rho = 0$**: The Boolean verdict follows from strict comparison operator semantics: `>` and `<` evaluate to `False` on the threshold, while `>=` and `<=` evaluate to `True` (`test_strict_comparison_boundary_table`, `test_all_ten_temporal_operators_covered_and_distinguished`, `test_differential_property_shipped_packs_and_systems`, `test_differential_property_random_traces`, `test_missing_numeric_signal_returns_inconclusive`).
+
+#### Which reading each past operator takes at position 0
+
+Past LTL has **two** previous operators, and the distinction is the standard one: the *strong*
+previous $\ominus$ is false at the initial position, there being no predecessor to satisfy it, and
+the *weak* previous $\widetilde{\ominus}$ is true there for the same reason — Manna & Pnueli, *The
+Temporal Logic of Reactive and Concurrent Systems: Specification* (Springer, 1992 —
+`[@manna-1992]`), where the pair is introduced and $\widetilde{\ominus} \phi \equiv \neg \ominus
+\neg \phi$. This language has one `prev`, and the three clauses that look one position back do not
+all read it the same way:
+
+- `prev(f)` is the **weak** previous: $1$ at position 0 (clause 4).
+- `rise(f)` takes the **strong** reading: at position 0 it evaluates as if $f(-1) = 0$, so it
+  reduces to $\llbracket f \rrbracket^{\text{pos}}(\sigma, 0)$ (clause 7).
+- `fall(f)` takes the **strong** reading with the opposite boundary value: at position 0 it
+  evaluates as if $f(-1) = 1$, so it reduces to $\neg \llbracket f \rrbracket^{\text{pos}}(\sigma,
+  0)$ (clause 8).
+
+**The consequence, which is the part a reader will otherwise get wrong.** `rise(f)` and
+`f and not prev(f)` agree at every position but the first, and at position 0 they are **not
+interchangeable**, because one clause is written against the strong previous and the other against
+the weak one. Witness, on $\sigma = [\{\texttt{flag}: 1\}, \{\texttt{flag}: 0\}]$: `rise(flag)` is
+$1$ at position 0, while `flag and not prev(flag)` is $0$ there, since `prev(flag)` is weak and
+therefore $1$. Neither is wrong and neither is a defect — they are two operators, spelled apart —
+and this paragraph exists so that a pack author does not write one meaning the other.
+`historically`, `once` and `since` raise no such question: they quantify over the prefix $[0, i]$,
+which at $i = 0$ is $[0, 0]$ and asks for no value at $-1$. The three conventions are pinned by
+`test_all_ten_temporal_operators_covered_and_distinguished`, which asserts the witness above as
+well as the boundary values: a trace beginning `b = False` cannot pin `rise` at position 0, because
+the strong reading and the weak-previous one agree there, so the pin needs a trace beginning
+`b = True` and carries one.
+
+One clause `engines/temporal.py` implements for reduction to `proved`:
 ```
 ⟦always(φ)⟧^tr(σ)  =  ⨅_{i < |σ|} ⟦φ⟧^rec(σᵢ)          for φ free of temporal operators
 ```
@@ -591,6 +709,58 @@ reading here either, but the reason is a decision about packs rather than a gap 
 stating one would be stating a compliance threshold no statute states
 (`test_a_graded_atom_under_arithmetic_or_a_comparison_is_refused`).
 
+### 2.12 The third value, and whose three-valuedness it is
+
+The reference interpreter and `eval_temporal_trace` do not evaluate into `𝔹` but into the **Kleene
+strong three-valued logic** `[@kleene-1952]` on the chain `F < U < T` (`rulelang.UNKNOWN`, `kleene_not`,
+`kleene_and`, `kleene_or`, `kleene_implies`, `kleene_iff`). The tables are Kleene's and no other's:
+
+| `φ` | `¬φ` |   | `∧` | F | U | T |   | `∨` | F | U | T |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| F | T |   | **F** | F | F | F |   | **F** | F | U | T |
+| U | U |   | **U** | F | U | U |   | **U** | U | U | T |
+| T | F |   | **T** | F | U | T |   | **T** | T | T | T |
+
+`φ → ψ` is `¬φ ∨ ψ` and `φ ↔ ψ` is `(φ → ψ) ∧ (ψ → φ)`, both derived rather than tabulated, which
+is why `U ↔ U = U`. `UNKNOWN.__bool__` **raises**: a third value that silently coerced to `False`
+at an `if` would be a two-valued answer wearing a three-valued type. The tables above are checked
+against the operators cell by cell (`test_the_kleene_tables_are_the_ones_the_language_doc_writes_out`,
+`test_implication_and_equivalence_are_derived_and_not_tabulated`,
+`test_the_unknown_value_refuses_to_coerce_to_a_boolean`).
+
+Each operand is read as a **truth value** and never by identity against `True`/`False`
+(`rulelang.kleene_value`), and `eval_temporal_trace` normalises every position of the trace the
+same way. This is load-bearing rather than tidy: an atom of this language returns whatever the
+decision record carried, so `0`, `1` or `""` in a Boolean position matched neither identity branch
+and fell through to the operator's unit — a `T` off a falsy conjunct and an `F` off a truthy
+disjunct, at the two rungs (`probed`, `certificate`) that guard no atom
+(`test_a_falsy_operand_is_false_and_not_a_third_thing`,
+`test_a_truthy_operand_is_true_and_not_a_third_thing`,
+`test_the_interpreter_does_not_answer_a_conjunction_off_a_falsy_atom`,
+`test_a_trace_of_records_evaluates_into_the_kleene_chain_and_not_into_raw_values`).
+
+**Where `U` comes from here, and where it does not.** `U` is this tool's *ignorance about a record*
+— a signal the decision record does not carry a value for, so the atom reading it has no truth
+value at this position. That is the source Bruns & Godefroid `[@bruns-1999]` treat: a partial state
+space, incompletely known. It is **not** the source Bauer, Leucker & Schallhart `[@bauer-2011]`
+treat in LTL₃, which is a *truncated trace* — the prefix seen so far may be extended, and the
+question is whether every extension agrees. The two are different questions with the same arity,
+and this repository answers only the first. [`semantics.md`](semantics.md) §8 states the second as
+**not available from this tool**, and that statement is about LTL₃ and stays true: nothing here
+computes a verdict about the extensions of a trace. Conflating them — in prose or in a value — is
+the mistake this paragraph exists to prevent.
+
+**Kleene is sound for the question and it is not complete for it.** If this evaluation returns `T`
+or `F`, that value holds under *every* assignment of the unknowns, so a verdict read off it is
+never a guess. The converse fails: `φ ∨ ¬φ` evaluates to `U` when `φ` is `U`, although every
+completion makes it true. So `U` means **this evaluation did not determine the formula**, and never
+*no determination is possible*. Supervaluation `[@vanfraassen-1966]` — quantifying over the
+classical completions — is complete for that question and is deliberately not implemented: it costs
+a satisfiability check per formula, and the direction Kleene errs in is the direction this package
+always errs in, reporting *not evaluated* where a sharper procedure would answer. A duty whose
+verdict rests on that gap is therefore reported inconclusive, never satisfied
+(`test_kleene_is_sound_and_not_complete_for_determinacy`).
+
 ---
 
 ## 3. Four implementations of one denotation
@@ -602,10 +772,10 @@ agreed on the cases we tried*, and a semantics says *here is the definition and 
 
 | Implementation | `M` | `A` | Rung | Conformance evidence |
 |---|---|---|---|---|
-| `rulelang.eval_expression` | `O(σ)`, one record at a time | `𝔹` | reference | — it *is* the reference |
+| `rulelang.eval_expression` | `O(σ)`, one record at a time | the Kleene chain `F < U < T` of §2.12 | reference | — it *is* the reference |
 | `engines/proved._ast_to_z3` | `D(L)` | `𝔹` | `proved` | `test_the_encoder_and_the_interpreter_answer_the_same`, `test_the_encoder_and_the_interpreter_compute_the_same_number`, `test_the_solvers_fold_is_the_interpreters_fold`, `test_the_solvers_blank_string_is_pythons_blank_string` |
-| `engines/observed.to_stl` + rtamt | `O(σ)` | `𝔹` (via robustness sign) | `observed` | `test_the_monitor_agrees_with_the_reference_reading`, and §4 |
-| `ltlf.to_ltlf` + `flloat` | a propositional abstraction of `O(σ)` | `𝔹` | none — it answers about *packs* | `test_the_ltlf_backend_agrees_with_the_monitor` |
+| `engines/observed.to_stl` + rtamt | `O(σ)` | `𝔹` (via robustness sign) — the **margin** the rung publishes, no longer its verdict (§2.8) | `observed` | `test_the_monitor_agrees_with_the_reference_reading`, and §4 |
+| `ltlf.to_ltlf` + BLACK | a propositional abstraction of `O(σ)` | `𝔹` | none — it answers about *packs* | `test_the_ltlf_backend_agrees_with_the_monitor` |
 
 `manyvalued.degree_of` is not a fifth implementation but the same reference interpreter at a
 different `A`: every subtree carrying no `degree()` atom is handed to `eval_expression` and mapped
@@ -614,7 +784,8 @@ to `1.0`/`0.0`, so the crisp parts of a graded formula mean exactly what they me
 
 ### 3.1 The reference interpreter
 
-`rulelang.eval_expression` at `A = 𝔹`, `M = O(σ)`, one record at a time. It is the reference because
+`rulelang.eval_expression` at `A` = the Kleene chain of §2.12, `M = O(σ)`, one record at a time. It
+is the reference because
 it is the only implementation that is a direct transcription of §2.5–§2.7 with no encoding step
 between, and because every other engine's cross-check is run against it — including the proof
 rung's, which replays the interpreter on the witness the solver chose before any verdict is read off
@@ -653,8 +824,13 @@ words and the runtime cross-check is what stands in the way of it becoming a wro
 
 ### 3.3 rtamt, at the observation structure
 
-`engines/observed.py` renders the property in rtamt's syntax and reads the sign of the robustness
-signal as the Boolean verdict. Two clauses of §2.6 could not be handed to rtamt at all — it reasons
+`engines/observed.py` renders the property in rtamt's syntax and monitors it for the **robustness
+margin** it publishes in `details['evaluation_scores']`. It does not read the sign of that signal as
+the verdict — the verdict is `rulelang.eval_temporal_trace` over the clauses of §2.8 and the chain
+of §2.12 (§2.8 for why, §4 for what the refusals still protect). What this section names as an
+implementation of §2 is therefore the *rendering*, and
+`test_the_monitor_agrees_with_the_reference_reading` is what holds it to the denotation.
+Two clauses of §2.6 could not be handed to rtamt at all — it reasons
 over real-valued signals and nothing else — so `present(x)` and `contains(x, "p")` are evaluated in
 Python per record and reach the monitor as **synthetic flags**. That is what keeps their meaning the
 one meaning of §2.6 instead of a second definition living inside an STL string.
@@ -666,21 +842,25 @@ does not reach every shape and says so rather than guessing
 
 `test_the_monitor_agrees_with_the_reference_reading` is the conformance test this document adds: a
 corpus of state formulas, evaluated by the reference interpreter and by the monitor, asserted equal.
-It carries four **named exclusions**, and §4 is what they are.
+It carries four **named exclusions**, and §4 is what they are — three of them now refused in the
+rendering rather than answered, the fourth a boundary convention.
 
-### 3.4 flloat, at a propositional abstraction
+### 3.4 BLACK, at a propositional abstraction
 
-`ltlf.py` compiles a temporal formula to a DFA and asks emptiness. It is the only implementation
-that changes the structure rather than the algebra: every comparison of magnitudes becomes one
+`ltlf.py` hands a temporal formula to BLACK (a satisfiability checker for LTL and LTLf) over a subprocess boundary.
+It is the only implementation that changes the structure rather than the algebra: every comparison of magnitudes becomes one
 opaque propositional atom, so `x <= 30` bears no relation to `x <= 90`. That abstraction is sound
 for the entailments it reports and incomplete for the ones it does not, which is why satisfiability
 is reported only in the affirmative and `LTLF_ABSTRACTION_LIMIT` rides on every answer.
 
-Two of its choices are §2 clauses rather than implementation details. Every question conjoins
-`F(true)`, because LTLf admits the empty trace on which every `always` duty vacuously holds — which
-is §2.9's refusal of `⨅ ∅` restated in the object logic
-(`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`). And `Iff` is
-expanded both ways, the same expansion Z3 uses, because the mapping has no `<->` of its own
+Two of its choices are §2 clauses rather than implementation details. Every question is asked over
+a **non-empty** trace, which is §2.9's refusal of `⨅ ∅` restated in the object logic: an `always`
+duty satisfiable only by the empty trace is reported unsatisfiable
+(`test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable`). BLACK
+interprets LTLf over non-empty finite traces natively, so that clause is inherited from the
+procedure rather than conjoined as a guard formula — the clause is the same one either way, and it
+is the clause and not the guard that this document states. And `Iff` is expanded both ways, the
+same expansion Z3 uses, because the mapping has no `<->` of its own
 (`test_the_trace_logic_has_a_spelling_for_equivalence`).
 
 The decision record that fixed the shape of this document predates `ltlf.py`, so it names three
@@ -694,50 +874,99 @@ same agreement obligation the other three carry.
 ## 4. Four shapes the monitor does not render soundly
 
 Writing §2 down found three places where the `observed` implementation and the denotation part
-company, beside one that was already known and documented. **All four are latent**: no shipped pack
-writes any of these shapes, and `test_no_shipped_spec_uses_a_shape_the_monitor_misrenders` is what
-keeps that true. Each is reported here rather than fixed, because which side moves is a decision
-about an engine's contract and not this document's to take.
+company, beside one that was already known and documented. **Rows 1–3 are now refused in the
+rendering**: `engines/observed._refuse_shapes_the_monitor_misreads` raises on each, so a duty using
+one is reported *not evaluated* naming the construct rather than answered off a formula rtamt read
+differently. All four remain latent besides — no shipped pack writes any of these shapes, and
+`test_no_shipped_spec_uses_a_shape_the_monitor_misrenders` is what keeps that true — so no verdict
+moved when the refusal landed.
 
 Each row is pinned twice: `test_the_monitor_agrees_with_the_reference_reading` excludes it by name,
-and `test_the_shapes_the_monitor_misrenders_are_the_four_named` asserts a concrete witness on which
-the two still disagree — so the exclusion list can neither grow silently nor rot after a fix.
+and `test_the_four_named_shapes_are_still_what_the_document_records` asserts a concrete witness on
+which rtamt and the reference reading still disagree *behind* the refusal — or, for a refused row
+the strict lexer now makes rtamt raise on, that it raises there rather than being read differently
+— so the exclusion list can neither grow silently nor keep a refusal whose reason has gone.
+
+**What the refusal protects, now that the verdict is not the monitor's.** §2.8 records the change
+this rationale has to be restated against: `engines/observed.py` takes its verdict from
+`rulelang.eval_temporal_trace`, over the clauses of §2.8 and the chain of §2.12, and not from a
+robustness sign. A shape rtamt misreads therefore no longer decides the verdict. The refusal is
+kept, and its reason is the **other** number the rung publishes. rtamt's robustness still populates
+`details['evaluation_scores']`, which travels into the JSON record and into every rendering that
+reads one, so a shape rtamt reads differently would carry a margin computed from a *different
+formula than the one the duty states* — `1 < count_a < 10` scored as `(1 < count_a) < 10`, a `%`
+scored with the token dropped, an `Iff` scored as `−|ρ(left) − ρ(right)|`. A correct verdict beside
+a margin that does not belong to it is worse than no `observed` verdict at all: nothing on the
+record says the margin is about another formula, and a reader has no way to tell. So the rung is
+refused, the four rows stay, and neither pin moves.
 
 **1. The remainder operator, `%`.** rtamt's lexer has no `%`. ANTLR **error-recovers by dropping the
-token** and `spec.parse()` does not raise, so the monitor answers about a formula nobody wrote, with
-a token-recognition line on stderr as the only trace. Witness: `count_a % count_b > 1` at
-`count_a = -2, count_b = 2`. The reference reading is `-2 % 2 = 0`, so the formula is false; the
-monitor scores robustness `+1.0` and reports **satisfied**. This is the exact failure mode
+token**, and on rtamt's default lexer `spec.parse()` did not raise, so the monitor answered about a
+formula nobody wrote, with a token-recognition line on stderr as the only trace. `_monitor` now
+installs rtamt's own raising error listener on the lexer and asserts the parse produced exactly one
+statement, so a dropped token is a raise rather than a silent answer — `RTAMT_BEHAVIOUR` records
+this row as *raises* for that reason, and the refusal below is kept in front of it rather than
+resting on the listener. Witness: `count_a % count_b > 1` at
+`count_a = -2, count_b = 2`. The reference reading is `-2 % 2 = 0`, so the formula is false; on the
+default lexer the monitor scored robustness `+1.0` and would have reported **satisfied**. This is
+the exact failure mode
 `rulelang`'s own module docstring names — a silently dropped construct makes an engine answer about
 logic the author did not write — arriving through a dependency's error recovery rather than through
-this package's whitelist.
+this package's whitelist. It is the row that mattered most, because it was the only one the engine's
+old protection (rtamt raising) could not see. **Refused.**
 
 **2. Chained comparison.** §2.6 reads `a ⋈ b ⋈ c` as the conjunction of its pairs, and so do the
 interpreter and Z3. rtamt parses it and **left-associates over robustness values**: it reads
 `1 < x < 10` as `(1 < x) < 10`, comparing a robustness margin against `10`.
 Witness: `1 < count_a < 10` at `count_a = -2`.
-The reference reading is false; the monitor scores `+13.0` and reports **satisfied**.
+The reference reading is false; the monitor scores `+13.0` and would report **satisfied**.
+**Refused.**
 
 **3. Equivalence.** rtamt has an `iff` whose robustness is `−|ρ(left) − ρ(right)|`, which is negative
 whenever the two sides' *margins* differ — including when both sides are false and the equivalence
 is therefore true. Witness: `(count_a >= 1) <-> (count_b >= 1)` at `count_a = -2, count_b = 0`. Both
-conjuncts are false, so §2.7 gives `1`; the monitor scores `−2.0` and reports **violated**. The two
-spellings of the one connective also behave differently at this rung: `<->` is monitored and gets
-this wrong answer, while `<=>` is not in rtamt's grammar at all and is reported *not evaluated*.
+conjuncts are false, so §2.7 gives `1`; the monitor scores `−2.0` and would report **violated**. The
+two spellings of the one connective also parted company at this rung: `<->` was monitored and got
+this wrong answer, while `<=>` is not in rtamt's grammar at all and was reported *not evaluated*.
+The refusal is asked of the parsed `Iff` node, which is where both arrive, so the two spellings now
+reach the same refusal in the same words
+(`test_both_spellings_of_equivalence_reach_the_same_refusal`). **Refused.**
 
-**4. The exact tie** — already known, already documented, listed for completeness. rtamt scores a
-comparison that holds with no margin as robustness `0`, and the engine breaches only on a negative
-score, so a strict comparison satisfied nowhere by the reference reading is reported satisfied at
-the boundary. `test_a_declared_deviation_exactly_equal_to_the_margin_is_reported_satisfied` is where
-that already lives.
+**4. The exact tie** — already known, already documented, listed for completeness, and **not
+refused**. rtamt scores a comparison that holds with no margin as robustness `0`, and `ρ` does not
+represent strictness at all: `ρ(x > c) = ρ(x >= c)`, so the score cannot tell the two apart. This is
+now a divergence of the **margin alone**. The verdict is not read off the score, so a strict
+comparison satisfied nowhere by the reference reading is reported **violated** at the boundary —
+`always(b > 0)` on a trace of `b = 0.0` is violated and `always(b >= 0)` satisfied
+(`test_strict_comparison_boundary_table`). Every shipped duty uses `<=`, and at a tie `<=` *is*
+satisfied, so no shipped verdict turns on this;
+`test_a_gap_exactly_equal_to_the_margin_is_satisfied` is that duty's case — though it is
+no longer read by a monitor at all, since that duty moved to the certificate rung.
 
-**What this document takes to be right.** §2 is the reading, and the four rows are defects of the
-`observed` implementation. The shape of a fix is the one this package already uses for `!=`,
-`min(...)` and `Implies(...)`: refuse the shape in the rendering, so the duty is reported *not
-evaluated* rather than answered off a formula rtamt read differently. Rows 1–3 would need
-`engines/observed.to_stl` to refuse a `%`, a chained comparison and an equivalence; row 4 is a
-question about the boundary convention and is a different kind of decision. None of that is done
-here.
+**Why the fix is a refusal and not a repair.** §2 is the reading, and three encodings — the
+interpreter, the Z3 encoding and the finite-trace rendering — implement it. One backend disagreeing
+is a defect in that backend, so the shape of the fix is the one this package already uses for `!=`,
+`min(...)`, `max(...)` and `Implies(...)`: refuse the shape in the rendering. What this costs is a
+trace rung, and it is stated rather than hidden — a duty writing one of these three has no
+`observed` verdict at all.
+
+The refusal list is three constructs long for a reason that belongs to a dependency and not to this
+package: rtamt **raises** for nearly every construct this language admits and it does not
+support — `!=`, `min`, `max`, `Implies(...)`, `<=>` — which is why `spec.parse()` raising sufficed
+for as long as it did. That is measured rather than assumed:
+`test_rtamt_still_behaves_the_way_the_refusals_assume` probes every admitted construct and asserts
+which of *raises*, *agrees* and *misreads* rtamt does with it. Its purpose is a version bump
+reopening the `%` hole under another construct, which would otherwise be as invisible as `%` was.
+
+What is **not** done, and is a separate decision: verifying that what rtamt parsed is what was
+rendered, rather than naming the shapes it misreads. That is the general form of this fix and would
+not need a list.
+
+The margin question is settled by the same soundness boundary: a shape rtamt misreads is
+refused, not answered with a verdict and no margin. Suppressing `evaluation_scores` would still
+leave a result claiming that the observed rung evaluated the duty while the only monitor margin
+available came from another formula. The refusal therefore keeps both the verdict and its
+misleading margin out of the record (`test_a_duty_using_a_misread_shape_is_not_evaluated_and_names_the_construct`).
 
 ---
 
@@ -763,7 +992,10 @@ here.
 | A proof disagreeing with the reference interpreter on its own witness is not a proof | `test_encoding_disagreeing_with_the_interpreter_is_not_a_proof` |
 | `present()` and `contains()` mean the same thing to the solver as to the reference reading | `test_the_solvers_blank_string_is_pythons_blank_string`, `test_the_solvers_fold_is_the_interpreters_fold`, `test_the_solver_finds_no_phrase_in_a_string_the_record_does_not_carry` |
 | The monitor agrees with the reference reading on every shape it renders | `test_the_monitor_agrees_with_the_reference_reading` |
-| The four shapes it does not render soundly are still exactly those four | `test_the_shapes_the_monitor_misrenders_are_the_four_named` |
+| The four shapes it does not render soundly are still exactly those four, and still what §4 records | `test_the_four_named_shapes_are_still_what_the_document_records` |
+| A duty writing one of the three refused shapes is not evaluated, naming the construct | `test_a_duty_using_a_misread_shape_is_not_evaluated_and_names_the_construct` |
+| Both spellings of equivalence reach the same refusal | `test_both_spellings_of_equivalence_reach_the_same_refusal` |
+| rtamt still raises for every other construct the language admits, so the refusal list is still three long | `test_rtamt_still_behaves_the_way_the_refusals_assume` |
 | No shipped pack writes one of those shapes | `test_no_shipped_spec_uses_a_shape_the_monitor_misrenders` |
 | The LTLf backend and the monitor agree about every shipped temporal duty | `test_the_ltlf_backend_agrees_with_the_monitor` |
 | LTLf questions are asked over a non-empty trace, so `⨅ ∅` is never the answer | `test_an_always_duty_satisfiable_only_by_the_empty_trace_is_reported_unsatisfiable` |

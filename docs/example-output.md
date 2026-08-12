@@ -8,11 +8,11 @@ what the tool would print. Regenerate any block by running the command shown abo
   regenerated over the four Table 7 demos added on that branch. The CLI blocks were regenerated
   from the commands below for the property-language change; `test_committed_transcripts_are_the_real_stdout`
   re-runs all three commands and holds every committed block to its real stdout.
-- **Version:** every block below was generated on reasonsmith `0.7.0`, the version of the tree
+- **Version:** every block below was generated on reasonsmith `0.8.0`, the version of the tree
   these transcripts were captured from. If the same command prints differently on your install,
   your `reasonsmith` is a different version than this document describes — `pip show reasonsmith`
   will name it. A mismatch against an older release means this document is ahead of your package,
-  not that your install is broken; upgrade to `0.7.0` or newer and re-run before comparing.
+  not that your install is broken; upgrade to `0.8.0` or newer and re-run before comparing.
 - **Environment:** Python 3.12.9, Linux, `nesyarena` at the commit `pyproject.toml` pinned when
   these transcripts were captured (`57720fa212834689692e171882272140f1d1fed7`); re-run since
   against the PyPI release `nesyarena==0.1.0` now pinned, byte-for-byte identical
@@ -1057,6 +1057,77 @@ REQUIREMENT FINDINGS:
     requires: continuous_monitoring_logs, metric_thresholds_and_alerts, reviews_and_sign_offs, incident_tickets
     MISSING SIGNALS: continuous_monitoring_logs, incident_tickets, metric_thresholds_and_alerts, reviews_and_sign_offs
     summary: Unattainable on the evidence supplied: no record in the supplied decision trace carries a value for continuous_monitoring_logs, incident_tickets, metric_thresholds_and_alerts, reviews_and_sign_offs, and the system declared no capabilities, so nothing here can discharge this requirement. Read from that trace alone; a longer trace could show the system emitting these signals.
+
+LIMITS OF THIS REPORT
+  This report is not a compliance guarantee and is not legal advice. It assesses system capability information and trace evidence against formal specifications. Whether these findings discharge legal duties remains a determination this tool does not make and cannot make. A requirement reported without a strength was not evaluated or is not applicable, and no verdict on it should be read from this report. Recital and guidance items inform how statutory duties are interpreted but create no obligation of their own; interpretive requirements are evaluated and reported separately, and are never folded into the binding headline counts. A requirement reported not applicable was excluded on one of two independent gates. Either no regulatory class was declared for the system at all, or the class that was declared is not the one the requirement is limited to; or no decision domain was declared for the system at all, or none of the domains that were declared is one the requirement is about. This tool infers neither the class nor the domain, so an undeclared system is neither placed in scope nor cleared of the duty: read the declared scope and domain lines before reading a not-applicable result. The decision-domain vocabulary is written by the pack author and by no regulation, and a duty declaring no domain reaches every system it is run against.
+```
+
+---
+
+## 3. The reason-fidelity run — one duty violated (exit code 2)
+
+The run behind the front page. It is not a decision log: `--system-module` names an adapter that
+exposes the *inference artefact* behind each decision, which is what lets the certificate engine
+enumerate the reasons the decision's own inference used and switch each one off in turn. The
+system is `reasonsmith.demo`'s own truncating credit pipeline, shipped in the package, so this
+command runs against a bare `pip install reasonsmith` with no checkout and no data of your own.
+
+Two duties of one clause come apart on decision `APP-1042`. 12 CFR 1002.9(b)(2) asks that an
+adverse-action notice carry a statement of reasons and that the reasons it states be the reasons;
+this repository ships those as two requirements. `..._specific_reasons` reads the notice's **form**
+and is reported satisfied. `..._principal_reasons_complete` reads its **content** and is reported
+violated at strength `probed`, naming the four reasons the deletion probe established the system's
+answer does not depend on. That is the finding and not an inconsistency, and it is why the CLI
+exits 2. The same violation ships as a runnable example
+(`python -m reasonsmith.examples.truncating_credit_system`).
+
+The probe budget below is the bound on that claim, and it travels with the verdict rather than
+being a rendering convention: how many inputs were replayed, over what input space, under which
+strategy, and that nothing in the search ever switches a fact *on*.
+
+```sh
+python -m reasonsmith.cli check --system-module reasonsmith.demo:deployed_credit_system --pack ecoa --system-name TruncatingCreditSystem
+```
+
+```text
+CONFORMANCE REPORT
+system: TruncatingCreditSystem
+declared scope: undeclared
+declared domains: consumer-credit
+pack: ecoa
+headline: 6 requirements · 6 binding: 3 observed, 1 violated, 1 not evaluated, 1 unattainable
+
+REQUIREMENT FINDINGS:
+  [OBSERVED] ecoa_reg_b_1002_9_a_1_timing_of_notice (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(1)): satisfied
+    requires: artifact_logs_decision_record, artifact_logs_notification_latency_days, artifact_logs_counteroffer_not_accepted
+    domain limit: consumer-credit
+    summary: Observed over 2 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) -> ((artifact_logs_notification_latency_days <= 30) or ((artifact_logs_counteroffer_not_accepted >= 0.5) and (artifact_logs_notification_latency_days <= 90))))' satisfied at every decision step.
+  [OBSERVED] ecoa_reg_b_1002_9_a_2_written_statement (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(a)(2)): satisfied
+    requires: artifact_logs_decision_record, provenance_model_version
+    domain limit: consumer-credit
+    summary: Observed over 2 decision(s): temporal monitor for 'always(present(artifact_logs_decision_record) and present(provenance_model_version) and (present(artifact_logs_reason_explanation) or present(artifact_logs_right_to_reasons_disclosure)))' satisfied at every decision step.
+  [OBSERVED] ecoa_reg_b_1002_9_b_2_specific_reasons (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): satisfied
+    requires: artifact_logs_reason_explanation, provenance_model_version, scope_statements_local_vs_global
+    domain limit: consumer-credit
+    summary: Observed over 2 decision(s): state monitor for 'present(artifact_logs_reason_explanation) -> ( present(provenance_model_version) and present(scope_statements_local_vs_global) and not contains(artifact_logs_reason_explanation, "internal standards") and not contains(artifact_logs_reason_explanation, "internal policies") and not contains(artifact_logs_reason_explanation, "failed to achieve a qualifying score"))' satisfied at every decision step.
+  [PROBED] ecoa_reg_b_1002_9_b_2_principal_reasons_complete (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(b)(2)): violated
+    evidence basis: artifact — this duty is measured against the inference artefact behind a decision rather than against what the system decided. No trace holds that artefact and the enumeration is exact only on the one artefact it ran over, so the rungs above unattainable are recounted and probed, and neither observed nor proved is reachable however much the system exposes. Which of the two a verdict reaches is a fact about the artefact and not about the search: probed measures a reason set enumerated from a model encoding, recounted measures one the system recounted about its own inference.
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
+    domain limit: consumer-credit
+    summary: Violated on 1 of 2 certified decision(s): the stated reasons are not all the reasons. On decision #1 exact inference found 5 reason(s) and the deletion probe showed the system's answer does not depend on 4 of them — C05 — Insufficient number of credit references provided; C03 — Delinquent past or present credit obligations; C04 — Too many recent inquiries on credit bureau report; C02 — Length of time credit has been established is too short. Attribution: The deleted reasons are exactly the 4 lowest-scoring of the 5, and the engine kept the top 1. This is the signature of top-k proof truncation at k=1: top-k works by discarding proofs, so the dropped reasons are lost by configuration, not by error. The missing probability mass is 0.225799. Measured against the inference artefact the system exposed, not read from its decision log.
+    certificate finding: FAIL (decision 1)
+    offending record: decision APP-1042 (step 1)
+    probe budget: 13 input(s) replayed, seed none — the proof enumeration and the deletion probes are deterministic, input space: decisions certified (2 values), decisions whose joint search did not finish (0 values), facts switched off (10 values), joint deletion patterns tried (1 values). Strategy: for each decision the system exposed an inference artefact for, its reasons are enumerated exactly by bounded proof enumeration over the ground program and scored by exact weighted model counting; every fact of a reason that no other reason uses is then switched off alone and the system's own engine re-run on the perturbed interpretation. A reason a single deletion moves the engine on is one its answer depends on. A reason no single deletion moves is then put to a second search, because two reasons jointly necessary and individually removable look exactly like two dropped ones: the subset-minimal *joint* deletions the engine notices are enumerated over the remaining facts, and a reason is counted here only where that enumeration ran to exhaustion and met no fact of it. The probe only ever switches a fact off, never on
+  [UNATTAINABLE] ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out (ECOA / Regulation B (12 CFR 1002.9) 12 CFR 1002.9(c)(2)): inconclusive
+    requires: artifact_logs_incompleteness_notice_sent
+    domain limit: consumer-credit
+    MISSING SIGNALS: artifact_logs_incompleteness_notice_sent
+    summary: Unattainable as built: the system declares no capability to emit artifact_logs_incompleteness_notice_sent, so no amount of testing can discharge this requirement. Determined from declared capabilities alone; the system was not executed.
+  [NOT EVALUATED] ecoa_reg_b_1002_4_a_no_disparate_treatment (ECOA / Regulation B (12 CFR 1002.4) 12 CFR 1002.4(a)): inconclusive
+    evidence basis: relational — this duty is a property of a pair of executions, and a decision record holds one. No length of decision log observes it, so the rungs it can reach are probed and proved; a system exposing only a log cannot discharge it, and that is a fact about the kind of property and not about how much the system exposed.
+    requires: artifact_logs_decision_record, applicant_prohibited_basis
+    domain limit: consumer-credit
+    summary: Not evaluated: the system exposes no decide(), so there is no twin decision to run. A counterfactual is what the system would have decided, and a decision log records only what it did — no trace, however long, establishes one. Limit of this duty: it is invariance under one named variable holding all others fixed, so it is a property of treatment and says nothing about effects. A proxy is invisible to it — a rule set that never reads the protected variable and decides by postcode is satisfied here — and a disparate impact is not a thing it can find. It also reaches exactly one variable: a system answerable on several prohibited bases is answered here about the one this duty names.
 
 LIMITS OF THIS REPORT
   This report is not a compliance guarantee and is not legal advice. It assesses system capability information and trace evidence against formal specifications. Whether these findings discharge legal duties remains a determination this tool does not make and cannot make. A requirement reported without a strength was not evaluated or is not applicable, and no verdict on it should be read from this report. Recital and guidance items inform how statutory duties are interpreted but create no obligation of their own; interpretive requirements are evaluated and reported separately, and are never folded into the binding headline counts. A requirement reported not applicable was excluded on one of two independent gates. Either no regulatory class was declared for the system at all, or the class that was declared is not the one the requirement is limited to; or no decision domain was declared for the system at all, or none of the domains that were declared is one the requirement is about. This tool infers neither the class nor the domain, so an undeclared system is neither placed in scope nor cleared of the duty: read the declared scope and domain lines before reading a not-applicable result. The decision-domain vocabulary is written by the pack author and by no regulation, and a duty declaring no domain reaches every system it is run against.

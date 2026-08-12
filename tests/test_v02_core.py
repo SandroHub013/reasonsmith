@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import tomllib
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -971,16 +972,18 @@ def test_interpretive_requirements_excluded_from_binding_counts_and_recital71():
     assert report.counts["not_evaluated"] == 1
     assert report.counts["interpretive_total"] == 2
     assert report.counts["interpretive_observed"] == 1
-    # The second recital duty reads a declared deviation over a trace, and one decision is not a
-    # trace a discrete-time monitor can read a sampling period off: not evaluated, never satisfied.
-    assert report.counts["interpretive_not_evaluated"] == 1
+    # The second recital duty is settled against the inference artefact behind a decision and by
+    # nothing else, and this system exposes no artifact(): unattainable, never satisfied. Declaring
+    # the signal does not buy it — what the duty needs is the artefact, and the capability set is
+    # what a system writes into a record.
+    assert report.counts["interpretive_unattainable"] == 1
     # The recital is satisfied on the trace too, but it never joins the binding tally: the
     # headline says how many statutory duties held, not how many statements of any kind did.
     assert report.counts["observed"] == sum(
         1 for r in report.results if r.binding and r.verdict == Verdict.SATISFIED
     )
     assert "3 binding: 2 observed, 1 not evaluated" in report.headline
-    assert "2 interpretive: 1 observed, 1 not evaluated" in report.headline
+    assert "2 interpretive: 1 observed, 1 unattainable" in report.headline
 
 
 def test_ai_act_pack_high_risk_declaration_outcomes():
@@ -1438,3 +1441,55 @@ def test_every_shipped_duty_is_a_formula_and_carries_its_english(tmp_path):
             assert classify_fragment(req.spec) == req.formalism, f"{name}/{req.id}"
             assert req.rationale.strip(), f"{name}/{req.id} has no rationale"
             assert req.rationale != req.spec, f"{name}/{req.id} rationale merely repeats the spec"
+
+
+# Coverage boundary cases for this subject.
+def _valid_requirement(**changes):
+    base = Requirement(
+        id="coverage",
+        source_document="Doc",
+        article_clause="1",
+        verbatim_text="Quote",
+        stakeholder="Reviewer",
+        formalism="logical",
+        spec="present(signal)",
+        rationale="A stated reason.",
+        requires=("signal",),
+        binding=True,
+        scope="",
+        domains=(),
+        deontic_type="obligation",
+        defeasibility="strict",
+    )
+    return replace(base, **changes)
+
+
+@pytest.mark.parametrize(
+    "field,value,match",
+    [
+        ("binding", "yes", "binding.*boolean"),
+        ("scope", 3, "scope.*string"),
+        ("scope", "not-a-class", "scope"),
+        ("domains", ("not-a-domain",), "domains"),
+        ("deontic_type", "unknown", "deontic_type"),
+        ("defeasibility", "unknown", "defeasibility"),
+        ("formalism", "unknown", "formalism"),
+        ("algebra", 1, "algebra.*string"),
+        ("algebra", "godel", "two-valued"),
+        ("id", "", "non-empty"),
+        ("requires", (), "at least one"),
+        ("requires", ("",), "signal name"),
+        ("requires", ("signal", "signal"), "duplicate"),
+    ],
+)
+def test_requirement_rejects_malformed_classification_and_traceability(field, value, match):
+    with pytest.raises((ValueError, TypeError), match=match):
+        _valid_requirement(**{field: value})
+
+
+def test_graded_requirement_requires_a_known_algebra():
+    with pytest.raises(ValueError, match="graded.*no algebra"):
+        _valid_requirement(formalism="graded")
+    with pytest.raises(ValueError, match="field 'algebra'"):
+        _valid_requirement(formalism="graded", algebra="unknown")
+    assert _valid_requirement(formalism="graded", algebra="LUKASIEWICZ").algebra == "lukasiewicz"

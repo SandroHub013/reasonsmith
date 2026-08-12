@@ -21,9 +21,10 @@ What this module is for:
       inference used, and no probe *of the rationale* can tell the two apart.
 
   That is the faithfulness question as the literature poses it — a self-explanation may be plausible
-  and unfaithful (A. Jacovi, Y. Goldberg, ACL 2020, 4198–4205; M. Turpin, J. Michael, E. Perez,
-  S. R. Bowman, NeurIPS 2023) — measured the way that literature measures it, by erasure
-  (J. DeYoung et al., *ERASER*, ACL 2020, 4443–4458). `docs/semantics.md` §3 is the contract.
+  and unfaithful (A. Jacovi, Y. Goldberg, ACL 2020, 4198–4205 — `[@jacovi-2020]`; M. Turpin,
+  J. Michael, E. Perez, S. R. Bowman, NeurIPS 2023 — `[@turpin-2023]`) — measured the way that
+  literature measures it, by erasure (J. DeYoung et al., *ERASER*, ACL 2020, 4443–4458 —
+  `[@deyoung-2020]`). `docs/semantics.md` §3 is the contract.
 
 What a reader must not break:
   - **`answer` re-runs the system and is never read off the trace.** A system that cannot be re-run
@@ -51,6 +52,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from reasonsmith.artifacts import default_label
+from reasonsmith.spec import normalize_claimed_semantics
 
 __all__ = ["ReasonTraceArtifact"]
 
@@ -93,7 +95,7 @@ class ReasonTraceArtifact:
     ):
         self.query = query
         self.engine_name = engine_name
-        self.claimed_semantics = claimed_semantics
+        self.claimed_semantics = normalize_claimed_semantics(claimed_semantics)
         self.monotone = monotone
         self.recounted_by = recounted_by
         self._reasons = {name: frozenset(facts) for name, facts in reasons.items()}
@@ -119,6 +121,13 @@ class ReasonTraceArtifact:
     #: This bound is not a proof depth: nothing was enumerated. Stated as None so a reader of a
     #: certificate is not offered a number that would read as one.
     exact_depth = None
+
+    #: And for the same reason this family computes no semantics reference. `exact_value()` below
+    #: is the weight the *system* recounted, so the difference between it and the system's answer
+    #: says how faithful the rationale is and nothing about which semantics the inference is.
+    #: Stated rather than left absent: silence here already means None, and a family this close to
+    #: the one that does compute a reference should say so out loud.
+    exact_semantics = None
 
     @property
     def exact_inference(self) -> str:

@@ -23,6 +23,7 @@ import re
 from collections import Counter
 from pathlib import Path
 
+from reasonsmith.explain import refinement_notes
 from reasonsmith.spec import (
     DEFEASIBILITY_CLASSES,
     DEONTIC_TYPES,
@@ -53,22 +54,15 @@ def _shipped_requirement_ids() -> set[str]:
 
 
 def _documented_requirement_ids() -> set[str]:
-    """The ids the record names, read from the first cell of each of its table rows.
+    """The ids the record names, read by the same parser `reasonsmith explain` reads it with.
 
     The first column is "the clause", and by convention it is the citation, a `<br>`, and the
     requirement id as its only code span, so the mapping from row to requirement is
-    machine-checkable rather than eyeballed. The `<br>` is what tells a refinement row from the
-    census tables further up, whose first cell is a backticked classification name and not an id.
+    machine-checkable rather than eyeballed. That parsing lives in `reasonsmith.explain`, which
+    the CLI needs it in, and this test uses it rather than keeping a second copy — a copy would
+    let the shipped command and the coverage check disagree about which rows exist.
     """
-    documented: set[str] = set()
-    for line in _document().splitlines():
-        if not line.startswith("|"):
-            continue
-        first_cell = line.split("|")[1]
-        if "<br>" not in first_cell:
-            continue
-        documented.update(_CODE_SPAN.findall(first_cell))
-    return documented
+    return set(refinement_notes(REFINEMENT))
 
 
 def test_the_refinement_record_covers_every_shipped_requirement():

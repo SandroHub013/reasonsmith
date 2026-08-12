@@ -26,9 +26,11 @@ What this module is for:
     published sources; this module is its measurement.
 
 What a reader must not break:
-  - The probe only ever switches a fact *off*. It never raises one and it never adds a fact — the
-    protocol has a `without` and deliberately no `with` — so `deleted` means "the engine's answer
-    did not depend on this reason under this interpretation" and nothing stronger.
+  - The probe only ever switches a fact *off*. It never raises one and it never adds a fact — this
+    module calls `without` and nothing else, and a family offering the wider `at(fact, probability)`
+    is probed here exactly as one offering only `without` is
+    (`test_the_deletion_probe_never_reaches_the_widened_perturbation`) — so `deleted` means "the
+    engine's answer did not depend on this reason under this interpretation" and nothing stronger.
     Why this matters: on an engine whose reasons can be *retracted* by an added fact, a lawfully
     retracted reason is indistinguishable from a dropped one under this definition. That is why an
     artefact declares whether its inference is monotone, why a certificate over one that declares
@@ -76,12 +78,17 @@ import json
 from dataclasses import dataclass, replace
 from typing import Any
 
-from reasonsmith.artifacts import InferenceArtifact, deletion_semantics_refusal
+from reasonsmith.artifacts import (
+    InferenceArtifact,
+    deletion_semantics_refusal,
+    reference_semantics,
+)
 from reasonsmith.explanations import (
     DEFAULT_PROBE_BUDGET,
     DeletionSearch,
     contrastive_sets,
 )
+from reasonsmith.spec import normalize_claimed_semantics
 
 LIMITS = (
     "This certificate compares one engine's answer against exact inference on one ground program "
@@ -179,6 +186,15 @@ class Certificate:
     #: The joint-deletion search, or None where no reason survived the per-fact pass as a candidate
     #: for deletion and there was nothing for it to resolve. `docs/sufficient-reasons.md` §7.
     search: DeletionSearch | None = None
+    #: Which semantics `exact_value` above *is* — the artefact family's own
+    #: `artifacts.reference_semantics`, carried so a reader of a value gap can see what the engine
+    #: was compared against, and so a duty can refuse to compare it with a claim it does not match.
+    #: None where the family computes no reference at all.
+    exact_semantics: str | None = None
+
+    def __post_init__(self) -> None:
+        # Certificates are a public boundary: never carry an uninterpretable semantics claim.
+        normalize_claimed_semantics(self.claimed_semantics)
 
     def _by(self, status: str) -> list[ReasonVerdict]:
         return [v for v in self.verdicts if v.status == status]
@@ -325,6 +341,7 @@ class Certificate:
             "query": str(self.query),
             "adapter_name": self.adapter_name,
             "claimed_semantics": self.claimed_semantics,
+            "exact_semantics": self.exact_semantics,
             "exact_inference": self.exact_inference,
             "monotone": self.monotone,
             "deletion_semantics_refusal": self.deletion_semantics_refusal,
@@ -619,4 +636,5 @@ def certify_artifact(
         artifact.query, artifact.engine_name, artifact.claimed_semantics, artifact.exact_depth,
         exact_value, engine_value, tol, verdicts,
         _attribute(verdicts, engine_value - exact_value, tol),
-        artifact.exact_inference, artifact.monotone, search)
+        artifact.exact_inference, artifact.monotone, search,
+        reference_semantics(artifact))

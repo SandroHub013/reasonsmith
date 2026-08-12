@@ -49,13 +49,14 @@ from reasonsmith.report import (
 )
 from reasonsmith.spec import Requirement, list_packs, load_pack
 from reasonsmith.sut import BaseSUT
-from reasonsmith.verdict import BASIS_RUNGS, EvidenceBasis, Strength, Verdict
+from reasonsmith.verdict import BASIS_RUNGS, EvidenceBasis, Strength, Verdict, combine_verdicts
 
 #: The three shipped duties that are not on the behavioural basis, and the basis each is on. There
 #: is no graded one — `test_no_shipped_pack_uses_either_open_texture_construct` keeps it that way —
 #: so the `assessment` row is exercised by a fixture below and by no pack.
 NON_BEHAVIOURAL = {
     "ecoa_reg_b_1002_9_b_2_principal_reasons_complete": EvidenceBasis.ARTIFACT,
+    "gdpr_recital71_error_risk_minimised": EvidenceBasis.ARTIFACT,
     "ecoa_reg_b_1002_4_a_no_disparate_treatment": EvidenceBasis.RELATIONAL,
 }
 
@@ -403,8 +404,8 @@ def test_the_basis_changed_no_verdict_and_no_strength():
     assert got == expected
 
 
-def test_exactly_two_shipped_duties_are_not_on_the_behavioural_basis():
-    """The census, pinned. A third one arriving is a decision, not a side effect of a pack edit.
+def test_exactly_three_shipped_duties_are_not_on_the_behavioural_basis():
+    """The census, pinned. A fourth one arriving is a decision, not a side effect of a pack edit.
 
     The shape of `test_exactly_one_shipped_signal_is_outside_the_paper_s_taxonomy`: a count that
     fails when the packs move, so the count in `docs/semantics.md` §10 cannot go stale silently.
@@ -512,3 +513,16 @@ def _fully_exposing_system(req: Requirement) -> BaseSUT:
             return {}
 
     return Exposing(set(req.requires))
+
+
+# Coverage boundary cases for this subject.
+def test_verdict_parsers_and_combination_boundaries():
+    assert Verdict.parse("Not Applicable") is Verdict.NOT_APPLICABLE
+    with pytest.raises(ValueError, match="Unknown verdict"):
+        Verdict.parse("maybe")
+    assert EvidenceBasis.parse(" ARTIFACT ") is EvidenceBasis.ARTIFACT
+    with pytest.raises(ValueError, match="Unknown evidence basis"):
+        EvidenceBasis.parse("unknown")
+    assert combine_verdicts([]) is Verdict.INCONCLUSIVE
+    assert combine_verdicts([Verdict.NOT_APPLICABLE]) is Verdict.NOT_APPLICABLE
+    assert combine_verdicts([Verdict.SATISFIED, Verdict.NOT_APPLICABLE]) is Verdict.SATISFIED

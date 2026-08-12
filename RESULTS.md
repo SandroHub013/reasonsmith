@@ -20,6 +20,93 @@ This is the evidence artifact for `reasonsmith`'s own claims: an environment was
 | **Table 19 Conformance** | Design A (Confidence Varies) | Coverage gap: **0.0000**<br>Fidelity gap: **+0.0535**<br>Retained share gap: **+0.2802** | Typical: cov 0.3333, fid 0.7807, ret 0.7731<br>Atypical: cov 0.3333, fid 0.7272, ret 0.4929 |
 | | Design B (Multiplicity Varies) | Coverage gap: **+0.3000**<br>Fidelity gap: **+0.1472**<br>Retained share gap: **+0.1129** | Typical: cov 0.5000, fid 0.7831, ret 0.7292<br>Atypical: cov 0.2000, fid 0.6360, ret 0.6163 |
 | | Signal Stability | **0.3333** across 4 windows | Delinquency signal drift swaps stated reason from C01 to C03 |
+| **Autoformalisation smoke** | End-to-end proposer pipeline run (not a capability estimate) | **0/24** | Ollama `qwen3:0.6b` (0.6B parameters), one-attempt smoke budget; all responses were refused |
+| **Autoformalisation agreement** | Claude proposals machine-equivalent to shipped properties | **27/29 (93.10%)** | Claude Code CLI, two-attempt budget; 27 agreed, 2 wrong, 0 refused, 0 unavailable |
+
+### Autoformalisation proposer smoke measurement (2026-08-10)
+
+This is a **historical smoke measurement, not an agreement-rate claim about autoformalisation**.
+It was run before the challenge schema v2 expansion. PR 150 expanded the installed gold manifest to
+**24 challenge sets** covering all 21 record and all 3 logical requirements; the current tree carries
+29 sets, adding four temporal traces and one counterfactual pair corpus. The earlier three-duty run
+was only a demonstration. The exact command was:
+
+```sh
+uv run python -m reasonsmith.proposer --model qwen3:0.6b --attempts 1
+```
+
+The model was the local Ollama `qwen3:0.6b` model (approximately **0.6 billion parameters**),
+with a fixed one-attempt smoke budget.  It produced **0/24 machine-cleared proposals**: responses
+were refused at the strict repository-parser boundary, so no candidate was guessed or extracted.
+This establishes that the configurable runner, parser refusal, challenge loading, and reporting
+path execute end to end over the complete corpus.  It does **not** establish that autoformalisation
+agrees at 0/24, and no capable model was measured here.
+
+A meaningful measurement needs a capable, explicitly approved model/provider, the same complete
+29-duty sample, a predeclared attempt budget, and its provider/model name and cost recorded beside
+the result.  The proposer is configurable without source edits through `--model` and
+`REASONSMITH_PROPOSER_URL` (or a caller-supplied model callable); this smoke run deliberately used
+no captain credentials.  Any future capable-model result must be reported separately rather than
+combined with this tiny-model smoke result.
+
+### Autoformalisation Claude measurement (2026-08-11)
+
+This is the first capability measurement, separate from the historical qwen3 smoke row above. The
+model was Claude through the locally installed Claude Code CLI (`claude 2.1.221`), selected because
+it is instruction-following and was explicitly approved as a provider. Before running, the attempt
+budget was fixed at **2 attempts per duty**; it was not tuned after seeing results. The exact command
+was:
+
+```sh
+uv run python -m reasonsmith.proposer --claude --attempts 2
+```
+
+The complete current corpus was measured: **29 requirements**, with **27/29 machine-cleared
+agreements (93.10%)**. The outcome categories are deliberately separate: **27 agreed, 2 wrong,
+0 refused, 0 unavailable**. `wrong` means that at least one response was parseable but failed the
+independent round-trip or gold-challenge checks; `refused` is reserved for unparseable/empty model
+responses. No candidate was guessed or rewritten by the harness. The run made **34 Claude CLI
+calls** (29 first attempts and 5 repairs). The CLI did not expose token or quota accounting, so no
+currency cost is claimed here.
+
+Per-requirement results (the order is the measurement's sorted requirement order):
+
+| Requirement | Outcome | Attempts |
+|---|---:|---:|
+| `ecoa_reg_b_1002_4_a_no_disparate_treatment` | agreed | 1 |
+| `ecoa_reg_b_1002_9_a_1_timing_of_notice` | wrong | 2 |
+| `ecoa_reg_b_1002_9_a_2_written_statement` | agreed | 1 |
+| `ecoa_reg_b_1002_9_b_2_principal_reasons_complete` | agreed | 1 |
+| `ecoa_reg_b_1002_9_b_2_specific_reasons` | agreed | 2 |
+| `ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out` | wrong | 2 |
+| `ecoa_reg_b_adverse_action` | agreed | 2 |
+| `eu_ai_act_art12_1_automatic_logging` | agreed | 1 |
+| `eu_ai_act_art12_2_traceability_monitoring` | agreed | 2 |
+| `eu_ai_act_art12_record_keeping` | agreed | 1 |
+| `eu_ai_act_art13_1_transparency_deployers` | agreed | 1 |
+| `eu_ai_act_art13_2_instructions_for_use` | agreed | 1 |
+| `eu_ai_act_art13_transparency` | agreed | 1 |
+| `eu_ai_act_art53_1_a_technical_documentation` | agreed | 1 |
+| `eu_ai_act_art53_1_b_downstream_documentation` | agreed | 1 |
+| `eu_ai_act_art53_1_c_copyright_policy` | agreed | 1 |
+| `eu_ai_act_art53_1_d_training_content_summary` | agreed | 1 |
+| `eu_ai_act_art55_1_a_model_evaluation` | agreed | 1 |
+| `eu_ai_act_art55_1_b_systemic_risk_assessment` | agreed | 1 |
+| `eu_ai_act_art55_1_c_serious_incident_reporting` | agreed | 1 |
+| `eu_ai_act_art55_1_d_cybersecurity_protection` | agreed | 1 |
+| `fda_gmlp_samd` | agreed | 1 |
+| `gdpr_art22_1_automated_decision_prohibition` | agreed | 1 |
+| `gdpr_art22_1_no_prohibited_decision_for_any_input` | agreed | 1 |
+| `gdpr_art22_3_safeguards_human_intervention` | agreed | 1 |
+| `gdpr_art22_meaningful_information` | agreed | 1 |
+| `gdpr_recital71_error_risk_minimised` | agreed | 1 |
+| `gdpr_recital71_meaningful_explanation` | agreed | 1 |
+| `nist_ai_rmf_risk_evidence` | agreed | 1 |
+
+The two failures were both temporal duties: `ecoa_reg_b_1002_9_a_1_timing_of_notice` and
+`ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out`. This is a single predeclared method and
+not a prompt-iteration comparison; the result is published as measured, regardless of whether the
+rate is high or low.
 
 **What the `35 passed` figure does and does not count.** Every number in this file is a measurement taken at `reasonsmith` commit `9411ca60a70c0d4f72f12a038e01d9d65c70c03f`, and none of them is re-measured by later work except where a later dated note says so and names its own commit — that is what makes them reconstructible, and it is also what makes this one stale. Section 2's `35 passed` counts the suite as it stood then, and the v0.2 work added since (`verdict.py`, `spec.py`, `sut.py`, `report.py`, `rulelang.py`, `adapters/`, `engines/`, `cli.py`, the `packs/` requirement packs, and `tests/test_v02_core.py`, `tests/test_v02_stage2.py` plus `tests/test_v02_stage3.py`) adds tests to that number. Read `35` as the v0.1 suite's count at that commit, never as the current suite's: for the current count, run `pytest` yourself. Those v0.2 files are new alongside v0.1 rather than changes to it, and `evidence.py`, `certificate.py` and `conformance.py` are untouched. `demo.py` is the one exception: it now carries four additional Table 7 demos contributed by Alessandro Boni (rows 1, 2, 5 and 6), which append sections 6–9 to the transcript and leave sections 1–5 byte-identical. So section 3's per-case figures still describe the code as it is today; its transcript length and hash do not, and the re-measured ones are in the Contributor Demos Note. Section 1 (nesyarena's suite) was measured under `nesyarena` commit `fdf0d5eb54c7af181e15b94d3b68d5d6bb7712ec` and was **not** re-measured under the PyPI release now pinned; it is expected to hold because that release's `tests/` and `experiments/` are byte-identical to the measured commit's — see the PyPI Release Note for what was checked and what was not.
 
@@ -479,7 +566,18 @@ automaton's alphabet: measured on this tree, a pack-shaped question costs about 
 9 s at five and more than 90 s at six. Every shipped temporal duty is three or four atoms and is
 answered in under a second; every *pair* of them is seven, so all three ECOA pairs are reported
 **not decided either way** rather than cleared. `reasonsmith.ltlf.ATOM_BUDGET` is checked before the
-automaton is built, because there is no wall clock anywhere in this package. Read
+automaton is built, because there is no wall clock anywhere in this package.
+
+> **This block is the `flloat`-era measurement and is retained as the record of it.** The temporal
+> decision procedure is now BLACK, which is SAT-based rather than automaton-based; `ATOM_BUDGET`
+> moved from 6 to 100 on that ground, so the entailment line above — three pairs *not decided
+> either way* at seven atoms — no longer describes what the tool reports. The replacement figures
+> are **not measured here**: BLACK publishes no wheel, it is packaged for Ubuntu 26.04 and this
+> tree is measured on 24.04, and inventing a transcript for a procedure that was never run is
+> exactly what this file exists not to do. Re-measure on a machine with BLACK on `PATH` and
+> replace this block with what it prints.
+
+Read
 [`docs/semantics.md`](docs/semantics.md) §8 before quoting any of this: the reading is
 propositional, so satisfiability is reported only in the affirmative and an entailment it does not
 report is not a distinction any system can make.
@@ -492,3 +590,12 @@ pytest -q && ruff check .
 installed. The count includes the 29 tests of `tests/test_ltlf_backend.py` and supersedes the
 `681 passed` above as the current-suite figure. With the extra *absent* the analysis reports it and
 that module's tests skip, which is the arrangement `pip install reasonsmith` has to keep working.
+
+> **This figure is the `flloat`-era suite record, taken when the `ltlf` extra installed a
+> pure-Python wheel.** The extra now declares no Python dependency and what makes the procedure
+> available is the BLACK binary on `PATH`, so "with the `ltlf` extra installed" no longer names the
+> arrangement it was measured under, and the suite has grown past this count. It is **not
+> re-measured here**, for the reason the temporal block above states: BLACK is absent on this
+> machine, and a suite figure quoted for a configuration that was never run is what this file exists
+> not to do. Run `pytest -q` yourself for the current count, as the note under section 2's table
+> already says.

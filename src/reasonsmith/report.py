@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import Any, cast
 
 from reasonsmith.artifacts import RECOUNTED_REASONS
@@ -142,6 +142,14 @@ ENGINE_PLUGIN_KEY = "engine_plugin"
 #: not all the reasons" is being shown this measurement and nothing else.
 CERTIFICATES_KEY = "certificates"
 
+#: Where the certificate engine records the full machine record of each certificate it produced —
+#: one entry per certified decision, each carrying the per-reason verdicts the summary under
+#: `CERTIFICATES_KEY` collapses to counts and names. Absent on a result the certificate engine
+#: did not settle, so `in` rather than a value read means "a certificate exists here". The two
+#: keys are a deliberate pair: `CERTIFICATES_KEY` is the summary a rendering already reads, and
+#: this is the full record that summary was condensed from.
+CERTIFICATE_KEY = "certificate"
+
 #: Where a result measured against an inference artefact records whether the reason set it was
 #: measured against was *enumerated* from a model encoding or *recounted* by the system. False caps
 #: the result at `Strength.RECOUNTED`, and `__post_init__` refuses one that claims higher — the
@@ -165,6 +173,11 @@ EXACT_REASON_SET_KEY = "reason_set_is_exact"
 #: know from `docs/semantics.md` §2 rather than from the document in front of them. Version 2
 #: states the clock the run was answered on, so a parser can tell a verdict counted in decisions
 #: from one counted on any later domain instead of assuming the first.
+#:
+#: Version 2 has since grown `basis`, `verbatim_text` and `details.certificate` without a bump,
+#: deliberately: each is a key added beside keys a parser already reads, and the convention above
+#: says addition is not a shape change. The decision was made in `tests/test_json_schema_version.py`
+#: rather than skipped.
 JSON_SCHEMA_VERSION = 2
 
 #: The two signals a decision record is read for when a report is asked what the system itself
@@ -186,6 +199,19 @@ REASON_SIGNAL = "artifact_logs_reason_explanation"
 _is_present = is_present
 
 
+def certificate_findings(result: "RequirementResult") -> list[dict[str, Any]]:
+    """Expose failed certificate measurements as findings without changing the duty verdict."""
+    return [
+        {
+            "type": "certificate",
+            "verdict": "FAIL",
+            "decision_index": certificate.get("decision_index"),
+        }
+        for certificate in (result.details.get(CERTIFICATES_KEY) or ())
+        if certificate.get("certificate_verdict") == "FAIL"
+    ]
+
+
 @dataclass(frozen=True)
 class RequirementResult:
     """The conformance result for a single requirement.
@@ -202,6 +228,12 @@ class RequirementResult:
     about (e.g. 'consumer-credit'), empty meaning it is not domain-limited. All three are
     carried through from the requirement so a reader of a single result never has to go back to
     the pack to know what kind of duty it is.
+
+    `verbatim_text` is the statutory quotation the duty restates, carried through from the
+    requirement unchanged and never reflowed, truncated or whitespace-normalised: the pack's
+    copy is the authority and this is a passthrough, so a detail pane that names a clause can
+    show its words. It is stamped beside `domains` and `basis` by `evaluate_requirement`, so a
+    directly constructed result may carry the default until a run stamps it.
 
     `basis` is the fourth such fact and the second coordinate of the evidence claim: what kind of
     thing this duty's evidence is *about*, as against `strength`, which says how far the claim was
@@ -226,6 +258,7 @@ class RequirementResult:
     scope: str = ""
     domains: tuple[str, ...] = ()
     basis: EvidenceBasis = EvidenceBasis.BEHAVIOURAL
+    verbatim_text: str = ""
 
     def __post_init__(self) -> None:
         # Every invariant below compares against the enum members, so a raw string would
@@ -547,12 +580,14 @@ class RequirementResult:
         return {
             "requirement_id": self.requirement_id,
             "source_clause": self.source_clause,
+            "verbatim_text": self.verbatim_text,
             "verdict": self.verdict.value,
             "strength": self.strength.value if self.strength else None,
             "signals_required": list(self.signals_required),
             "signals_missing": list(self.signals_missing),
             "evidence_summary": self.evidence_summary,
             "details": dict(self.details),
+            "findings": certificate_findings(self),
             "binding": self.binding,
             "scope": self.scope,
             "domains": list(self.domains),
@@ -1061,7 +1096,7 @@ class ConformanceReport:
         )
 
 
-    def to_dict(self) -> dict:
+    def to_dict(self, audience: str | None = None) -> dict:
         return {
             "schema_version": JSON_SCHEMA_VERSION,
             "system_name": self.system_name,
@@ -1073,11 +1108,49 @@ class ConformanceReport:
             "results": [r.to_dict() for r in self.results],
             "limits": self.limits,
             "time_domain": self.time_domain,
+            # The notice is a machine-record fact, not a display-only annotation.  Keep it in
+            # every audience projection (null when no duty was skipped) so consumers never have
+            # to infer missing input from the result prose or from the requested audience.
+            "undeclared_domain_notice": self.undeclared_domain_notice,
+            "audience": _audience_block(audience),
         }
 
-    def to_json(self, indent: int | None = None) -> str:
-        """JSON representation following house pattern."""
-        return json.dumps(self.to_dict(), indent=indent, default=str)
+    def to_json(self, indent: int | None = None, audience: str | None = None) -> str:
+        """JSON representation following house pattern.
+
+        `audience` travels onto the record as a declaration of the projection it was asked for,
+        never as a filter: the complete machine record is emitted regardless, and the envelope's
+        `audience` block names the projection (or `null` when none was asked for) beside every
+        field it would have filtered. A consumer can therefore tell the record it was given from
+        the projection the caller requested, and nothing is hidden from a machine consumer by a
+        display flag.
+        """
+        return json.dumps(self.to_dict(audience=audience), indent=indent, default=str)
+
+
+def _audience_block(audience: str | None) -> dict[str, Any]:
+    """The `audience` block of the machine record: the projection asked for, declared not applied.
+
+    `--json` is the complete machine record and no projection filters it, but a record must be
+    able to say *which* projection it was asked for — otherwise a consumer cannot tell `absent
+    because the audience is not shown it` from `absent because the run never established it`. The
+    block carries the name (`null` when no audience was given, matching the text renderer's
+    `audience=None` full report) and every flag of the resolved `AudienceProjection`.
+
+    The flags are derived, one field per `AudienceProjection` dataclass field, by iterating
+    `dataclasses.fields` — never by hand-listing the names. A hand-written list is a second copy
+    of the authored `AUDIENCES` table, and it would drift the first time a flag is added; this
+    derivation makes the block a projection of the projection, with no second copy to keep in
+    step. The unknown-audience refusal is the renderer's own `_projection` refusal, so the JSON
+    path and the text path reject the same name with the same words.
+    """
+    from reasonsmith.render import AudienceProjection, _projection
+
+    projection = _projection(audience)
+    return {
+        "name": audience,
+        **{f.name: getattr(projection, f.name) for f in fields(AudienceProjection)},
+    }
 
 
 def evidence_basis(req: Requirement) -> EvidenceBasis:
@@ -1091,8 +1164,8 @@ def evidence_basis(req: Requirement) -> EvidenceBasis:
     The three tests below are the three branches of `_engine_ladder`, in `_engine_ladder`'s own
     order, and they are the whole of the derivation:
 
-    - a duty gating on `engines.certificate.DELETED_REASON_COUNT` is measured against the inference
-      artefact behind a decision — the `artifact` basis, one rung;
+    - a duty gating on any of `engines.certificate.MEASURED_SIGNALS` is measured against the
+      inference artefact behind a decision — the `artifact` basis, one rung;
     - a `counterfactual` duty is a property of a pair of executions — the `relational` basis, no
       trace rung;
     - an `undetermined` or `graded` duty rests on a predicate an authority applies rather than on
@@ -1102,9 +1175,9 @@ def evidence_basis(req: Requirement) -> EvidenceBasis:
     rung the system's exposed surface allows. `test_the_basis_admits_exactly_the_rungs_the_ladder_
     can_reach` is what keeps this function and that one from drifting apart.
     """
-    from reasonsmith.engines.certificate import DELETED_REASON_COUNT
+    from reasonsmith.engines.certificate import MEASURED_SIGNALS
 
-    if DELETED_REASON_COUNT in req.requires:
+    if any(signal in req.requires for signal in MEASURED_SIGNALS):
         return EvidenceBasis.ARTIFACT
     if req.formalism == "counterfactual":
         return EvidenceBasis.RELATIONAL
@@ -1377,7 +1450,15 @@ def evaluate_requirement(
     # the duty rather than about the run — which is why it is derived here from `req` alone and not
     # asked of whichever engine answered — and `replace` re-runs `__post_init__`, so a result
     # carrying a rung its basis does not admit is refused at the stamp rather than rendered.
-    return replace(result, domains=req.domains, basis=evidence_basis(req))
+    return replace(
+        result,
+        domains=req.domains,
+        basis=evidence_basis(req),
+        # The statutory quotation, stamped beside the other two facts about the duty rather
+        # than threaded through four engines: it is the pack's copy, unchanged, and an engine
+        # has nothing to say about the words of the clause it was checked against.
+        verbatim_text=req.verbatim_text,
+    )
 
 
 def _evaluate_requirement(
@@ -1441,7 +1522,9 @@ def _evaluate_requirement(
     if not candidates:
         raise NotImplementedError(
             f"{req.formalism!r} is listed in SUPPORTED_FORMALISMS but no engine here evaluates "
-            "it. Widen SUPPORTED_FORMALISMS when the engine lands, not before."
+            "it. Every listed formalism is either answered by an engine or refused without one "
+            "(`undetermined` and `graded`); this one is neither, so the ladder has a gap and this "
+            "is a build error rather than a widening decision."
         )
 
     # Take the strongest evidence there is a basis for, not the first engine tried. An engine
@@ -1571,16 +1654,22 @@ def _engine_ladder(
     the solver encoding the declared rules twice, and the paired replay running `decide()` on a
     recorded decision and on its twin. Neither is appended alongside a plug-in rung, for the reason
     the certificate duty below returns early: an installed package this repository never audited
-    must not be able to answer a counterfactual duty off a log either.
+    must not be able to answer a counterfactual duty off a log either. This is also the one
+    fragment whose *lower* rung is run after the higher one has already answered: the two do not
+    range over the same object, so their disagreement is evidence in its own right and
+    `engines.counterfactual.cross_rung_signal` records what it eliminates. It changes no verdict
+    and no strength, and it runs only when the proof rung reached one, so nothing here pays for it
+    twice.
 
-    One duty is deliberately given a ladder of **one** rung: a duty gating on
-    `engines.certificate.DELETED_REASON_COUNT` asks whether the reasons a decision states are all
-    the reasons its inference had, and that is measured against the inference artefact or not at
-    all. Every other rung here would answer a weaker question off the system's own log — that the
-    reason field is non-blank, or that the number the system wrote in it is small — and reporting
-    either in place of the measurement is the substitution the certificate engine exists to
-    remove. A system exposing no artefact is therefore reported *unattainable* by that engine
-    rather than falling through to a presence check. That single rung stays single: the plug-in
+    Two duties are deliberately given a ladder of **one** rung: a duty gating on any of
+    `engines.certificate.MEASURED_SIGNALS` asks something about the inference behind a decision —
+    whether the reasons it stated are all the reasons it had, or whether its answer is the
+    semantics it claims — and that is measured against the inference artefact or not at all. Every
+    other rung here would answer a weaker question off the system's own log — that the reason field
+    is non-blank, or that the number the system wrote in it is small — and reporting either in
+    place of the measurement is the substitution the certificate engine exists to remove. A
+    system exposing no artefact is therefore reported *unattainable* by that engine rather than
+    falling through to a presence check. That single rung stays single: the plug-in
     rungs below are appended after it has already returned, so no installed package can answer that
     duty off the system's log either.
 
@@ -1589,9 +1678,9 @@ def _engine_ladder(
     exists" mean *installed* rather than *in this tree*. What a plug-in may claim, and what happens
     when one misbehaves, is `reasonsmith.plugins` and `docs/authoring-engines.md`.
     """
-    from reasonsmith.engines.certificate import DELETED_REASON_COUNT
+    from reasonsmith.engines.certificate import MEASURED_SIGNALS
 
-    if DELETED_REASON_COUNT in req.requires:
+    if any(signal in req.requires for signal in MEASURED_SIGNALS):
         from reasonsmith.engines.certificate import CertificateEngine
         return [
             (
@@ -1606,29 +1695,29 @@ def _engine_ladder(
         from reasonsmith.engines.counterfactual import (
             CounterfactualProofEngine,
             PairedReplayEngine,
+            cross_rung_signal,
         )
+
+        def replay() -> RequirementResult:
+            return PairedReplayEngine.evaluate(
+                req,
+                sut,
+                records,
+                trace_provider=resources.trace if records is None else None,
+            )
+
+        def proof() -> RequirementResult:
+            proved = _run_proof_rung(
+                req, sut, records, resources, engine=CounterfactualProofEngine
+            )
+            if proved.verdict not in (Verdict.SATISFIED, Verdict.VIOLATED):
+                return proved
+            return cross_rung_signal(req, proved, replay(), resources.logic())
 
         counterfactual: list[tuple[Strength, Any]] = []
         if callable(getattr(sut, "logic", None)):
-            counterfactual.append(
-                (
-                    Strength.PROVED,
-                    lambda: _run_proof_rung(
-                        req, sut, records, resources, engine=CounterfactualProofEngine
-                    ),
-                )
-            )
-        counterfactual.append(
-            (
-                Strength.PROBED,
-                lambda: PairedReplayEngine.evaluate(
-                    req,
-                    sut,
-                    records,
-                    trace_provider=resources.trace if records is None else None,
-                ),
-            )
-        )
+            counterfactual.append((Strength.PROVED, proof))
+        counterfactual.append((Strength.PROBED, replay))
         return counterfactual
 
     ladder: list[tuple[Strength, Any]] = []

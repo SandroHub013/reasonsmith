@@ -15,11 +15,24 @@ What this module is for:
   and proof engines rather than a second definition living inside an STL string.
 
 What a reader must not break:
+  - Every backend adapter certifies that it consumed the whole rendered formula and produced
+    exactly one property, or the requirement is reported `not evaluated`. For rtamt, `_monitor`
+    installs a strict lexer (F1) to raise on bad tokens and asserts `len(spec.ast.specs) == 1` (F2)
+    after parsing.
   - If rtamt cannot express a formula or trace is shorter than `MINIMUM_TRACE_LENGTH`, report
     `NOT EVALUATED` (`verdict=INCONCLUSIVE`, `strength=None`), NEVER `satisfied`.
     Why this matters: STL monitors require sufficient trace points to establish time bounds; an
     unsupported formula or insufficient trace length cannot prove a temporal property.
-  - Where the property is an implication whose antecedent scored below zero at every position,
+  - A shape rtamt parses and reads under a different semantics from the one `docs/language.md` §2
+    defines is refused in the rendering (`_refuse_shapes_the_monitor_misreads`), so the duty is
+    reported `NOT EVALUATED` naming the construct, never answered.
+    Why this matters: rtamt raises for nearly everything it does not support — `!=`, `min`, `max`,
+    `Implies(...)`, `<=>` — so `spec.parse()` raising was this engine's whole protection, and three
+    shapes fall outside it. A `%` is the sharp one: ANTLR error-recovers by dropping the token and
+    `parse()` does not raise, so the monitor answers about a formula nobody wrote.
+    `test_rtamt_still_behaves_the_way_the_refusals_assume` fails if a version bump moves any
+    admitted construct between raising, agreeing and misreading.
+  - Where the property's antecedent evaluated false or unknown at every position,
     report `NOT EVALUATED`, never `satisfied`.
     Why this matters: an implication holds at every step its trigger does not fire, so such a
     trace scores non-negative for every system alike and the monitor learned nothing about this
@@ -79,13 +92,18 @@ from reasonsmith.report import RequirementResult, not_evaluated_for_unreachable_
 from reasonsmith.rulelang import (
     BINARY_TEMPORAL_OPERATORS,
     CONTAINS_CALL,
+    EQUIVALENCE_CALL,
     FLAG_THRESHOLD,
     PRESENCE_CALL,
     UnsupportedConstructError,
     bare_boolean_names,
     contains_literal,
+    eval_temporal_trace,
+    has_temporal_operator,
     implication_antecedent,
     is_present,
+    is_unknown,
+    kleene_and,
     parse_property,
     string_literal_mask,
     validate_temporal_property,
@@ -228,12 +246,70 @@ def _render_binary_temporal(text: str) -> str:
     return text
 
 
+#: The shapes the language admits and rtamt reads differently, each named as the refusal names it.
+#: `docs/language.md` §4 quotes a witness and a robustness value for every one, and says why the
+#: definition is what moves nothing: three other encodings agree with it, so one backend disagreeing
+#: is a defect in that backend. The refusal below is what keeps a duty using one of these *not
+#: evaluated* rather than answered off a formula rtamt read differently.
+_MISREAD_SHAPES = {
+    "remainder": (
+        "the remainder operator `%`: rtamt's lexer has no `%` and ANTLR error-recovers by "
+        "dropping the token instead of raising, so the monitor would answer about a formula "
+        "nobody wrote"
+    ),
+    "chain": (
+        "a chained comparison: the language reads `a < b < c` as the conjunction of its pairs, "
+        "and rtamt left-associates it over robustness, comparing a margin against `c`"
+    ),
+    "equivalence": (
+        "an equivalence: rtamt's `iff` scores `-|p(left) - p(right)|`, which is negative "
+        "whenever the two margins differ, including where both sides are false and the "
+        "equivalence therefore holds"
+    ),
+}
+
+
+class MisreadShapeError(UnsupportedConstructError):
+    """A shape rtamt parses and reads differently from the way the property language defines it.
+
+    Its own class because the refusal it earns is worded differently from every other one here: the
+    others say rtamt cannot read the formula, and these three say rtamt reads it and reads it wrong.
+    """
+
+
+def _refuse_shapes_the_monitor_misreads(node: ast.AST) -> None:
+    """Raise for a formula rtamt parses and reads differently from the way §2 defines it.
+
+    rtamt *raises* for nearly every construct it does not support — `!=`, `min`, `max`,
+    `Implies(...)`, `<=>` — which is why `spec.parse()` raising was this engine's whole protection
+    against an unrenderable formula for as long as it was enough. These three are the shapes where
+    that protection does not hold: two rtamt parses and reads under a different semantics, and one
+    it silently drops. `test_rtamt_still_behaves_the_way_the_refusals_assume` is the standing probe
+    that fails if a version bump moves any admitted construct between those cases.
+    """
+    for child in ast.walk(node):
+        if isinstance(child, ast.BinOp) and isinstance(child.op, ast.Mod):
+            raise MisreadShapeError(_MISREAD_SHAPES["remainder"])
+        if isinstance(child, ast.Compare) and len(child.ops) > 1:
+            raise MisreadShapeError(_MISREAD_SHAPES["chain"])
+        # Both spellings of the connective reach here as `Iff`, so `<->` and `<=>` are refused
+        # alike; before this they parted company, the first monitored and misread and the second
+        # rejected by rtamt's grammar.
+        if (
+            isinstance(child, ast.Call)
+            and isinstance(child.func, ast.Name)
+            and child.func.id == EQUIVALENCE_CALL
+        ):
+            raise MisreadShapeError(_MISREAD_SHAPES["equivalence"])
+
+
 def to_stl(spec: str) -> str:
-    """Return a requirement property in rtamt syntax.
+    """Return a requirement property in rtamt syntax, or refuse a shape rtamt reads differently.
 
     The synthetic flags named in the returned text are populated by `ObservedEngine`; callers that
     only need the rendered formula can use this public view without depending on those mappings.
     """
+    _refuse_shapes_the_monitor_misreads(parse_property(spec))
     return _render_stl(spec)[0]
 
 
@@ -246,36 +322,36 @@ def _is_real_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-_ALWAYS = re.compile(r"^\s*always\s*\((.*)\)\s*$", re.DOTALL)
-
-
-def _always_body(spec: str) -> str | None:
-    """The body of a spec that is a single unbounded `always(...)`, else None.
-
-    The robustness of `always` at step t is the minimum over the whole suffix, so every step
-    before a breach inherits the breach's negative score. Naming the steps that actually breach
-    the duty means monitoring the body on its own.
-    """
-    match = _ALWAYS.match(spec)
-    if match is None:
-        return None
-    body = match.group(1)
-    depth = 0
-    for char in body:
-        depth += (char == "(") - (char == ")")
-        if depth < 0:
-            return None  # the paren we stripped closed something else, e.g. always(a) and b
-    return body if depth == 0 else None
-
-
 def _monitor(spec_text: str, name: str, spec_vars: set[str], time_series: dict) -> list:
     """Robustness of `spec_text` at every time step of `time_series`."""
     spec = rtamt.StlDiscreteTimeSpecification()
+
+    # Backend adapter contract: Every backend adapter certifies that it consumed the whole
+    # rendered formula and produced exactly one property, or the requirement is reported
+    # `not evaluated`.
+    # F1 — supply a strict lexer: install rtamt's raising error listener on the lexer.
+    BaseLexer = spec.ast.antrlLexerType
+    ErrorListener = spec.ast.parserErrorListenerType
+
+    class StrictLexer(BaseLexer):
+        def __init__(self, input_stream):
+            super().__init__(input_stream)
+            self._listeners = [ErrorListener()]
+
+    spec.ast.antrlLexerType = StrictLexer
+
     spec.name = name
     for var in spec_vars:
         spec.declare_var(var, "float")
     spec.spec = spec_text
     spec.parse()
+
+    # F2 — assert the postcondition: backend parser produced exactly one statement.
+    if len(spec.ast.specs) != 1:
+        raise ValueError(
+            f"Expected backend parser to produce exactly 1 statement, got {len(spec.ast.specs)}"
+        )
+
     return spec.evaluate(time_series)
 
 
@@ -380,18 +456,27 @@ class ObservedEngine:
         try:
             property_node = parse_property(req.spec)
             validate_temporal_property(property_node)
+            _refuse_shapes_the_monitor_misreads(property_node)
             boolean_atoms = set(bare_boolean_names(property_node))
         except UnsupportedConstructError as exc:
+            wording = (
+                (
+                    f"Not evaluated: rtamt reads {_property_noun(req)} {req.spec!r} differently "
+                    f"from the way the property language defines it, because it uses {exc}"
+                )
+                if isinstance(exc, MisreadShapeError)
+                else (
+                    "Not evaluated: rtamt cannot express or parse "
+                    f"{_property_noun(req)} {req.spec!r}: {exc}"
+                )
+            )
             return RequirementResult(
                 requirement_id=req.id,
                 source_clause=clause,
                 verdict=Verdict.INCONCLUSIVE,
                 strength=None,
                 signals_required=tuple(req.requires),
-                evidence_summary=(
-                    "Not evaluated: rtamt cannot express or parse "
-                    f"{_property_noun(req)} {req.spec!r}: {exc}"
-                ),
+                evidence_summary=wording,
                 details={"error": str(exc)},
                 binding=req.binding,
                 scope=req.scope,
@@ -401,25 +486,13 @@ class ObservedEngine:
             req.spec, set(req.requires)
         )
 
-        # The property's antecedent, rendered for the same monitor. It is a sub-formula of the
-        # spec, so it introduces no signal the trace was not already read for; what it needs is
-        # synthetic flags of its own, which is why the names already taken are reserved. Rendered
-        # here rather than after the monitor runs, so its flags are populated by the one pass that
-        # builds the time series. See the module docstring for what it is for.
+        # The property's antecedent, evaluated under Kleene 3-valued logic over the finite trace.
         antecedent_node = implication_antecedent(property_node)
-        antecedent_stl: str | None = None
-        if antecedent_node is not None:
-            antecedent_stl, extra_presence, extra_contains = _render_stl(
-                ast.unparse(antecedent_node),
-                set(req.requires) | set(presence_signals) | set(contains_signals),
-            )
-            presence_signals.update(extra_presence)
-            contains_signals.update(extra_contains)
 
         # Extract variable names from formula or req.requires
         var_names = set(req.requires)
         # Also extract identifiers from spec formula
-        monitored_text = stl_text if antecedent_stl is None else f"{stl_text} {antecedent_stl}"
+        monitored_text = stl_text
         found_vars = set(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", monitored_text))
         keywords = {
             "always", "eventually", "until", "then", "implies", "and", "or", "not",
@@ -427,6 +500,10 @@ class ObservedEngine:
         }
         formula_vars = found_vars - keywords
         spec_vars = formula_vars | var_names
+        # The names a decision record could carry a value for. `spec_vars` also holds the
+        # synthetic `present()`/`contains()` flags `_render_stl` mints for rtamt, which are never
+        # record keys and would therefore be reported absent from every trace.
+        record_vars = spec_vars - set(presence_signals) - set(contains_signals)
         magnitude_vars = _magnitude_vars(monitored_text)
         magnitude_vars.difference_update(presence_signals)
         magnitude_vars.difference_update(contains_signals)
@@ -541,37 +618,11 @@ class ObservedEngine:
                 scope=req.scope,
             )
 
-        if unmeasured:
-            gaps = ", ".join(
-                f"{var} in {count} of {len(records)} decision(s)"
-                for var, count in sorted(unmeasured.items())
-            )
-            return RequirementResult(
-                requirement_id=req.id,
-                source_clause=clause,
-                verdict=Verdict.INCONCLUSIVE,
-                strength=None,
-                signals_required=tuple(req.requires),
-                evidence_summary=(
-                    f"Not evaluated: {req.spec!r} compares a magnitude the trace does not "
-                    f"measure — no numeric value for {gaps}. An absent, blank or non-numeric "
-                    "value is not a measurement, so the monitor was not run over this trace."
-                ),
-                details={"signals_unmeasured_in_trace": dict(sorted(unmeasured.items()))},
-                binding=req.binding,
-                scope=req.scope,
-            )
 
         # Construct rtamt STL specification
         spec_name = f"spec_{req.id.replace('-', '_')}"
         try:
             res = _monitor(stl_text, spec_name, spec_vars, time_series)
-            always_body = _always_body(stl_text)
-            violation_res = (
-                _monitor(always_body, f"{spec_name}_body", spec_vars, time_series)
-                if always_body is not None
-                else res
-            )
         except Exception as exc:
             return RequirementResult(
                 requirement_id=req.id,
@@ -589,12 +640,34 @@ class ObservedEngine:
             )
 
         # Check evaluations for violations (robustness < 0)
-        # For a top-level `always`, use its body's robustness to identify the records that
-        # actually breach the duty; the outer formula's suffix minimum also makes earlier,
-        # compliant records negative.
-        violation_indices = [int(t) for t, rob in violation_res if rob < 0]
+        # Compute the 3-valued verdict under Kleene 3-valued logic over the finite trace.
+        # Robustness scores (res) remain reported as the quantitative margin in evaluation_scores.
+        boolean_trace = eval_temporal_trace(property_node, records)
+        trace_val = (
+            boolean_trace[0]
+            if has_temporal_operator(property_node)
+            else kleene_and(boolean_trace)
+        )
 
-        if violation_indices:
+        if trace_val is False:
+            body_ast = (
+                property_node.body
+                if isinstance(property_node, ast.Expression)
+                else property_node
+            )
+            if (
+                isinstance(body_ast, ast.Call)
+                and isinstance(body_ast.func, ast.Name)
+                and body_ast.func.id == "always"
+                and len(body_ast.args) == 1
+            ):
+                step_bools = eval_temporal_trace(body_ast.args[0], records)
+                violation_indices = [t for t, b in enumerate(step_bools) if b is False]
+            else:
+                violation_indices = [t for t, b in enumerate(boolean_trace) if b is False]
+            if not violation_indices:
+                violation_indices = [0]
+
             offending_segment = [records[t] for t in violation_indices]
             return RequirementResult(
                 requirement_id=req.id,
@@ -616,21 +689,58 @@ class ObservedEngine:
                 scope=req.scope,
             )
 
+        if is_unknown(trace_val):
+            absent_vars = sorted(
+                [v for v in record_vars if any(v not in rec or rec[v] is None for rec in records)]
+            )
+            gaps = ", ".join(absent_vars) if absent_vars else "a required signal"
+            details_dict: dict[str, Any] = {"signals_absent_in_trace": absent_vars}
+            if unmeasured:
+                details_dict["signals_unmeasured_in_trace"] = dict(sorted(unmeasured.items()))
+            return RequirementResult(
+                requirement_id=req.id,
+                source_clause=clause,
+                verdict=Verdict.INCONCLUSIVE,
+                strength=None,
+                signals_required=tuple(req.requires),
+                evidence_summary=(
+                    f"Not evaluated: {req.spec!r} depends on signal(s) absent from the trace — "
+                    f"no value for {gaps}. The requirement evaluates to UNKNOWN under Kleene "
+                    "3-valued logic."
+                ),
+                details=details_dict,
+                binding=req.binding,
+                scope=req.scope,
+            )
+
         # No step breached the duty — but a duty triggered nowhere is not breached by any trace,
-        # and the monitor scoring every step non-negative is then a fact about the antecedent.
-        # The antecedent is read at the same threshold satisfaction is: robustness below zero is
-        # the trigger not firing, exactly as it is the formula not holding.
-        #
-        # Monitored here, after the violation check and in a try of its own, so that an
-        # antecedent rtamt cannot parse can only ever withhold a satisfied verdict. Sharing the
-        # try above would let a sub-formula the monitor chokes on suppress a breach the monitor
-        # had already scored.
-        if antecedent_stl is not None:
-            try:
-                antecedent_res = _monitor(
-                    antecedent_stl, f"{spec_name}_antecedent", spec_vars, time_series
+        # and an antecedent evaluated false at every position is an unreachable trigger.
+        # The antecedent is evaluated under Kleene 3-valued logic over the trace.
+        if antecedent_node is not None:
+            antecedent_bools = eval_temporal_trace(antecedent_node, records)
+            if all(b is False for b in antecedent_bools):
+                return not_evaluated_for_unreachable_trigger(
+                    req,
+                    ast.unparse(antecedent_node),
+                    f"the {len(records)} decision(s) of this trace",
+                    {"records_observed": len(records), "antecedent_evaluations": antecedent_bools},
                 )
-            except Exception as exc:
+            if any(is_unknown(b) for b in antecedent_bools) and not any(
+                b is True for b in antecedent_bools
+            ):
+                absent_vars = sorted(
+                    [
+                        v
+                        for v in record_vars
+                        if any(v not in rec or rec[v] is None for rec in records)
+                    ]
+                )
+                gaps = ", ".join(absent_vars) if absent_vars else "a required signal"
+                details_dict: dict[str, Any] = {"records_observed": len(records)}
+                if absent_vars:
+                    details_dict["signals_absent_in_trace"] = absent_vars
+                if unmeasured:
+                    details_dict["signals_unmeasured_in_trace"] = dict(sorted(unmeasured.items()))
                 return RequirementResult(
                     requirement_id=req.id,
                     source_clause=clause,
@@ -638,21 +748,15 @@ class ObservedEngine:
                     strength=None,
                     signals_required=tuple(req.requires),
                     evidence_summary=(
-                        f"Not evaluated: no decision breached {req.spec!r}, but rtamt cannot "
-                        f"express or parse its antecedent {ast.unparse(antecedent_node)!r}: "
-                        f"{exc}. A duty whose trigger cannot be read is reported as no evidence "
-                        "rather than as a clean verdict."
+                        f"Not evaluated: {req.spec!r} is an implication, and its antecedent "
+                        f"{ast.unparse(antecedent_node)!r} evaluates to UNKNOWN under Kleene "
+                        "3-valued logic and was never true in the trace — "
+                        f"no value for {gaps}. A duty whose trigger cannot be settled is reported "
+                        "as no evidence rather than as a clean verdict."
                     ),
-                    details={"error": str(exc), "records_observed": len(records)},
+                    details=details_dict,
                     binding=req.binding,
                     scope=req.scope,
-                )
-            if all(rob < 0 for _t, rob in antecedent_res):
-                return not_evaluated_for_unreachable_trigger(
-                    req,
-                    ast.unparse(antecedent_node),
-                    f"the {len(records)} decision(s) of this trace",
-                    {"records_observed": len(records), "antecedent_scores": antecedent_res},
                 )
 
         return RequirementResult(

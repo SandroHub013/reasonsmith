@@ -2,7 +2,12 @@ name: tests
 
 on:
   push:
+    branches: [main]
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -24,6 +29,37 @@ jobs:
       # nesyarena is pinned to exact version 0.1.0 on PyPI in pyproject.toml, so this environment
       # and a local one resolve to the same code. torch is deliberately not installed — see README.
       - run: pip install -e ".[dev]"
+      - name: Install BLACK solver (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p /tmp/black_install
+          cd /tmp/black_install
+          curl -sLO https://github.com/black-sat/black/releases/download/v26.05.0/black-sat-26.05.0.ubuntu26.04.x86_64.deb
+          curl -sLO http://ftp.us.debian.org/debian/pool/main/f/fmtlib/libfmt10_10.1.1+ds1-4+b2_amd64.deb
+          dpkg-deb -x black-sat-26.05.0.ubuntu26.04.x86_64.deb ./black_ext
+          dpkg-deb -x libfmt10_10.1.1+ds1-4+b2_amd64.deb ./libfmt_ext
+          PYTHON_Z3_DIR=$(python -c "import z3, os; print(os.path.dirname(z3.__file__))")/lib
+          mkdir -p /tmp/black_bin /tmp/black_bin/lib_extra
+          cp ./libfmt_ext/usr/lib/x86_64-linux-gnu/libfmt.so.10* /tmp/black_bin/lib_extra/
+          ln -s "${PYTHON_Z3_DIR}/libz3.so" /tmp/black_bin/lib_extra/libz3.so.4
+          cat << 'EOF' > /tmp/black_bin/black
+          #!/bin/bash
+          export LD_LIBRARY_PATH="/tmp/black_install/black_ext/usr/lib:/tmp/black_bin/lib_extra:${LD_LIBRARY_PATH}"
+          exec /tmp/black_install/black_ext/usr/bin/black "$@"
+          EOF
+          chmod +x /tmp/black_bin/black
+          echo "/tmp/black_bin" >> $GITHUB_PATH
+      - name: Install BLACK solver (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $url = "https://github.com/black-sat/black/releases/download/v26.05.0/black-26.05.0-win-x64.zip"
+          $zipPath = "$env:RUNNER_TEMP\black.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath "$env:RUNNER_TEMP\black_install"
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\black_install\BLACK"
+      - name: Verify BLACK solver
+        run: black --version
       - run: ruff check .
       # This floor was lowered once, on 2026-08-04, from 93 to 92.5, by the captain's explicit
       # decision. Until then `--cov-fail-under=93` never failed: it compares

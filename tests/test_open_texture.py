@@ -545,7 +545,7 @@ def test_a_graded_atom_under_arithmetic_or_a_comparison_is_refused():
 def test_a_graded_atom_under_a_temporal_operator_is_refused_at_load():
     """A many-valued reading of a temporal operator is a temporal semantics, and there is none here.
 
-    This package implements no temporal semantics at any rung — rtamt monitors and `flloat`
+    This package implements no temporal semantics at any rung — rtamt monitors and BLACK
     decides — and inventing one on a lattice would be a larger claim than either. The graded
     fragment is a property of one decision record, quantified over the trace by the infimum.
     """
@@ -714,3 +714,26 @@ def test_no_shipped_pack_uses_either_open_texture_construct(pack_name):
     for req in pack.requirements:
         assert req.formalism not in ("graded", "undetermined")
         assert req.algebra == ""
+
+
+# Coverage boundary cases for this subject.
+def test_many_valued_degree_negation_and_implication_are_evaluated():
+    algebra = algebra_named("lukasiewicz")
+    grading = Grading("audit", "[0,1]", "review", {"predicate(signal)": 0.25})
+    assert (
+        degree_of(
+            ast.parse("not degree(signal, 'predicate')", mode="eval").body, {}, algebra, grading
+        )
+        == 0.75
+    )
+    assert (
+        degree_of(
+            ast.parse(
+                "implies(degree(signal, 'predicate'), degree(signal, 'predicate'))", mode="eval"
+            ).body,
+            {},
+            algebra,
+            grading,
+        )
+        == 1.0
+    )
