@@ -25,24 +25,30 @@ pytest
 python -m reasonsmith.demo
 ```
 
-All three must pass cleanly with zero errors or warnings. Continuous integration (`.github/workflows/ci.yml`) runs exactly these steps on every push and PR.
+All three must pass cleanly with zero errors or warnings. Continuous integration
+(`.github/workflows/ci.yml`) runs exactly these steps for every pull request and for pushes to
+`main`; a push to a pull-request branch is covered by the pull-request run rather than a duplicate
+push run.
 
 ## Roadmap & What to Work On
 
-**The roadmap lives in [`ROADMAP.md`](ROADMAP.md)**, not here: four numbered objectives, each with a measurable outcome that fails today and what it depends on, plus what is deliberately not planned. Read it before proposing work. What follows is the status summary and the smaller items that are not objectives in their own right.
+**The roadmap lives in [`ROADMAP.md`](ROADMAP.md)**, not here: each numbered objective records its
+status, measurable outcome, dependencies and remaining limits, plus what is deliberately not
+planned. Read it before proposing work. What follows is the status summary and the smaller items
+that are not objectives in their own right.
 
 ### Project Status
 
 | Category | Status | Details |
 |---|---|---|
-| **What is built** | Complete (v0.2 Core) | The module inventory lives in the [`README.md`](README.md) architecture table — read it there rather than here. Beyond the modules: the HTML report is published as part of the website (separate `reasonsmith-site` repo on Vercel, see [#35](https://github.com/eduardstan/reasonsmith/pull/35)), and end-to-end demonstrations exist for all six Table 7 rows — the `demo.py` line of that same architecture table lists them. |
+| **What is built** | Complete (v0.2 Core) | The package modules live under [`src/reasonsmith/`](src/reasonsmith/), and [`docs/README.md`](docs/README.md) indexes the documents that explain them. The HTML report is published as part of the website (separate `reasonsmith-site` repo on Vercel, see [#35](https://github.com/eduardstan/reasonsmith/pull/35)), and [`src/reasonsmith/demo.py`](src/reasonsmith/demo.py) is the end-to-end demonstration of all six Table 7 rows. |
 | **Deliberately NOT done** | Out of Scope | Web/GUI dashboards — the `--html` report is one static offline file, not a served application — reimplementing `nesyarena` IR or oracle engines, generating automated legal opinions, or making un-hedged legal compliance guarantees. |
 
 ### Concrete Open Work for Contributors
 
 The demonstrations **Issue 6** asked for — rows 1, 2, 5 and 6 — have landed, so every Table 7 row now has one. What is still open:
 
-- **The four numbered objectives in [`ROADMAP.md`](ROADMAP.md)**, which is where the substantial work is.
+- **The open objectives in [`ROADMAP.md`](ROADMAP.md)**, which is where the substantial work is.
 - **Wider temporal monitor rule sets** for the `observed` rtamt engine — smaller than an objective, and a good way into the property language.
 - **Anything labelled [`good first issue`](https://github.com/eduardstan/reasonsmith/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)**, each one self-contained and stating what "done" looks like.
 
@@ -59,7 +65,9 @@ Extending an engine, rather than adding another demo, is now the concrete, high-
 3. **Preserve the Non-Pass Distinctions:**
    Do not combine unattainable, not-evaluated, and not-applicable results or treat any of them as a
    pass. Their authoritative contracts and invariants live in `verdict.py` and `report.py`; the
-   user-facing explanation lives in the README's Conformance Core section.
+   user-facing explanation lives in [`docs/semantics.md`](docs/semantics.md) §4, with the shorter
+   statements in the README's *Limits* section and
+   [`docs/what-this-does-not-do.md`](docs/what-this-does-not-do.md) §3.
 
 4. **What Makes a Good Change:**
    - Minimal, focused diffs addressing a specific requirement or issue.
@@ -90,6 +98,8 @@ does the PyPI upload by trusted publishing; there is no token anywhere.
 build a release whose tag is not `v` plus that version.
 
 ## Reporting Issues
+
+**A suspected vulnerability is not a bug report.** Do not open a discussion, an issue, or a pull request for one. Report it privately, to the email address in [SECURITY.md](SECURITY.md), which owns the reporting process, the scope, and the response times for security reports.
 
 For a bug, question, or pack proposal:
 1. **Questions go to [GitHub Discussions](https://github.com/eduardstan/reasonsmith/discussions)**; issues are for bugs and pack proposals.

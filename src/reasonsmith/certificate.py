@@ -193,8 +193,11 @@ class Certificate:
     exact_semantics: str | None = None
 
     def __post_init__(self) -> None:
-        # Certificates are a public boundary: never carry an uninterpretable semantics claim.
-        normalize_claimed_semantics(self.claimed_semantics)
+        object.__setattr__(
+            self, "claimed_semantics", normalize_claimed_semantics(self.claimed_semantics)
+        )
+        if self.exact_semantics is not None:
+            object.__setattr__(self, "exact_semantics", reference_semantics(self))
 
     def _by(self, status: str) -> list[ReasonVerdict]:
         return [v for v in self.verdicts if v.status == status]

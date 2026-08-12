@@ -34,6 +34,7 @@ from __future__ import annotations
 from nesyarena.adapters.base import ReferenceAdapter
 from nesyarena.suts import ExactWMC
 
+from reasonsmith.artifacts.ground_program import GroundProgramArtifact
 from reasonsmith.artifacts.reason_trace import ReasonTraceArtifact
 from reasonsmith.demo import DEPLOYED_CASES, SilentDropAdapter, certify_case
 from reasonsmith.engines.certificate import SEMANTICS_VALUE_GAP
@@ -65,6 +66,19 @@ class _HonestlyApproximate(SilentDropAdapter):
     def __init__(self):
         super().__init__()
         self.claimed_semantics = "weighted sum"
+
+
+class _FixedGapAdapter:
+    supports_grad = False
+    claimed_semantics = "distribution semantics"
+
+    def __init__(self, gap: float):
+        self.gap = gap
+        self.name = f"test:fixed-gap-{gap}"
+
+    def infer(self, program, base, queries):
+        exact = ReferenceAdapter(ExactWMC()).infer(program, base, queries)
+        return {query: max(0.0, value - self.gap) for query, value in exact.items()}
 
 
 class _Pipeline:
@@ -133,6 +147,22 @@ class _RecountingPipeline(_Pipeline):
         )
 
 
+class _UnrecognisedReferenceArtifact(GroundProgramArtifact):
+    """An out-of-tree family naming a reference this build's vocabulary has no member for."""
+
+    exact_semantics = "approximate WMC"
+
+
+class _UnrecognisedReferencePipeline(_Pipeline):
+    def artifact(self, decision: dict) -> GroundProgramArtifact | None:
+        for case in DEPLOYED_CASES:
+            if case.case_id == decision.get("decision_id"):
+                return _UnrecognisedReferenceArtifact(
+                    case.program, case.base, case.query, self.engine, 1, case.labels, True
+                )
+        return None
+
+
 def _result(sut):
     return evaluate_requirement(requirement(), sut)
 
@@ -185,6 +215,41 @@ def test_the_violation_names_the_two_answers_it_compared():
     assert result.details["violation_step_indices"] == [0]
 
 
+def test_value_gap_summary_names_the_decision_with_the_largest_gap():
+    class _TwoGapPipeline(_Pipeline):
+        def decisions(self):
+            return [
+                {
+                    "decision_id": case.case_id,
+                    "artifact_logs_decision_record": f"adverse action on {case.case_id}",
+                    "artifact_logs_decision_margin": 0.0,
+                    "scope_statements_approximation_vs_guarantee": "approximation",
+                }
+                for case in DEPLOYED_CASES
+            ]
+
+        def artifact(self, decision):
+            for index, case in enumerate(DEPLOYED_CASES):
+                if case.case_id == decision.get("decision_id"):
+                    return {
+                        "program": case.program,
+                        "base": case.base,
+                        "query": case.query,
+                        "adapter": _FixedGapAdapter((index + 1) / 100),
+                        "exact_depth": 1,
+                        "monotone": True,
+                        "labels": case.labels,
+                    }
+            return None
+
+    result = _result(_TwoGapPipeline(ReferenceAdapter(ExactWMC())))
+
+    assert result.verdict == Verdict.VIOLATED
+    assert result.details["violation_step_indices"] == [0, 1]
+    assert "On decision #1" in result.evidence_summary
+    assert "a gap of 0.020000" in result.evidence_summary
+
+
 def test_the_measured_gap_is_never_read_from_the_record():
     """A system cannot discharge this duty by writing a small number about itself into its log."""
     honest_log = _result(_Pipeline(SilentDropAdapter()))
@@ -211,6 +276,23 @@ def test_an_honestly_declared_approximation_is_not_accused():
     assert "Not evaluated" in result.evidence_summary
     assert result.details["claimed_semantics"] == "weighted sum"
     assert result.details["reference_semantics"] == "distribution semantics"
+
+
+def test_a_reference_outside_the_vocabulary_is_reported_and_never_raised():
+    """A family naming a reference this build cannot compare is the tool's gap, not a failure.
+
+    The value is not the audited system's claim, so refusing it where it is read — inside a
+    conformance run — would turn a duty this build cannot evaluate into a decision that raised.
+    The outcome owed is the mismatch refusal, naming both names.
+    """
+    result = _result(_UnrecognisedReferencePipeline(SilentDropAdapter()))
+
+    assert result.verdict == Verdict.INCONCLUSIVE
+    assert result.strength is None
+    assert "Not evaluated" in result.evidence_summary
+    assert result.details["reason"] == "no_reference_for_the_claimed_semantics"
+    assert result.details["claimed_semantics"] == "distribution semantics"
+    assert result.details["reference_semantics"] == "approximate WMC"
 
 
 def test_an_artefact_family_that_computes_no_reference_is_unattainable():

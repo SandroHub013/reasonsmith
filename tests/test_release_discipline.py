@@ -12,7 +12,7 @@ What this module is for:
     a release the tree never was. `CITATION.cff` is the fourth place and was the one this guard
     originally missed — it was already stale when the first three were locked together.
   - README.md and AGENTS.md never name a `reasonsmith` release number: the publication claim
-    lives once, in the README's *Dependencies & PyPI* paragraph, without a version (the PyPI
+    lives once, in the README's *Install and run* section, without a version (the PyPI
     project page names the current one), and AGENTS.md points at the README. A number written
     in either document goes stale at the next release — both once claimed 0.2.0 while 0.6.0
     was current.
@@ -114,7 +114,7 @@ def test_no_bare_reference_in_tracked_markdown():
 
 def test_markdown_names_no_reasonsmith_release():
     """README.md and AGENTS.md never name a `reasonsmith` release number. The README's
-    *Dependencies & PyPI* paragraph owns the publication claim and deliberately names no
+    *Install and run* section owns the publication claim and deliberately names no
     version (the PyPI page does); AGENTS.md points at the README rather than restating one.
     A number in either document goes stale at the next release, as the 0.2.0 both once
     claimed did by 0.6.0 — a `v` prefix is the same claim in another shape and is caught
@@ -510,6 +510,18 @@ def _topmost_released_version() -> str:
         if match:
             return match.group(1)
     raise AssertionError("CHANGELOG.md has no released (non-[Unreleased]) version heading")
+
+
+def test_the_changelog_carries_a_fresh_unreleased_section():
+    """A cut closes `[Unreleased]` into the new version *and* opens a fresh one, so the next
+    contributor has somewhere to land an entry (`CONTRIBUTING.md`, *Versioning and Releases*)."""
+    changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    headings = re.findall(r"^## \[([^\]]+)\]", changelog, re.MULTILINE)
+    assert headings and headings[0] == "Unreleased", (
+        "CHANGELOG.md's first `##` heading is "
+        f"[{headings[0] if headings else 'nothing'}]. Cutting a release closes [Unreleased] into "
+        "the new version and opens a fresh empty [Unreleased] above it."
+    )
 
 
 def _citation_version() -> str:

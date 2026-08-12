@@ -240,6 +240,42 @@ def test_a_claim_outside_the_vocabulary_never_reaches_this_module():
         law_refusal(artefact)
 
 
+def test_an_artefact_declaring_no_semantics_is_refused_rather_than_crashing():
+    """`law_refusal` promises a reason, so an absent declaration is one — not a `ValueError`."""
+    _label, instance = battery()[0]
+    inner = artefact_for(registry()[0], instance)
+
+    class NoClaim:
+        def __getattr__(self, name):
+            if name == "claimed_semantics":
+                raise AttributeError(name)
+            return getattr(inner, name)
+
+    artefact = NoClaim()
+    assert admits_interpretation(artefact)
+    refusal = law_refusal(artefact)
+    assert refusal is not None
+    assert all(semantics in refusal for semantics in SEMANTICS_WITH_LAWS)
+    assert check_laws(artefact) is None
+
+
+def test_an_accepted_claim_spelling_is_canonical_in_the_law_report():
+    _label, instance = battery()[0]
+    inner = artefact_for(registry()[0], instance)
+
+    class RawClaim:
+        claimed_semantics = " Distribution Semantics "
+
+        def __getattr__(self, name):
+            return getattr(inner, name)
+
+    artefact = RawClaim()
+    assert law_refusal(artefact) is None
+    report = check_laws(artefact)
+    assert report is not None
+    assert report.claimed_semantics == "distribution semantics"
+
+
 def test_the_monotonicity_law_fires_on_an_engine_that_falls_when_a_fact_is_raised():
     _label, instance = battery()[0]
 

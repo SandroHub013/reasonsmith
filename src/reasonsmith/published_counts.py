@@ -1,8 +1,8 @@
 """Machine-readable facts for the Reasonsmith site build.
 
 The values in this module are deliberately computed from the shipped packs and the
-strength enum.  ``render`` is the only operation that writes an artefact; the artefact
-therefore carries both the source verification date and its own generation timestamp.
+strength enum.  ``write_published_counts`` is the only operation that writes an artefact; the
+artefact therefore carries both the source verification date and its own generation timestamp.
 """
 from __future__ import annotations
 
@@ -10,20 +10,34 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from reasonsmith.drift import STATUTORY_PACKS
+from reasonsmith.drift import STATUTORY_PACKS, quote_corpus_sha256
 from reasonsmith.spec import list_packs, load_pack
 from reasonsmith.verdict import Strength
 
 _ROOT = Path(__file__).resolve().parents[2]
-_SOURCE = _ROOT / "docs" / "legal-sources.md"
 _VERIFICATION = _ROOT / "docs" / "legal-verification.json"
 
 
 def _verification() -> dict[str, object] | None:
-    """Read the output of a statute-drift verification run, when one exists."""
+    """Read the output of a statute-drift verification run, when one exists.
+
+    A manifest that cannot be read as a JSON object is refused as a `ValueError` rather than
+    surfacing as whatever the decoder raised: every way this file can fail to establish a
+    verification date is one refusal for a caller to report.
+    """
     if not _VERIFICATION.exists():
         return None
-    return json.loads(_VERIFICATION.read_text(encoding="utf-8"))
+    try:
+        manifest = json.loads(_VERIFICATION.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(
+            f"legal verification manifest {_VERIFICATION} is unreadable: {exc}"
+        ) from exc
+    if not isinstance(manifest, dict):
+        raise ValueError(
+            f"legal verification manifest {_VERIFICATION} is not a JSON object"
+        )
+    return manifest
 
 
 def published_counts() -> dict[str, object]:
@@ -32,10 +46,27 @@ def published_counts() -> dict[str, object]:
     statutory = [load_pack(name) for name in STATUTORY_PACKS]
     verification = _verification()
     quote_count = sum(len(p.requirements) for p in statutory)
-    if verification is not None and (
-        verification["match"] != quote_count or verification["differ"] != 0
-    ):
-        raise ValueError("legal verification manifest does not cover all statutory quotes")
+    corpus_sha256 = quote_corpus_sha256(
+        (pack.id, requirement.id, requirement.verbatim_text)
+        for pack in statutory
+        for requirement in pack.requirements
+    )
+    if verification is not None:
+        if verification.get("match") != quote_count or verification.get("differ") != 0:
+            raise ValueError("legal verification manifest does not cover all statutory quotes")
+        if verification.get("schema_version") != 2:
+            raise ValueError(
+                f"legal verification manifest {_VERIFICATION} is schema version "
+                f"{verification.get('schema_version')!r}, not 2, so it carries no quote corpus "
+                "digest to check; regenerate it with "
+                "`python -m reasonsmith.drift --verification-manifest docs/legal-verification.json`"
+            )
+        if verification.get("quote_corpus_sha256") != corpus_sha256:
+            raise ValueError(
+                "legal verification manifest does not match the statutory quote corpus"
+            )
+        if not verification.get("verified_at"):
+            raise ValueError("legal verification manifest records no verification date")
     # A quote is a requirement in a statutory pack; Table 7 rows quote the paper instead.
     return {
         "schema_version": 1,

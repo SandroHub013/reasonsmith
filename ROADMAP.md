@@ -5,9 +5,10 @@ private backlog. Every objective below is a gap this repository's own documents 
 each one cites where. Nothing here is aspirational: an item is on this list because a committed
 document names it as a limit, not because it would be nice to have.
 
-Each objective gives a **measurable outcome** — a check that fails today and would pass when the
-objective is met — and what it **depends on**. Where the honest answer is that an objective is
-blocked, or deliberately not started, that is written down rather than left as an implied "soon".
+Each objective gives a **measurable outcome** and what it **depends on**. An open objective names a
+check that fails today and would pass when the objective is met; a closed objective records why the
+same check now passes. Where the honest answer is that an objective is blocked, or deliberately not
+started, that is written down rather than left as an implied "soon".
 
 Current state, for scale: **5 packs, 29 requirements, 7 engines** (`record`, `observed`, `probed`,
 `certificate` — also at `probed` — `proved`, the temporal proof engine, also at `proved`, and the
@@ -208,18 +209,17 @@ and is recorded in *Two axes of reach are modelled* in
 found a handle on it. The intake stays the Discussion
 [*reasonsmith cleared two systems whose decisions are wrong — what should a pack do about it?*](https://github.com/eduardstan/reasonsmith/discussions/59).
 
-**What exists now, and it does not close this.** The design answer was written, and one half of one
-of its two candidates is built: `semantic_laws.py` refutes a false `claimed_semantics` from the
-system's own answers alone, with no reference implementation anywhere in the loop, and does it for
-every one of the four `nesyarena` provenances that deviates from what it claims while refuting the
-exact one on nothing. It needed a perturbation the artefact protocol refused in writing, so
-[`docs/formal.md`](docs/formal.md) §3.6 now records that reversal and §3.7 states the soundness of
-what replaced it. **The measurable outcome above still fails**, and deliberately: no requirement
-reads the measurement, so the two reports the check drives are still identical on every requirement.
-Closing this objective needs a duty, and a duty needs `claimed_semantics` to become a name from a
-closed vocabulary first — today the certificate's reference side is hard-wired to exact WMC whatever
-an artefact claims, so a system that *honestly documents* its truncation already measures a value
-gap, and promoting that to a verdict before the claim binds would ship a false accusation.
+**A companion measurement, and what it does not close.** `semantic_laws.py` refutes a false
+`claimed_semantics` from the system's own answers alone, with no reference implementation anywhere
+in the loop, and does it for every one of the four `nesyarena` provenances that deviates from what
+it claims while refuting the exact one on nothing. It needed a perturbation the artefact protocol
+refused in writing, so [`docs/formal.md`](docs/formal.md) §3.6 records that reversal and §3.7 states
+the soundness of what replaced it. This remains a measurement rather than a verdict: no requirement
+reads a semantic-law refutation, and it neither widens the one artefact family the duty above can
+reach nor establishes a semantics claim. `claimed_semantics` is now a name from the closed
+`spec.CLAIMED_SEMANTICS` vocabulary, but the certificate's reference side computes only exact WMC;
+an admitted claim for which this build has no matching reference is *not evaluated*, never compared
+against exact WMC as though it had claimed distribution semantics.
 
 ## 6. The first duty written with an open-textured predicate
 

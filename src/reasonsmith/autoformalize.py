@@ -519,10 +519,11 @@ def round_trip_check(
 ) -> RoundTripCheck:
     """Compare a candidate with the shipped property using the existing solver encoding.
 
-    ``equivalent`` is the only passing relation.  Stronger, weaker and incomparable candidates are
-    returned with a solver witness so a proposer or human can repair the text explicitly; nothing
-    is rewritten here.  Temporal formulas use the existing optional LTLf adapter and therefore
-    refuse clearly when that backend is unavailable.
+    ``equivalent`` is the only passing relation. For record and logical formulas, stronger, weaker
+    and incomparable candidates carry a solver witness. Temporal formulas return the entailment
+    relation without a witness, and differing counterfactual atoms return their signal mismatch.
+    Nothing is rewritten here. Temporal formulas use the existing optional LTLf adapter and refuse
+    clearly when that backend is unavailable.
     """
     req = _requirement_index()[requirement] if isinstance(requirement, str) else requirement
     baseline = req.spec
@@ -606,6 +607,8 @@ def signoff(requirement: Requirement | str, refinement: Path | None = None) -> S
     """Read the explicit human sign-off marker on the requirement's refinement row."""
     req = _requirement_index()[requirement] if isinstance(requirement, str) else requirement
     path = refinement or Path(__file__).resolve().parents[2] / "docs" / "refinement.md"
+    if not path.is_file():
+        return SignOff(req.id, "missing", "no refinement record")
     lines = [
         line for line in path.read_text(encoding="utf-8").splitlines()
         if line.startswith("|") and len(line.split("|")) > 1 and f"`{req.id}`" in line.split("|")[1]

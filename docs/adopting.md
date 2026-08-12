@@ -27,7 +27,11 @@ ask; a record duty asks whether a field is present, never whether the number the
 the number the system claims to compute.
 
 Read a satisfied row as *the record has the fields*, never as *the system computes what it says it
-computes*. Closing this is objective 5 of [`ROADMAP.md`](../ROADMAP.md), and it is open.
+computes*. Objective 5 of [`ROADMAP.md`](../ROADMAP.md) closed this for **one artefact family**:
+`gdpr_recital71_error_risk_minimised` reads an approximation error reasonsmith measures from the
+inference artefact `artifact()` returns, not one the system wrote into its own record. Every other
+system — a decision log, a callable, a language model, a recounted reason trace — is `unattainable`
+on that duty, so for it the sentence above still holds in full.
 
 No run here is a compliance determination. `reasonsmith.report.LIMITS` travels on every report and
 says so in the report's own words; nothing on this page may be read past it.
@@ -350,3 +354,10 @@ counterfactual duty over a log-only system is the second sort. The summary says 
 - [`three-systems.md`](three-systems.md) and [`language-model.md`](language-model.md) — the worked systems behind §1's table.
 - [`refinement.md`](refinement.md) — per duty, what the formalisation left out; `reasonsmith explain` prints the same column.
 - [`authoring-packs.md`](authoring-packs.md) — once your system answers the shipped packs and you need a duty they do not carry.
+
+One further command exists and is **not** part of adopting a system: `reasonsmith published-counts`
+emits this tree's own counts — packs, requirements, verbatim statutory quotes, rungs — as JSON, with
+the provenance of every date, and `--output FILE` writes it instead of printing it. It reads no
+system, runs no engine and reports no duty; it exists so the website and this repository cannot
+disagree about how many duties ship. The committed artefact is
+[`published-counts.json`](published-counts.json). Nothing on this page needs it.

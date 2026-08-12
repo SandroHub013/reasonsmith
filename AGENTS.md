@@ -21,8 +21,9 @@ adapter protocol. Depend on it; do not reimplement any of those. `pyproject.toml
 `pip install -e ".[dev]"` in a venv is the contributor install, the one CI
 (`.github/workflows/ci.yml`) runs. Never point it at a sibling checkout, tag, or a
 branch: the measured numbers must stay reconstructible. `torch` is
-deliberately not a declared dependency of *this* package (see README, "Dependencies & PyPI") but
-has been installed and measured in a separate environment — see [RESULTS.md](RESULTS.md) for the
+deliberately not a declared dependency of *this* package but
+has been installed and measured in a separate environment — see [RESULTS.md](RESULTS.md),
+"What Changed From Prior Torch Caveats" and "Build and Reproduction Commands", for the
 exact commands and counts, and do not re-litigate that caveat from stale memory of "torch was never
 installed here". `tests/conftest.py` puts `src` on the path so this package itself needs no
 install, but nesyarena does. `pip install`ing nesyarena only gets the built package, not its
@@ -79,7 +80,7 @@ system while guessing recounted only understates one), one recounted decision ca
 `report.EXACT_REASON_SET_KEY`. It is a *rung* and not a fifth basis by the test §10 now states:
 different object, different basis; same object less deeply, different rung. It reaches no log-only
 system — the re-run is what makes the measurement independent of the rationale it measures — so the
-README's auditors blocker is narrowed, not closed. `docs/semantics.md` §3 (*The inference artefact*)
+auditors blocker of `docs/what-this-does-not-do.md` §4 is narrowed, not closed. `docs/semantics.md` §3 (*The inference artefact*)
 is the contract and `tests/test_artifact_protocol.py` holds it.
 
 The **probe** is one-directional; the **protocol** is not, since 2026-08-11. `at(fact, probability)`
@@ -432,9 +433,12 @@ the repair is one overwrite in `engines/certificate._env`, the same move that du
 made for `artifact_logs_deleted_reason_count`. Five things must not be undone. `MEASURED_SIGNALS` is
 what `report._engine_ladder` and `report.evidence_basis` key on, so a duty naming either signal gets
 one rung and the `artifact` basis and can never be answered off a log. The reference is refused
-before it is used: `artifacts.reference_semantics` says which member of `spec.CLAIMED_SEMANTICS` a
-family's own `exact_value()` computes (`distribution semantics` for the ground program, None for a
-reason trace), and `artifacts.semantics_reference_refusal` splits the two outcomes —
+before it is used: `artifacts.reference_semantics` names what a family's own `exact_value()`
+computes (`distribution semantics` for the ground program, None for a reason trace) — canonicalising
+an accepted spelling and **carrying** a name outside `spec.CLAIMED_SEMANTICS` rather than raising,
+because that name is not the audited system's claim and it is read mid-audit, where the outcome owed
+is the refusal below and never an exception a reader meets as a failed decision — and
+`artifacts.semantics_reference_refusal` splits the two outcomes —
 no reference at all is **unattainable** (the gap is in the system, expose a model encoding), a claim
 the reference does not match is **not evaluated** naming the claim (the gap is in this tool). That
 second refusal is what stops the duty accusing a system that documents its own approximation, since
@@ -551,12 +555,13 @@ inline SVG `<style>` is document-scoped once the page inlines it, and
 it. Regenerate with `python docs/build_showcase.py`; `tests/test_docs_showcase.py` holds all three
 files byte-for-byte.
 
-The README's first screen is that result: the figure, the sentence that makes it bite, `pip
-install` plus one command, and the cast. The full unprojected transcript that used to sit there is
+After the badges, README opens with the two generated preview SVGs and the measured sentence they
+summarise. It then gives the organising question and diagram, the five reading paths, and *Install
+and run* with `pip install`, the trusted-code warning and one generated `check` transcript; *Limits*
+states six boundaries before the licence. The full unprojected transcript is
 `docs/example-output.md` **§3** — the one committed transcript whose run exits 2 — and
-`REPORTING_EXIT_CODES` in `tests/test_docs_example_output.py` is what admits it. Nothing was
-deleted in that move; the theory sections, the four things this tool cannot do, and both preview
-images live below the fold and must not be moved back above the demonstration.
+`REPORTING_EXIT_CODES` in `tests/test_docs_example_output.py` is what admits it. The theory lives in
+the documents the reading paths link rather than being embedded on the front page.
 
 `ConformanceReport.to_dict()` leads with `schema_version` (`report.JSON_SCHEMA_VERSION`), the
 `--json` envelope's shape version. It is not the package version, it increments only when a key is
@@ -587,7 +592,8 @@ the one binding duty `ecoa_reg_b_1002_9_b_2_specific_reasons` and reaching `obse
 `proved` respectively. `tests/test_docs_three_systems.py` holds each transcript byte-for-byte the
 way `test_docs_example_output.py` does, asserts the three rungs are still three, and pins the
 neural system's ceiling. That ceiling is the point of the artefact: raising it means changing the
-*system*, never the adapter, and the README carries the same table.
+*system*, never the adapter, and `docs/three-systems.md` is the one home of that table since the
+README reorganisation routed the front page at the document instead of restating it.
 
 A fifth example, `truncating_credit_system.py`, is the only one that comes back **violated**, and
 that is its whole job: the other four pass, so before it a reader who ran every shipped example
@@ -597,9 +603,9 @@ and the committed dossier, so a second copy would be a fourth thing to keep in s
 clause's *content* duty (`..._principal_reasons_complete`), never the *form* duty its siblings
 check, which this same system satisfies. `reasonsmith check --help`'s epilogue names it first;
 `test_a_shipped_example_reports_a_violation_and_help_names_it` in `tests/test_adoption_surface.py`
-pins both halves. The README's first screen after the badges is that run and its transcript, then
-[`docs/what-this-does-not-do.md`](docs/what-this-does-not-do.md) — the theory sections live below
-the demonstration and nothing may move them back above it.
+pins both halves. README uses that run for the worked transcript in *Install and run*, after the two
+generated previews, organising diagram and five reading paths. It routes the deeper limits to
+[`docs/what-this-does-not-do.md`](docs/what-this-does-not-do.md) instead of embedding the theory.
 
 They live under `src/` and not under `docs/` for one reason: **a documented command must run for
 someone who only ran `pip install reasonsmith`**, and no wheel carries `docs/`. So a command a
@@ -714,9 +720,9 @@ the *language* to suit this backend.
 The live home is `https://reasonsmith.dev` (landing) with the conformance dossier at
 `https://reasonsmith.dev/report.html`; the old `eduardstan.github.io/reasonsmith` Pages URL is
 superseded and nothing should reintroduce it. `reasonsmith` is published on PyPI — the
-README's Quick Start and *Dependencies & PyPI* paragraphs own that claim and the install
-commands, and this file names no version, because one written here goes stale at the
-next release. The forbidden string appears here deliberately:
+README's *Install and run* section owns that claim and the install commands,
+[RESULTS.md](RESULTS.md) owns the `torch` caveat, and this file names no version, because one
+written here goes stale at the next release. The forbidden string appears here deliberately:
 this paragraph is the statement of the rule, and a rule that cannot name what it forbids
 is not a rule — any repository-wide check for it must exclude this file.
 
@@ -797,17 +803,19 @@ temporal duty, in the shape `test_the_solvers_fold_is_the_interpreters_fold` giv
 ## The front door
 
 Before editing the CLI, read the maintenance contracts in `src/reasonsmith/cli.py`'s module
-docstring. README, "The CLI", owns user-facing usage, and `docs/authoring-packs.md` owns the
-pack-authoring rules.
+docstring. README, "Install and run", owns the install and the one worked `check` invocation;
+`docs/adopting.md` owns the rest of the user-facing usage — `explain`, the surfaces a system comes
+in through, and `published-counts`, which is a site-build command rather than an audit one — and
+`docs/authoring-packs.md` owns `validate-pack` and the pack-authoring rules.
 
-`ROADMAP.md` is the public backlog and the one document that may state what is *missing*: four
+`ROADMAP.md` is the public backlog and the one document that may state what is *missing*: six
 numbered objectives, each citing the committed document that names the gap, with a measurable
-outcome that fails today and its dependencies. Nothing goes on it that no document already states —
-find the gap in `docs/refinement.md`, `docs/semantics.md` or `docs/findings-nesyarena.md` first, or
-write it there first. Closing an objective means deleting the sentence it quotes from that source
-document in the same commit; the README's four-audience section ("Who could use this, and what is
-missing first") cites the same gaps and goes stale with it. `CONTRIBUTING.md` defers its roadmap
-table here rather than keeping a second list.
+outcome and its dependencies: open outcomes fail today, while closed objectives record why the same
+check now passes. Nothing goes on it that no document already states — find the gap in
+`docs/refinement.md`, `docs/semantics.md` or `docs/findings-nesyarena.md` first, or write it there
+first. Closing an objective means deleting the sentence it quotes from that source document in the
+same commit; `docs/what-this-does-not-do.md` and the README's *Limits* section cite the same gaps and
+go stale with it. `CONTRIBUTING.md` defers its roadmap table here rather than keeping a second list.
 
 ## Autoformalisation corpus
 

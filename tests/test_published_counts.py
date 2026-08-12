@@ -10,7 +10,7 @@ from reasonsmith.spec import list_packs
 
 
 def test_published_counts_artifact_matches_tree():
-    path = Path("docs/published-counts.json")
+    path = Path(__file__).resolve().parents[1] / "docs" / "published-counts.json"
     artifact = json.loads(path.read_text(encoding="utf-8"))
     expected = published_counts()
     assert artifact["generated_at"]
@@ -30,12 +30,77 @@ def test_published_counts_command_is_machine_readable(capsys):
     assert json.loads(capsys.readouterr().out)["pack_count"] == len(list_packs())
 
 
+@pytest.mark.parametrize(
+    "manifest_text",
+    [
+        json.dumps({"match": 0, "differ": 1, "verified_at": "today"}),
+        json.dumps({"verified_at": "today"}),
+        "not json at all",
+        json.dumps(["not", "an", "object"]),
+    ],
+    ids=["stale", "no-counts", "unreadable", "not-an-object"],
+)
+def test_published_counts_command_reports_an_unusable_manifest(
+    monkeypatch, tmp_path, capsys, manifest_text
+):
+    """A manifest that cannot ground the verification claim is a reported error and exit 1,
+    the way the sibling write failure is — never a traceback out of the CLI."""
+    from reasonsmith.cli import main
+
+    manifest = tmp_path / "legal-verification.json"
+    manifest.write_text(manifest_text, encoding="utf-8")
+    monkeypatch.setattr(counts, "_VERIFICATION", manifest)
+
+    assert main(["published-counts"]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.startswith("Error computing published counts:")
+
+
+def test_a_pre_digest_manifest_is_refused_as_a_schema_version_not_as_drift(monkeypatch, tmp_path):
+    """A 0.8.0 manifest carries no digest; saying the quotes drifted would deny the one thing
+    it exists to establish."""
+    manifest = tmp_path / "legal-verification.json"
+    monkeypatch.setattr(counts, "_VERIFICATION", manifest)
+    baseline_quotes = sum(
+        len(counts.load_pack(name).requirements) for name in counts.STATUTORY_PACKS
+    )
+    manifest.write_text(
+        json.dumps({
+            "schema_version": 1,
+            "match": baseline_quotes,
+            "differ": 0,
+            "verified_at": "today",
+        }),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as caught:
+        published_counts()
+
+    message = str(caught.value)
+    assert "schema version 1" in message
+    assert "--verification-manifest" in message
+    assert "does not match the statutory quote corpus" not in message
+
+
 def test_published_counts_verification_manifest_and_writer(monkeypatch, tmp_path):
     manifest = tmp_path / "legal-verification.json"
     monkeypatch.setattr(counts, "_VERIFICATION", manifest)
     baseline = published_counts()
+    valid_manifest = {
+        "schema_version": 2,
+        "match": baseline["quote_count"],
+        "differ": 0,
+        "verified_at": "today",
+        "quote_corpus_sha256": counts.quote_corpus_sha256(
+            (pack.id, requirement.id, requirement.verbatim_text)
+            for pack in [counts.load_pack(name) for name in counts.STATUTORY_PACKS]
+            for requirement in pack.requirements
+        ),
+    }
     manifest.write_text(
-        json.dumps({"match": baseline["quote_count"], "differ": 0, "verified_at": "today"}),
+        json.dumps(valid_manifest),
         encoding="utf-8",
     )
     verified = published_counts()
@@ -45,9 +110,17 @@ def test_published_counts_verification_manifest_and_writer(monkeypatch, tmp_path
     with pytest.raises(ValueError, match="does not cover"):
         published_counts()
     manifest.write_text(
-        json.dumps({"match": baseline["quote_count"], "differ": 0, "verified_at": "today"}),
+        json.dumps({**valid_manifest, "quote_corpus_sha256": "0" * 64}), encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="quote corpus"):
+        published_counts()
+    manifest.write_text(
+        json.dumps({k: v for k, v in valid_manifest.items() if k != "verified_at"}),
         encoding="utf-8",
     )
+    with pytest.raises(ValueError, match="no verification date"):
+        published_counts()
+    manifest.write_text(json.dumps(valid_manifest), encoding="utf-8")
     output = tmp_path / "published.json"
     counts.write_published_counts(output)
     assert json.loads(output.read_text(encoding="utf-8"))["schema_version"] == 1

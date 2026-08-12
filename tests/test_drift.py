@@ -25,6 +25,7 @@ from reasonsmith.drift import (
     classify,
     extract_passage,
     normalize_whitespace,
+    quote_corpus_sha256,
 )
 from reasonsmith.spec import load_pack
 
@@ -289,6 +290,14 @@ class TestReport:
         )
         monkeypatch.setattr(drift, "check_statute_drift", lambda fetcher: match_report)
         assert drift.main([]) == 0
+        manifest_path = tmp_path / "legal-verification.json"
+        assert drift.main(["--verification-manifest", str(manifest_path)]) == 0
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["schema_version"] == 2
+        assert manifest["quote_corpus_sha256"] == quote_corpus_sha256(
+            (result.pack_id, result.requirement_id, result.quote)
+            for result in match_report.results
+        )
 
         drift_report = DriftReport(
             (DriftResult("gdpr", "r1", "Article 22(1)", "http://x/", "differ", "q", "p"),),
@@ -298,6 +307,23 @@ class TestReport:
         out = tmp_path / "drift-report.json"
         assert drift.main(["--report", str(out)]) == 1
         assert json.loads(out.read_text(encoding="utf-8"))["has_drift"] is True
+
+    def test_successful_manifest_is_accepted_by_published_counts(self, monkeypatch, tmp_path):
+        import reasonsmith.published_counts as counts
+
+        manifest = tmp_path / "legal-verification.json"
+        monkeypatch.setattr(drift, "fetch_source", fixture_fetcher)
+        monkeypatch.setattr(counts, "_VERIFICATION", manifest)
+
+        assert drift.main(["--verification-manifest", str(manifest)]) == 0
+        published = counts.published_counts()
+
+        assert published["quotes_verification"] == {
+            "status": "verified",
+            "match": STATUTORY_REQUIREMENT_COUNT,
+            "differ": 0,
+        }
+        assert published["quotes_last_verified"] is not None
 
     def test_main_reports_invalid_utf8_as_could_not_verify(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
