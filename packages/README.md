@@ -20,6 +20,28 @@ bun run typecheck   # turbo, every package
 bun test            # turbo, every package
 ```
 
+## What it looks like
+
+![The TUI, recorded with terminal-control](../artifacts/tui/tui-check/preview.gif)
+
+One conformance record, walked end to end: the findings list, a certificate measurement that failed
+reported *beside* the duty's own verdict, all five audience projections — including the plain account
+the affected individual is shown — the limits route, and the command palette.
+
+[Full MP4](../artifacts/tui/tui-check/demo.mp4) ·
+[still frame](../artifacts/tui/tui-check/screen.png) ·
+[raw `.termctrl`](../artifacts/tui/tui-check/recording.termctrl) ·
+regenerate with `bun run record:tui`
+
+**[How the layout holds up across terminal widths →](https://claude.ai/code/artifact/afbf4331-a8d7-40f3-88ae-2fbba72cdacc)**
+— the same run at 112, 80 and 58 columns, what each width costs, and the six layout defects that
+running the program exposed and reading its source had not.
+
+The record behind that recording came from the Python's own `ConformanceReport.to_dict()` over the
+shipped ECOA pack, statutory text and all, and was replayed to the TUI through its `--python` hook —
+so the renderer's argument building, subprocess spawn and JSON parse all ran unchanged. No screen
+there is a mock-up, and no verdict on one was decided by the TypeScript.
+
 ## What this build does
 
 The TUI is one process. It spawns `python -m reasonsmith.cli check ... --json`, parses the record,
@@ -27,8 +49,11 @@ and renders it. There is no second copy of a pack, no second copy of an engine, 
 verdict: every box on the screen is something the Python said, over stdout, in a single call.
 
 The recording harness (`terminal-control`) captures a TUI session into a `.termctrl` file and renders
-it back to screenshots, GIFs, video, and a structured screen.json. The shipped `artifacts/tui/`
-directory holds the recording, not its rendered outputs — those are release assets.
+it back to screenshots, GIFs, video, and a structured `screen.json`. The shipped `artifacts/tui/`
+directory holds one whole bundle — the raw recording *and* its rendered outputs — because the
+alternative was tried and failed the obvious way: with only the recording committed, the bundle's own
+`pr.md` linked a preview and a video that were not in the tree. A manifest carries a SHA-256 for each
+file, so the bundle either verifies against its recording or does not.
 
 ## What this build does not have
 
