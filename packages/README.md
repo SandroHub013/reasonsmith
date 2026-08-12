@@ -33,9 +33,11 @@ the affected individual is shown — the limits route, and the command palette.
 [raw `.termctrl`](../artifacts/tui/tui-check/recording.termctrl) ·
 regenerate with `bun run record:tui`
 
-**[How the layout holds up across terminal widths →](https://claude.ai/code/artifact/afbf4331-a8d7-40f3-88ae-2fbba72cdacc)**
-— the same run at 112, 80 and 58 columns, what each width costs, and the six layout defects that
-running the program exposed and reading its source had not.
+**[The layout report](../docs/tui/layout-report.html)** — the same run at 112, 80 and 58 columns,
+what each width costs, and the six layout defects that running the program exposed and reading its
+source had not. As a [scrolling GIF](../docs/tui/layout-report.gif) or a
+[full-page still](../docs/tui/layout-report.png) for surfaces that render an image but not a
+document.
 
 The record behind that recording came from the Python's own `ConformanceReport.to_dict()` over the
 shipped ECOA pack, statutory text and all, and was replayed to the TUI through its `--python` hook —
