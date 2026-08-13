@@ -23,6 +23,7 @@ GitHub LaTeX; implementation identifiers remain code spans.
 | $\mathbb{L}(\beta)$ | `L(beta)` | deletion lattice | Lattice of deletions of the fact set for interpretation $\beta$. | 07 Explanation | `explanations.contrastive_sets` |
 | $D(L)$ | `D(L)` | input space | Declaration model and its input space. | 01 Models | `engines.proved.encode_logic_domain` |
 | $\mathrm{Dom}$ | `Dom` | set | Declared decision-domain set. | 01 Models | `report._inapplicability` |
+| $\setminus$ | `setminus` | binary operation | Set difference in explanation subsets. | 07 Explanation | `explanations.contrastive_sets` |
 | $S \subseteq F$ | `S subset F` | subset | A deletion subset and the AXp/sufficient set. | 07 Explanation | `artifacts.InferenceArtifact.without` |
 | $u_i \subseteq F$ | `u_i subset F` | subset | One reason's facts. | 07 Explanation | `explanations.contrastive_sets` |
 | $\mathcal{R} = \{u_1, \dots, u_n\}$ | `reasons` | family of subsets | Family of reasons. | 07 Explanation | `artifacts.InferenceArtifact.reasons` |
@@ -34,6 +35,13 @@ GitHub LaTeX; implementation identifiers remain code spans.
 | $\mathrm{Cap}$ | `Cap` | set | Capability names a system exposes. | 01 Models | `sut.SystemUnderTest.capabilities` |
 | $C.n$ | `C.n` | label | Global numbered label. | 08 Evidence | `report.ConformanceReport` |
 | $p$ | `p` | protected variable | Protected variable in a counterfactual property. | 04 Decision problems | `rulelang.counterfactually_invariant` |
+| $E$ | `E` | value | Audited engine answer for one interpretation. | 07 Explanation | `artifacts.InferenceArtifact.computes` |
+| $V$ | `V` | value | Exact inference value for one interpretation. | 07 Explanation | `artifacts.InferenceArtifact.exact_value` |
+| $a$ | `a` | fact | One switchable fact in $F$. | 07 Explanation | `artifacts.InferenceArtifact.without` |
+| $\Pr$ | `Pr` | probability | Probability under an independent fact interpretation. | 07 Explanation | `nesyarena` |
+| $\bigcup$ | `bigcup` | operation | Union of reasons or explanation families. | 07 Explanation | `explanations.contrastive_sets` |
+| $\mapsto$ | `mapsto` | assignment | Assignment of zero probability in a deletion. | 07 Explanation | `artifacts.InferenceArtifact.without` |
+| $\rightsquigarrow$ | `refinement` | relation | Refinement from a clause record to a requirement tuple. | 06 Formalisation | `spec.Requirement` |
 | $w$ | `w` | phrase metavariable | Literal phrase used by `contains`. | 02 Syntax | `rulelang.contains_literal` |
 | $q$ | `q` | query | Query supplied to an inference artefact. | 04 Decision problems | `artifacts.InferenceArtifact.exact_value` |
 | $g$ | `g` | grading-key metavariable | Key naming an open-textured grading predicate. | 03 Semantics | `manyvalued.Grading` |
