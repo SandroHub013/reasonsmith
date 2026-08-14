@@ -51,11 +51,12 @@ from reasonsmith.spec import Requirement, list_packs, load_pack
 from reasonsmith.sut import BaseSUT
 from reasonsmith.verdict import BASIS_RUNGS, EvidenceBasis, Strength, Verdict, combine_verdicts
 
-#: The three shipped duties that are not on the behavioural basis, and the basis each is on. There
+#: The four shipped duties that are not on the behavioural basis, and the basis each is on. There
 #: is no graded one — `test_no_shipped_pack_uses_either_open_texture_construct` keeps it that way —
 #: so the `assessment` row is exercised by a fixture below and by no pack.
 NON_BEHAVIOURAL = {
     "ecoa_reg_b_1002_9_b_2_principal_reasons_complete": EvidenceBasis.ARTIFACT,
+    "eu_ai_act_art86_1_main_elements_of_the_decision": EvidenceBasis.ARTIFACT,
     "gdpr_recital71_error_risk_minimised": EvidenceBasis.ARTIFACT,
     "ecoa_reg_b_1002_4_a_no_disparate_treatment": EvidenceBasis.RELATIONAL,
 }
@@ -404,8 +405,13 @@ def test_the_basis_changed_no_verdict_and_no_strength():
     assert got == expected
 
 
-def test_exactly_three_shipped_duties_are_not_on_the_behavioural_basis():
-    """The census, pinned. A fourth one arriving is a decision, not a side effect of a pack edit.
+def test_exactly_four_shipped_duties_are_not_on_the_behavioural_basis():
+    """The census, pinned. A fifth one arriving is a decision, not a side effect of a pack edit.
+
+    The fourth is `eu_ai_act_art86_1_main_elements_of_the_decision`, and it arrived as such a
+    decision: the duty reads `artifact_logs_deleted_reason_count`, a measured signal, so it is on
+    the `artifact` basis for the same reason its ECOA sibling is — the claim is about an abductive
+    explanation over a model encoding and not about a trace.
 
     The shape of `test_exactly_one_shipped_signal_is_outside_the_paper_s_taxonomy`: a count that
     fails when the packs move, so the count in `docs/semantics.md` §10 cannot go stale silently.

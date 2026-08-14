@@ -2192,7 +2192,7 @@ def _engine_ladder(
     and no strength, and it runs only when the proof rung reached one, so nothing here pays for it
     twice.
 
-    Two duties are deliberately given a ladder of **one** rung: a duty gating on any of
+    Three duties are deliberately given a ladder of **one** rung: a duty gating on any of
     `engines.certificate.MEASURED_SIGNALS` asks something about the inference behind a decision —
     whether the reasons it stated are all the reasons it had, or whether its answer is the
     semantics it claims — and that is measured against the inference artefact or not at all. Every

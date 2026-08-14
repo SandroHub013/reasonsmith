@@ -1,7 +1,7 @@
 [pack]
 id = "eu_ai_act"
-title = "EU AI Act (Regulation (EU) 2024/1689): Articles 12 & 13"
-description = "Requirements for high-risk AI system record-keeping (Art. 12) and transparency to deployers (Art. 13). Article 12(1) and Article 12(2) carry the same property, so no system can satisfy one and violate the other, and a reader must not take two agreeing verdicts here for two independent checks. They are not differentiated because nothing in the Section 6.3 signal vocabulary stands for the relevance of a logged event to identifying a risk situation or a substantial modification, to post-market monitoring, or to Article 26(5) operation monitoring; a signal invented for it would be this pack's own reading of the Article presented as the Article's. The overlap is recorded in docs/refinement.md instead."
+title = "EU AI Act (Regulation (EU) 2024/1689): Articles 12, 13 & 86"
+description = "Requirements for high-risk AI system record-keeping (Art. 12), transparency to deployers (Art. 13) and the affected person's right to an explanation of an individual decision (Art. 86). Articles 12 and 13 bind the provider, whereas Article 86(1) binds the deployer — and the evidence the property needs comes from the provider's system, not from the deployer, so a run against a system establishes nothing about which party deployed it. Article 12(1) and Article 12(2) carry the same property, so no system can satisfy one and violate the other, and a reader must not take two agreeing verdicts here for two independent checks. They are not differentiated because nothing in the Section 6.3 signal vocabulary stands for the relevance of a logged event to identifying a risk situation or a substantial modification, to post-market monitoring, or to Article 26(5) operation monitoring; a signal invented for it would be this pack's own reading of the Article presented as the Article's. The overlap is recorded in docs/refinement.md instead. Article 86(1) is the one duty here that no log can settle, and the only one that reaches above the record fragment: it refines the clause's main elements of the decision taken against the decision's own inference, so its gate artifact_logs_deleted_reason_count is measured rather than read — reasonsmith enumerates the decision's reasons from an inference artefact the system exposes and switches each one off in turn — and a system exposing no such artefact is reported unattainable on it rather than judged by whether its explanation field is non-blank. What that duty does not reach is stated rather than implied: the right is triggered by a request from an affected person, the clause reaches Annex III systems other than those under point 2, and it bites only on a decision the person considers adversely to affect their health, safety or fundamental rights — none of the three is a fact about a decision record, so no run here establishes that the duty applied at all. Its property is also byte-identical to that of ecoa_reg_b_1002_9_b_2_principal_reasons_complete, on the deliberate reading that the clause's main elements and 12 CFR 1002.9(b)(2)'s principal reasons are the same demand on the same evidence: a system audited against both packs cannot satisfy one and violate the other, so a reader must not take two agreeing verdicts for two independent checks. The two duties keep different gates — this one is limited to the high-risk class and to no decision domain — so neither reaches a system through the other. The clause's other explanation, of the role of the AI system in the decision-making procedure, is not modelled at all. Article 86(2) and Article 86(3) are the clause's own carve-outs and the property carries neither; docs/refinement.md records all of it."
 
 [source]
 document = "Regulation (EU) 2024/1689 of the European Parliament and of the Council"
@@ -90,3 +90,37 @@ scope = "high-risk"
 domains = []
 deontic_type = "obligation"
 defeasibility = "strict"
+
+[[requirement]]
+id = "eu_ai_act_art86_1_main_elements_of_the_decision"
+source_document = "EU AI Act (Regulation (EU) 2024/1689)"
+article_clause = "Article 86(1)"
+verbatim_text = "Any affected person subject to a decision which is taken by the deployer on the basis of the output from a high-risk AI system listed in Annex III, with the exception of systems listed under point 2 thereof, and which produces legal effects or similarly significantly affects that person in a way that they consider to have an adverse impact on their health, safety or fundamental rights shall have the right to obtain from the deployer clear and meaningful explanations of the role of the AI system in the decision-making procedure and the main elements of the decision taken."
+stakeholder = "affected individual"
+formalism = "logical"
+spec = """\
+present(artifact_logs_reason_explanation) -> \
+(artifact_logs_deleted_reason_count <= 0)"""
+rationale = """Where a decision carries an explanation — the explanation the clause gives the \
+affected person the right to obtain, and the only part of the right a decision record can carry \
+at all — no element the decision's own inference used is missing from it. The count is measured, \
+never read from the log: reasonsmith enumerates the decision's reasons exactly from the inference \
+artefact the system exposes and switches each one off in turn, and counts the reasons the \
+system's own answer turns out not to depend on. The threshold is zero and is not this pack's \
+invention: the clause requires the main elements of the decision taken, so an element that moved \
+exact inference and not the system is a main element the explanation does not state. This is the \
+reading that main elements refines against the inference's own reasons, and it is a cited \
+assumption rather than a settled question of law — docs/refinement.md column four is where it is \
+recorded and where a different reading gets corrected. Nothing here decides whether the \
+explanation given is clear and meaningful, which is the clause's other adjective pair and is not \
+modelled; nothing here establishes that the right was exercised, that the system is an Annex III \
+system other than one under point 2, or that the decision adversely affected the person."""
+requires = [
+    "artifact_logs_reason_explanation",
+    "artifact_logs_deleted_reason_count",
+]
+binding = true
+scope = "high-risk"
+domains = []
+deontic_type = "obligation"
+defeasibility = "defeasible-unmodelled"

@@ -67,14 +67,14 @@ and it is the reason the gate exists.
 
 ## The headline
 
-75 results — 5 systems × 15 requirements across the three packs:
+80 results — 5 systems × 16 requirements across the three packs:
 
 | outcome | count |
 | --- | ---: |
 | satisfied, at strength `observed` | 9 |
 | violated, at strength `observed` | 1 |
 | inconclusive, `unattainable` | 15 |
-| not applicable (no class declared) | 20 |
+| not applicable (no class declared) | 25 |
 | not applicable (no decision domain declared) | 30 |
 | satisfied at `probed` | 0 |
 | satisfied at `proved` | 0 |
@@ -243,9 +243,10 @@ What has **not** changed, and what an adopter must still read the same way:
 Zero results at `probed`, zero at `proved`. There is no probe budget to report in this run because
 no probed verdict was produced.
 
-Across all three packs there are three `logical` requirements
-(`gdpr_art22_1_no_prohibited_decision_for_any_input`, `ecoa_reg_b_1002_9_b_2_specific_reasons` and
-`ecoa_reg_b_1002_9_b_2_principal_reasons_complete`) and four `temporal` requirements
+Across all three packs there are four `logical` requirements
+(`gdpr_art22_1_no_prohibited_decision_for_any_input`, `ecoa_reg_b_1002_9_b_2_specific_reasons`,
+`ecoa_reg_b_1002_9_b_2_principal_reasons_complete` and
+`eu_ai_act_art86_1_main_elements_of_the_decision`) and four `temporal` requirements
 (`ecoa_reg_b_1002_9_a_1_timing_of_notice`, `ecoa_reg_b_1002_9_a_2_written_statement`,
 `ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out` and
 `gdpr_recital71_error_risk_minimised`), beside the one `counterfactual` requirement
@@ -266,7 +267,7 @@ needs `provenance_active_exceptions`, and definite Horn programs have no defeate
 record as active. The temporal duty needs `artifact_logs_semantics_value_gap`, which is not a field
 any record carries: it is measured from the inference artefact behind a decision, and no provenance
 here exposes one. The ECOA *timing* duty is not `unattainable` in this run at all — it is one of
-the twenty-five not-applicable results, because the domain gate of finding 3 reports it without running
+the thirty not-applicable results, because the domain gate of finding 3 reports it without running
 it. It needs a notification latency and a counteroffer signal the system has no concept of, so a
 run that declared `consumer-credit` would report it `unattainable`, but this run is not that run.
 
@@ -380,11 +381,12 @@ any way to tell, from the report alone, whether the classification behind them w
 
 ### 4. The AI Act pack said nothing at all
 
-20 of the 65 results — every AI Act requirement for every system — are `not_applicable` because
+25 of the 80 results — every AI Act requirement for every system — are `not_applicable` because
 no regulatory class was declared. That is the designed behaviour and the report says so in full,
 but the honest summary is that running the AI Act pack against this system produced no
-information. The gate is binary: declare `high-risk` and all four duties are checked, declare
-nothing and none are. There is no middle position for "this is a component that could end up
+information. The gate is binary: declare `high-risk` and all five duties are reached — four
+checked against the log, and Article 86(1) reported `unattainable`, since it is settled against an
+inference artefact none of these provenances exposes — declare nothing and none are. There is no middle position for "this is a component that could end up
 inside a high-risk system", which is what a provenance library actually is.
 
 ### 5. One declared signal is only honest because nesyarena is a measurement harness
