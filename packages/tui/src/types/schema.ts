@@ -28,7 +28,16 @@
  */
 
 import { checkAudienceBlock, type AudienceBlock } from "./audiences.ts"
-import { isBasis, isStrength, isVerdict, type EvidenceBasis, type StrengthOrNull, type Verdict } from "./verdict.ts"
+import {
+  isBasis,
+  isOperationalOutcome,
+  isStrength,
+  isVerdict,
+  type EvidenceBasis,
+  type OperationalOutcome,
+  type StrengthOrNull,
+  type Verdict,
+} from "./verdict.ts"
 
 /**
  * `JSON_SCHEMA_VERSION` from `src/reasonsmith/report.py`. Bump on the Python side, then here.
@@ -140,6 +149,8 @@ export interface RequirementResult {
    */
   readonly verbatim_text: string
   readonly verdict: Verdict
+  /** Operational reader-facing outcome; additive to the compatibility verdict/rung pair. */
+  readonly outcome: OperationalOutcome
   readonly strength: StrengthOrNull
   readonly signals_required: readonly string[]
   readonly signals_missing: readonly string[]
@@ -276,6 +287,7 @@ function parseResult(value: unknown, path: string): RequirementResult {
     "source_clause",
     "verbatim_text",
     "verdict",
+    "outcome",
     "strength",
     "signals_required",
     "signals_missing",
@@ -292,10 +304,14 @@ function parseResult(value: unknown, path: string): RequirementResult {
     }
   }
   const verdictRaw = obj["verdict"]
+  const outcomeRaw = obj["outcome"]
   const strengthRaw = obj["strength"]
   const basisRaw = obj["basis"]
   if (typeof verdictRaw !== "string" || !isVerdict(verdictRaw)) {
     throw new Error(`${path}.verdict is not a recognised verdict: ${JSON.stringify(verdictRaw)}`)
+  }
+  if (typeof outcomeRaw !== "string" || !isOperationalOutcome(outcomeRaw)) {
+    throw new Error(`${path}.outcome is not a recognised operational outcome: ${JSON.stringify(outcomeRaw)}`)
   }
   if (strengthRaw !== null && (typeof strengthRaw !== "string" || !isStrength(strengthRaw))) {
     throw new Error(
@@ -308,6 +324,7 @@ function parseResult(value: unknown, path: string): RequirementResult {
   // Narrowed to the vocabularies by the checks above; the type cast is required because TypeScript
   // cannot narrow `unknown` to `Strength | null` through an `if (!isStrength()) throw` alone.
   const verdict = verdictRaw as Verdict
+  const outcome = outcomeRaw as OperationalOutcome
   const strength = strengthRaw as StrengthOrNull
   const basis = basisRaw as EvidenceBasis
   if (
@@ -322,6 +339,7 @@ function parseResult(value: unknown, path: string): RequirementResult {
     source_clause: String(obj["source_clause"]),
     verbatim_text: String(obj["verbatim_text"]),
     verdict,
+    outcome,
     strength,
     signals_required: asStringArray(obj["signals_required"], `${path}.signals_required`),
     signals_missing: asStringArray(obj["signals_missing"], `${path}.signals_missing`),
