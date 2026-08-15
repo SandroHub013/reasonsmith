@@ -11,13 +11,13 @@ ROOT = Path(__file__).resolve().parent.parent
 STUDY = ROOT / "docs" / "autoformalization-study.md"
 
 
-def test_the_study_publishes_the_complete_current_corpus_and_rates():
+def test_the_study_publishes_the_historical_37_duty_cohort_and_rates():
     document = STUDY.read_text(encoding="utf-8")
     requirements = {
         req.id: req for name in list_packs() for req in load_pack(name).requirements
     }
-    assert len(requirements) == len(challenge_requirements()) == 37
-    assert "37 challenge sets" in document
+    assert len(requirements) == len(challenge_requirements()) == 38
+    assert "measured before Article 86: 37 challenge sets" in document
     for phrase in ("28 record-presence", "4 logical", "temporal, and", "1 counterfactual"):
         assert phrase in document
     assert "31/37 (83.78%) exact-match" in document

@@ -8,6 +8,10 @@ releases before it predate the file and are not reconstructed here.
 
 ## [Unreleased]
 
+### Added
+
+- Add the EU AI Act Article 86(1) duty `eu_ai_act_art86_1_main_elements_of_the_decision` to the `eu_ai_act` pack. ([#202](https://github.com/eduardstan/reasonsmith/pull/202))
+
 ## [0.10.2] - 2026-08-15
 
 ### Fixed

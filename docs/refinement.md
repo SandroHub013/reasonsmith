@@ -3,7 +3,7 @@
 Every requirement in this repository was written by someone reading a clause of law and deciding
 what formula stands for it. That step — refinement — is where the legal meaning is either preserved
 or quietly lost, and it is the step no pack file records. `docs/authoring-packs.md` documents the
-*fields* of a requirement. This document is the record of the *judgement*: for each of the 37 shipped
+*fields* of a requirement. This document is the record of the *judgement*: for each of the 38 shipped
 requirements, the clause, the duty it states, the property it became, and — the column that matters —
 what the refinement deliberately did not capture.
 
@@ -31,7 +31,7 @@ flowchart LR
 
 ## Autoformalisation challenge sets and sign-off
 
-Thirty-seven duties have executable, lawyer-readable gold challenge sets under
+Thirty-eight duties have executable, lawyer-readable gold challenge sets under
 [`autoformalization.md`](autoformalization.md) and `src/reasonsmith/challenges/`. They cover all shipped record and logical duties plus four temporal traces and one counterfactual
 pair corpus. Open-textured and certificate duties remain outside this model-free benchmark rather
 than being silently approximated here. The
@@ -49,7 +49,7 @@ duty is different for every requirement, and column four is where it is written 
 
 Four kinds of gap recur, and naming them once keeps the table short:
 
-- **Presence is not adequacy.** Twenty-eight of the thirty-seven shipped duties are `record` duties:
+- **Presence is not adequacy.** Twenty-eight of the thirty-eight shipped duties are `record` duties:
   conjunctions of `present(signal)` atoms. The remaining logical, temporal, counterfactual,
   certificate, and other fragments do not turn a presence claim into an adequacy finding. A reason field containing `"n/a"` is present
   ([`docs/theory/03-semantics.md`](theory/03-semantics.md) §3.5, *record*). Every clause whose content is an adjective — *meaningful*,
@@ -67,16 +67,17 @@ Four kinds of gap recur, and naming them once keeps the table short:
   named in its own row. A reader who takes "the documentation exists" for "the documentation is
   adequate" has read a verdict this pack does not offer.
 
-  **Two duties are no longer among them, and each escapes for its own reason.**
+  **Three duties are no longer among them.**
   12 CFR 1002.9(b)(2) names two statements that are *insufficient*, so
   `ecoa_reg_b_1002_9_b_2_specific_reasons` can check that neither was made without anyone here
   defining *specific* (`contains()`, [`docs/theory/03-semantics.md`](theory/03-semantics.md) Definition 3.5). That is not a general escape from
   this gap: it is available exactly where a clause supplies its own negative constraint, and it
   establishes only that a named insufficiency was avoided — never that what was said instead was
-  adequate. The same clause's `ecoa_reg_b_1002_9_b_2_principal_reasons_complete` escapes by
-  measurement rather than by wording: it compares the reasons a notice states against the reasons
-  the decision's own inference used, counted by the reason-deletion certificate over an artefact
-  the system exposes ([`docs/theory/07-explanation.md`](theory/07-explanation.md) §7.5, *certificate*). That escape is available only to a
+  adequate. The other two — `ecoa_reg_b_1002_9_b_2_principal_reasons_complete` and
+  `eu_ai_act_art86_1_main_elements_of_the_decision` — escape by measurement rather than by wording:
+  they compare the reasons a notice or explanation states against the reasons the decision's own
+  inference used, counted by the reason-deletion certificate over an artefact the system exposes
+  ([`docs/theory/07-explanation.md`](theory/07-explanation.md) §7.5, *certificate*). That escape is available only to a
   system that can be opened up, and every system that cannot is reported `unattainable` on it —
   never returned to the presence check, which would answer a different question under the same
   duty's name.
@@ -106,7 +107,7 @@ Four kinds of gap recur, and naming them once keeps the table short:
 - **The property's reach is not the clause's scope.** Most clauses below are triggered — by adverse
   action, by a decision under Article 22(2)(a) or (c), by the system being high-risk. A property
   evaluated over every record in a trace is checked outside that trigger too. Two axes of a
-  clause's scope are modelled — the regulatory class (`scope`, used by twenty-two of the thirty-seven
+  clause's scope are modelled — the regulatory class (`scope`, used by twenty-three of the thirty-eight
   duties) and the decision domain (`domains`, used by eight) — and both are gates about the *system*. A
   trigger *inside* a decision is not a gate at all: the two 12 CFR 1002.9(b)(2) duties carry their
   own in the property, at the price of being reported *not evaluated* where it never fires.
@@ -114,7 +115,7 @@ Four kinds of gap recur, and naming them once keeps the table short:
 ## Three axes of reach are modelled, and the decision trigger is still not one
 
 A duty reaches a system when it passes the applicable gates. `scope` is a *regulatory class* from the EU AI
-Act's own five-member vocabulary; twenty-two duties use it — six `high-risk` (the four in
+Act's own five-member vocabulary; twenty-three duties use it — seven `high-risk` (the five in
 `packs/eu_ai_act.toml` and the two Article 12 and 13 rows of Table 7), the eight
 `general-purpose` duties of `packs/gpai.toml`, and the eight Seoul duties. `domains` is
 the *kind of decision* the duty is about — eight duties use it — and it is matched by intersection
@@ -132,7 +133,7 @@ on a *different* requirement, arriving for the wrong reason. Those four ECOA dut
 not applicable against all five of that run's systems.
 
 **What the gate still does not do, and every row in the ECOA and GDPR tables below inherits it.**
-It is stated once, here, rather than thirty-seven times:
+It is stated once, here, rather than thirty-eight times:
 
 - **The vocabulary is this repository's, not any regulation's.** `DECISION_DOMAINS` is a coarse,
   openly-authored list, and it is wrong somewhere: no statute defines a list of decision domains,
@@ -171,7 +172,7 @@ The fourth column reads, over and over, as one sentence: *the general rule is fo
 exception is not*. Said often enough that looked like a single missing construct — a pack language
 built on prioritized defaults, the premise Catala is built on (Merigoux, Chataing & Protzenko, ICFP
 2021) and the shape defeasible deontic logic gives rules (Governatori's PCL / Regorous). Before
-rebuilding anything on that premise it is worth knowing how many of these thirty-seven entries the
+rebuilding anything on that premise it is worth knowing how many of these thirty-eight entries the
 premise is actually true of. This section is that count, and it is a count rather than an
 impression because every shipped requirement now carries the classification in its own
 `[[requirement]]` block: `deontic_type` and `defeasibility`, required fields with no default,
@@ -202,22 +203,34 @@ still named in its row above. A defeater counts only where the clause states it 
 requirement's own `verbatim_text` or in a source `docs/legal-sources.md` retrieved — the discipline
 every other claim about the law here is held to.
 
-**The count, over all thirty-seven shipped requirements:**
+**The count, over all thirty-eight shipped requirements:**
 
 | `defeasibility` | Requirements | What it says |
 |---|---|---|
-| `defeasible-unmodelled` | **6** | The law states an exception; the property does not carry it. |
+| `defeasible-unmodelled` | **7** | The law states an exception; the property does not carry it. |
 | `defeasible-modelled` | 2 | The law states an exception; the property carries it. |
 | `trigger-unmodelled` | 13 | No defeater. The clause's condition of application is not modelled. |
 | `strict` | 16 | No defeater, and the property's reach is the clause's. |
 
-The six are `ecoa_reg_b_1002_9_a_1_timing_of_notice` (paragraph (c)'s incomplete-application
+The seven are `ecoa_reg_b_1002_9_a_1_timing_of_notice` (paragraph (c)'s incomplete-application
 notice defeats the 30-day bound), `gdpr_art22_1_automated_decision_prohibition` (Article 22(2)'s
 three bases disapply paragraph 1), `eu_ai_act_art53_1_b_downstream_documentation` (the clause's
-own *without prejudice to* proviso on intellectual property and trade secrets), and the Seoul
+own *without prejudice to* proviso on intellectual property and trade secrets), the Seoul
 `seoul_frontier_ii_thresholds_and_breach_assessment`, `seoul_frontier_iv_no_deployment_above_threshold`,
 and `seoul_frontier_vii_public_transparency` rows, whose stated exceptions remain outside their
-properties. The two
+properties, and `eu_ai_act_art86_1_main_elements_of_the_decision`, whose clause carries **one defeater**
+(Article 86(2), which disapplies paragraph 1 where Union or national law provides an exception or
+restriction) and **one condition of application** (Article 86(3), which applies the Article only to
+the extent the right is not otherwise provided for under Union law). Both are retrieved in
+`docs/legal-sources.md` rather than recalled, and neither is modelled; the `defeasible-unmodelled`
+classification rests on 86(2) alone. Article 86(3) is the one worth noticing here: it makes the duty's
+application conditional on **another instrument**, and no shipped property is conditional on one —
+but no shipped row carries a binding, retrieved Union explanation right for Article 86(3) to defer to:
+GDPR Articles 13(2)(f) and 15(1)(h) (*meaningful information about the logic involved*) are in no
+shipped pack and unretrieved in `docs/legal-sources.md`, Recital 71's `gdpr_recital71_meaningful_explanation`
+is interpretive (`binding = false`) and creates no independent right of its own, and the `table7` pack's
+`gdpr_art22_meaningful_information` is a transcription of a review paper table rather than a retrieved
+clause. The two
 that are modelled are `gdpr_art22_1_no_prohibited_decision_for_any_input` and
 `ecoa_reg_b_1002_9_c_2_incompleteness_notice_runs_out`, and both are worth reading before deciding
 anything: **each carries its clause's exception as a disjunction, in the language as it stands.**
@@ -228,12 +241,12 @@ priority relation required. The `until` the second needed is a temporal shape ra
 priority between rules — the obligation has an end as well as a beginning — so it is no evidence
 for prioritized defaults either.
 
-**So the answer is six of thirty-seven, and the honest reading of it is that the rewrite is not
+**So the answer is seven of thirty-eight, and the honest reading of it is that the rewrite is not
 justified by this evidence.** Thirteen of the entries are triggers, and a trigger needs a signal, not
 a construct. Sixteen more are strict, and their fourth columns are the other three gaps this
 document already names — presence is not adequacy, the trace is a sample, organisational facts are
 outside every engine. Both defeaters that were modelled were modelled without new machinery. What
-prioritized defaults would buy, on today's packs, is a cleaner statement of at most six duties,
+prioritized defaults would buy, on today's packs, is a cleaner statement of at most seven duties,
 one of which — the *without prejudice* proviso — is not obviously a priority between rules at all.
 
 **Three limits of this count, stated rather than left to be discovered.**
@@ -261,7 +274,7 @@ came out:
 
 | `deontic_type` | Requirements |
 |---|---|
-| `obligation` | 31 |
+| `obligation` | 32 |
 | `prohibition` | 5 |
 | `reparation` | 1 |
 | `permission` | **0** |
@@ -373,8 +386,8 @@ narrowing a regulation that does not narrow itself.
 
 ## EU AI Act (Regulation (EU) 2024/1689) — `src/reasonsmith/packs/eu_ai_act.toml`
 
-All four duties carry `scope = "high-risk"`. A system that declares no class is reported
-`not_applicable` on all four, and reasonsmith never infers the class ([`docs/semantics.md`](semantics.md) §1).
+All five duties carry `scope = "high-risk"`. A system that declares no class is reported
+`not_applicable` on all five, and reasonsmith never infers the class ([`docs/semantics.md`](semantics.md) §1).
 
 | The clause | The informal duty | The formal property | What was deliberately not captured |
 |---|---|---|---|

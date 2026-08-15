@@ -22,14 +22,14 @@ This is the evidence artifact for `reasonsmith`'s own claims: an environment was
 | | Signal Stability | **0.3333** across 4 windows | Delinquency signal drift swaps stated reason from C01 to C03 |
 | **Historical autoformalisation smoke (2026-08-10)** | End-to-end proposer pipeline run (not a capability estimate) | **0/24** | Ollama `qwen3:0.6b`, one-attempt budget, complete 24-set corpus at that date; all responses were refused |
 | **Historical autoformalisation agreement (2026-08-11)** | Claude proposals machine-equivalent to shipped properties | **27/29 (93.10%)** | Pre-Seoul 29-duty sample; Claude Code CLI, two-attempt budget; 27 agreed, 2 wrong, 0 refused, 0 unavailable |
-| **Current autoformalisation agreement (completed 2026-08-15)** | Claude proposals semantically equivalent to shipped properties | **36/37 (97.30%)** | Complete current corpus; 31 exact, 36 semantic-equivalent, 1 refused, 0 unavailable after quota-reset completion; full study in [`docs/autoformalization-study.md`](docs/autoformalization-study.md) |
+| **37-duty autoformalisation agreement (completed 2026-08-15)** | Claude proposals semantically equivalent to shipped properties | **36/37 (97.30%)** | 37-duty corpus measured before Article 86; 31 exact, 36 semantic-equivalent, 1 refused, 0 unavailable after quota-reset completion; full study in [`docs/autoformalization-study.md`](docs/autoformalization-study.md) |
 
 ### Autoformalisation proposer smoke measurement (2026-08-10)
 
 This is a **historical smoke measurement, not an agreement-rate claim about autoformalisation**.
 It was run before the challenge schema v2 expansion. PR 150 expanded the installed gold manifest to
 **24 challenge sets** covering all 21 record and all 3 logical requirements; the current tree carries
-29 sets, adding four temporal traces and one counterfactual pair corpus. The earlier three-duty run
+38 sets, adding four temporal traces, one counterfactual pair corpus, the Article 86(1) duty and eight Seoul duties. The earlier three-duty run
 was only a demonstration. The exact command was:
 
 ```sh
@@ -44,7 +44,7 @@ path execute end to end over the complete corpus.  It does **not** establish tha
 agrees at 0/24, and no capable model was measured here.
 
 A meaningful measurement needs a capable, explicitly approved model/provider, the same complete
-29-duty sample, a predeclared attempt budget, and its provider/model name and cost recorded beside
+37-duty sample, a predeclared attempt budget, and its provider/model name and cost recorded beside
 the result.  The proposer is configurable without source edits through `--model` and
 `REASONSMITH_PROPOSER_URL` (or a caller-supplied model callable); this smoke run deliberately used
 no captain credentials.  Any future capable-model result must be reported separately rather than
@@ -109,9 +109,9 @@ The two failures were both temporal duties: `ecoa_reg_b_1002_9_a_1_timing_of_not
 not a prompt-iteration comparison; the result is published as measured, regardless of whether the
 rate is high or low.
 
-### Current 37-duty agreement study (completed 2026-08-15)
+### 37-duty agreement study (completed 2026-08-15)
 
-The complete study is published in [`docs/autoformalization-study.md`](docs/autoformalization-study.md). It uses the complete schema-v2 corpus (37 duties: 28 record-presence, 4 logical, 4 temporal, 1 counterfactual), Claude Code CLI `2.1.231`, and the predeclared two-attempt command `uv run python -m reasonsmith.proposer --claude --attempts 2`. The first run returned 11 machine-cleared proposals, one parser refusal, and 25 quota-induced unavailable rows; after the stated 14:40Z reset, a dated second run selected only those 25 rows and machine-cleared all of them. Round-trip machinery established **31/37 (83.78%) exact-match** and **36/37 (97.30%) semantic-equivalence** agreement. The completed run has one parser refusal and zero unavailable rows; the quota outage and first-run conditional figure remain disclosed in the study.
+The complete study is published in [`docs/autoformalization-study.md`](docs/autoformalization-study.md). It uses the complete schema-v2 corpus measured before Article 86 (37 duties: 28 record-presence, 4 logical, 4 temporal, 1 counterfactual), Claude Code CLI `2.1.231`, and the predeclared two-attempt command `uv run python -m reasonsmith.proposer --claude --attempts 2`. The first run returned 11 machine-cleared proposals, one parser refusal, and 25 quota-induced unavailable rows; after the stated 14:40Z reset, a dated second run selected only those 25 rows and machine-cleared all of them. Round-trip machinery established **31/37 (83.78%) exact-match** and **36/37 (97.30%) semantic-equivalence** agreement. The completed run has one parser refusal and zero unavailable rows; the quota outage and first-run conditional figure remain disclosed in the study.
 
 **What the `35 passed` figure does and does not count.** Every number in this file is a measurement taken at `reasonsmith` commit `9411ca60a70c0d4f72f12a038e01d9d65c70c03f`, and none of them is re-measured by later work except where a later dated note says so and names its own commit — that is what makes them reconstructible, and it is also what makes this one stale. Section 2's `35 passed` counts the suite as it stood then, and the v0.2 work added since (`verdict.py`, `spec.py`, `sut.py`, `report.py`, `rulelang.py`, `adapters/`, `engines/`, `cli.py`, the `packs/` requirement packs, and `tests/test_v02_core.py`, `tests/test_v02_stage2.py` plus `tests/test_v02_stage3.py`) adds tests to that number. Read `35` as the v0.1 suite's count at that commit, never as the current suite's: for the current count, run `pytest` yourself. Those v0.2 files are new alongside v0.1 rather than changes to it, and `evidence.py`, `certificate.py` and `conformance.py` are untouched. `demo.py` is the one exception: it now carries four additional Table 7 demos contributed by Alessandro Boni (rows 1, 2, 5 and 6), which append sections 6–9 to the transcript and leave sections 1–5 byte-identical. So section 3's per-case figures still describe the code as it is today; its transcript length and hash do not, and the re-measured ones are in the Contributor Demos Note. Section 1 (nesyarena's suite) was measured under `nesyarena` commit `fdf0d5eb54c7af181e15b94d3b68d5d6bb7712ec` and was **not** re-measured under the PyPI release now pinned; it is expected to hold because that release's `tests/` and `experiments/` are byte-identical to the measured commit's — see the PyPI Release Note for what was checked and what was not.
 
@@ -608,4 +608,4 @@ that module's tests skip, which is the arrangement `pip install reasonsmith` has
 
 ## Current Seoul corpus note
 
-The shipped tree now contains 37 requirements, including eight Seoul challenge sets; the 29-row measurement above is retained as a historical pre-Seoul run.
+The shipped tree now contains 38 requirements, including eight Seoul challenge sets; the 29-row measurement above is retained as a historical pre-Seoul run.

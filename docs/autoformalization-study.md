@@ -13,9 +13,9 @@ shipped `spec`, and ran every gold case. It made at most two model calls per dut
 candidate was followed by the harness's evidence-based repair prompt. The harness never rewrote a
 formula, called a conformance engine, or produced a verdict.
 
-The sample is the complete current corpus: 37 challenge sets (28 record-presence, 4 logical, 4
+The sample was the complete corpus measured before Article 86: 37 challenge sets (28 record-presence, 4 logical, 4
 temporal, and 1 counterfactual). Both the interrupted first-run rate and the completed rate are
-counted over all 37 supported duties. The first run included its provider-unavailable rows rather
+counted over all 37 duties in that measured cohort. The first run included its provider-unavailable rows rather
 than silently removing them from the denominator; the second run completed exactly those rows.
 `semantic-equivalent` includes exact matches; it is the round-trip relation established by the
 existing checker, not a human judgement.
@@ -94,7 +94,7 @@ quietly presented as model refusals or excluded observations. The second run cha
 25 agreed outcomes, with 22 exact matches and 3 additional semantic-equivalent matches.
 
 The completed study therefore has 36 machine-cleared proposals, one parser refusal, and no unavailable
-rows. Across all 37 duties, the final rates are **31/37 (83.78%) exact-match** and **36/37 (97.30%)
+rows. Across all 37 duties in the measured cohort, the final rates are **31/37 (83.78%) exact-match** and **36/37 (97.30%)
 semantic-equivalence**. Of the 36 duties with a usable candidate, semantic-equivalence is **36/36
 (100%)** and exact-match is **31/36 (86.11%)**. The earlier first-run conditional figure, 11/12
 (91.67%), remains above as a record of the quota-interrupted run.
