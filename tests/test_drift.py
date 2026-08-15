@@ -202,6 +202,15 @@ class TestPdfExtraction:
         source = drift.SourceDocument("pdf", "https://example.invalid/source.pdf", "pdf")
         assert drift.fetch_source(source) == payload
 
+    def test_fetch_source_pdf_network_failure_is_refused(self, monkeypatch):
+        def fail(_request, timeout):
+            raise OSError("offline")
+
+        monkeypatch.setattr(drift.urllib.request, "urlopen", fail)
+        source = drift.SourceDocument("pdf", "https://example.invalid/source.pdf", "pdf")
+        with pytest.raises(DriftFetchError, match="could not fetch"):
+            drift.fetch_source(source)
+
     def test_extractor_version_drift_is_refused(self, monkeypatch):
         monkeypatch.setattr(drift.importlib.metadata, "version", lambda _name: "0.0.0")
         with pytest.raises(DriftFetchError, match="version drift"):
@@ -209,6 +218,55 @@ class TestPdfExtraction:
 
 
 class TestFetchSource:
+    def test_govuk_edition_sentinel_is_validated_and_scoped(self):
+        html = '<p class="gem-c-inverse-header__subtext">Updated <span>7 February 2025</span></p>'
+        source = drift.SourceDocument(
+            "seoul_test",
+            "https://example.invalid/seoul",
+            "govuk-html",
+            edition_sentinel="Updated 7 February 2025",
+        )
+
+        assert drift.extract_govuk_edition(html) == "Updated 7 February 2025"
+        assert drift.extract_passage(html.encode(), selector="I", kind="govuk-html") is None
+        drift._validate_source_edition(source, html)
+        with pytest.raises(DriftFetchError, match="sentinel mismatch"):
+            drift._validate_source_edition(
+                source,
+                '<p class="gem-c-inverse-header__subtext">Updated 1 January 2025</p>',
+            )
+        with pytest.raises(DriftFetchError, match="requires decoded text"):
+            drift._validate_source_edition(source, html.encode())
+        with pytest.raises(DriftFetchError, match="expected exactly one"):
+            drift.extract_govuk_edition("<main></main>")
+        with pytest.raises(DriftFetchError, match="require a numbered"):
+            drift.extract_passage(html, selector=None, kind="govuk-html")
+
+    def test_ecfr_fetch_uses_source_specific_versions_endpoint(self, monkeypatch):
+        urls: list[str] = []
+        responses = iter(
+            [
+                BytesIO(b'{"meta":{"latest_issue_date":"2026-07-27"}}'),
+                BytesIO((FIXTURE_DIR / FIXTURE_BY_KEY["ecoa"]).read_bytes()),
+            ]
+        )
+
+        def fake_urlopen(request, timeout):
+            urls.append(request.full_url)
+            return next(responses)
+
+        monkeypatch.setattr(drift.urllib.request, "urlopen", fake_urlopen)
+        source = drift.SourceDocument(
+            "ecoa_custom_versions",
+            next(source for source in SOURCES if source.key == "ecoa").url,
+            "ecfr-xml",
+            "https://versions.example.invalid/title-12.json",
+        )
+
+        drift.fetch_source(source)
+
+        assert urls[0] == "https://versions.example.invalid/title-12.json"
+
     def test_ecfr_fetch_resolves_the_latest_official_issue_date(self, monkeypatch):
         urls: list[str] = []
         responses = iter(
