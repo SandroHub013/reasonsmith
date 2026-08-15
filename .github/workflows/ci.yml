@@ -14,11 +14,33 @@ permissions:
 
 jobs:
   pytest:
+    name: pytest (${{ matrix.os }}, ${{ matrix.python-version }})
     strategy:
       fail-fast: false
+      # Coverage is measured per runner. Linux/Python 3.12 is canonical at the 95% gate;
+      # Windows has a lower reachable total because platform-only BLACK/Marabou/ONNX paths are
+      # skipped there. These Windows floors are the measured totals from the current matrix,
+      # not slack or a way around skipped tests.
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        python-version: ["3.11", "3.12", "3.13"]
+        include:
+          - os: ubuntu-latest
+            python-version: "3.11"
+            coverage_floor: "95"
+          - os: ubuntu-latest
+            python-version: "3.12"
+            coverage_floor: "95"
+          - os: ubuntu-latest
+            python-version: "3.13"
+            coverage_floor: "95"
+          - os: windows-latest
+            python-version: "3.11"
+            coverage_floor: "95.10"
+          - os: windows-latest
+            python-version: "3.12"
+            coverage_floor: "95.10"
+          - os: windows-latest
+            python-version: "3.13"
+            coverage_floor: "95.16"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -65,18 +87,14 @@ jobs:
       # Scoped by `[tool.mypy]` in pyproject.toml to the two modules whose types are the semantics,
       # so this is seconds and its output is short enough to read.
       - run: mypy
-      # This floor was lowered once, on 2026-08-04, from 93 to 92.5, by the captain's explicit
-      # decision. Until then `--cov-fail-under=93` never failed: it compares
-      # `round(total, precision)` and pytest-cov defaults `precision` to 0, so the true 92.79%
-      # rounded to 93 and the job exited 0 while its own summary printed FAIL. Enforcing the
-      # comparison at the printed precision made the gap visible; 92.79% was then accepted as the
-      # project's coverage level rather than chased with tests written for the number, and 92.5
-      # records that — under the measured total so it passes, above the ~0.5% band the rounding
-      # bug silently tolerated, with slack enough that an ordinary refactor does not turn main red.
-      # It is never to be lowered again without a decision of the same kind, recorded here.
-      # The precision that makes it bite is `[tool.coverage.report]` in pyproject.toml, and
-      # `test_the_coverage_floor_fails_a_total_below_it` is what keeps it biting.
-      - run: pytest --cov=reasonsmith --cov-report=term-missing --cov-fail-under=92.5
+      # The 95% floor is a measured credibility gate. Precision is `[tool.coverage.report]` in
+      # pyproject.toml, and `test_the_coverage_floor_fails_a_total_below_it` keeps it biting.
+      - run: pytest --cov=reasonsmith --cov-report=term-missing --cov-report=json:/tmp/reasonsmith-coverage.json --cov-fail-under=${{ matrix.coverage_floor }}
+      - name: Verify the measured coverage badge
+        if: runner.os == 'Linux' && matrix.python-version == '3.12'
+        run: |
+          python docs/build_coverage_badge.py /tmp/reasonsmith-coverage.json docs/assets/coverage.svg
+          git diff --exit-code -- docs/assets/coverage.svg
       - run: python -m reasonsmith.demo
 
   action-smoke:
