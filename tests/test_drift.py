@@ -35,7 +35,7 @@ PDF_TEXT_FIXTURE = FIXTURE_DIR / "statute_text.pdf"
 PDF_NO_TEXT_FIXTURE = FIXTURE_DIR / "statute_no_text.pdf"
 
 FIXTURE_BY_KEY = {
-    "ai_act": "eu_ai_act_art12_13_53_55.xhtml",
+    "ai_act": "eu_ai_act_art12_13_53_55_86.xhtml",
     "gdpr_consolidated": "gdpr_consolidated_art22.xhtml",
     "gdpr_original": "gdpr_original_rct71.xhtml",
     "ecoa": "ecoa_1002_9.xml",

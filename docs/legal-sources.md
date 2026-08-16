@@ -26,6 +26,7 @@ never performs OCR, and a digest never substitutes for quotation matching.
 - **Entry into Force Date:** 1 August 2024 (20 days after publication, under Article 113)
 - **Retrieval Date & Time:** 2026-07-31 09:52:00 UTC+2
 - **Re-retrieval for Articles 53 and 55 (quoted by `src/reasonsmith/packs/gpai.toml`):** 2026-08-02. The same Cellar XHTML endpoint was fetched again and the `053.001` and `055.001` divisions transcribed below. Articles 53 and 55 were **not** covered by the 2026-07-31 retrieval, which recorded Articles 12 and 13 only: the CELEX identifier being already recorded establishes the *document*, not any particular provision of it, so this record was extended before the GPAI pack quoted a word of either Article.
+- **Re-retrieval for Article 86 (quoted by `src/reasonsmith/packs/eu_ai_act.toml`) and Article 113:** 2026-08-14. The same Cellar XHTML endpoint was fetched again and the `086.001`, `086.002` and `086.003` divisions transcribed below, on the same ground the Articles 53 and 55 extension records: the CELEX identifier establishes the document and not the provision. All three paragraphs of Article 86 are transcribed although the pack quotes only Article 86(1), because paragraphs (2) and (3) are the clause's own carve-outs and a defeasibility classification may only be written from a retrieved clause. Article 113 was fetched in the same pass, to support the applicability derivation below, and it is recorded differently from every other provision here for two reasons. It has **no numbered paragraph divisions**: Articles 12, 13, 53, 55 and 86 carry `012.001`-style ids, while Article 113's paragraphs are bare `<p>` elements inside the `art_113` subdivision, so the whole article is one selector. And registering it in `drift.PROVISIONS` would buy nothing, because that registry is keyed by a requirement's `article_clause` and no requirement quotes Article 113 — it is retrieved to support a claim about another Article's applicability, not to be quoted. So this one transcription is outside the monthly re-fetch, and a reader checking it against the print has only the retrieval date below to go on.
 - **Uncertainty / Status Flag:** Verified against official EU Cellar XHTML. Direct EUR-Lex web frontend requests return a WAF HTTP 202 challenge; retrieved directly via official EU Publications Cellar XHTML API endpoint `dc8116a1-3fe6-11ef-865a-01aa75ed71a1.0006.03/DOC_1`.
 
 ---
@@ -98,6 +99,31 @@ never performs OCR, and a digest never substitutes for quotation matching.
 
 ---
 
+#### Article 86
+**Right to explanation of individual decision-making**
+
+1. Any affected person subject to a decision which is taken by the deployer on the basis of the output from a high-risk AI system listed in Annex III, with the exception of systems listed under point 2 thereof, and which produces legal effects or similarly significantly affects that person in a way that they consider to have an adverse impact on their health, safety or fundamental rights shall have the right to obtain from the deployer clear and meaningful explanations of the role of the AI system in the decision-making procedure and the main elements of the decision taken.
+
+2. Paragraph 1 shall not apply to the use of AI systems for which exceptions from, or restrictions to, the obligation under that paragraph follow from Union or national law in compliance with Union law.
+
+3. This Article shall apply only to the extent that the right referred to in paragraph 1 is not otherwise provided for under Union law.
+
+---
+
+#### Article 113
+**Entry into force and application**
+
+This Regulation shall enter into force on the twentieth day following that of its publication in the Official Journal of the European Union.
+
+It shall apply from 2 August 2026.
+
+However:
+(a) Chapters I and II shall apply from 2 February 2025;
+(b) Chapter III Section 4, Chapter V, Chapter VII and Chapter XII and Article 78 shall apply from 2 August 2025, with the exception of Article 101;
+(c) Article 6(1) and the corresponding obligations in this Regulation shall apply from 2 August 2027.
+
+---
+
 ### Factual Summary of Demands (Law's Operative Words)
 - **What Article 12 demands be kept:**
   - Operative phrases: *"automatic recording of events (logs) over the lifetime of the system"*, *"recording of events relevant for: (a) identifying situations that may result in the high-risk AI system presenting a risk... or in a substantial modification; (b) facilitating the post-market monitoring...; and (c) monitoring the operation of high-risk AI systems"*.
@@ -111,6 +137,11 @@ never performs OCR, and a digest never substitutes for quotation matching.
 - **What Article 55(1) additionally demands of a provider of a model with systemic risk:**
   - Operative phrases: *"perform model evaluation in accordance with standardised protocols and tools reflecting the state of the art, including conducting and documenting adversarial testing"*, *"assess and mitigate possible systemic risks at Union level, including their sources"*, *"keep track of, document, and report, without undue delay, to the AI Office"* relevant information about serious incidents and possible corrective measures, and *"ensure an adequate level of cybersecurity protection"* for the model and *"the physical infrastructure of the model"*.
   - **The timing limb names no period.** *"without undue delay"* is the whole of what point (c) says about when a report is owed; unlike 12 CFR 1002.9(a)(1)'s 30 and 90 days, there is no figure here for a pack to repeat, which is why `docs/refinement.md` records the limb as not formalised rather than bounding it with a number.
+- **What Article 86 demands be given to an affected person:**
+  - Operative phrases: *"shall have the right to obtain from the deployer clear and meaningful explanations of the role of the AI system in the decision-making procedure and the main elements of the decision taken"*.
+  - **Applicability.** Derived directly from the two transcriptions above: Article 86 sits in Chapter IX, Section 4 (Remedies) — verified in the same Cellar document, whose `art_86` division is inside `<div id="cpt_IX.sct_4">`, titled *Remedies* — and none of Article 113's three staged exceptions reaches it: point (a) names Chapters I and II (2 February 2025) and point (b) names Chapter III Section 4, Chapters V, VII and XII and Article 78 (2 August 2025), neither of which includes Chapter IX; and point (c) provides that *"Article 6(1) and the corresponding obligations in this Regulation shall apply from 2 August 2027"*. An Article 86(1) right does not fall inside point (c) because Article 6(1) is the Annex I route to high-risk classification (a safety component of a product covered by Union harmonisation legislation), while Article 86(1) reaches Annex III systems only, minus point 2 — so the right is not a "corresponding obligation" of Article 6(1). Because none of the exceptions applies, Article 86 is governed by Article 113's general application rule and applies from 2 August 2026.
+  - **Four limbs, and only one of them is about the explanation itself.** *"Any affected person subject to a decision which is taken by the deployer on the basis of the output from a high-risk AI system listed in Annex III, with the exception of systems listed under point 2 thereof"* is a classification of the system; *"produces legal effects or similarly significantly affects that person in a way that they consider to have an adverse impact on their health, safety or fundamental rights"* is a test about the decision's effect on a natural person; *"shall have the right to obtain"* makes the duty run on a request. None of the three is a fact a decision record carries, which is why `docs/refinement.md` records them as outside what any run establishes.
+  - **The clause carries its own two carve-outs**, both of which are paragraphs of the same Article rather than external instruments, and neither of which can be settled from this document because both defer outward: *"Paragraph 1 shall not apply to the use of AI systems for which exceptions from, or restrictions to, the obligation under that paragraph follow from Union or national law in compliance with Union law"* (86(2)), and *"This Article shall apply only to the extent that the right referred to in paragraph 1 is not otherwise provided for under Union law"* (86(3)). Both are retrieved here so the defeasibility classification of the shipped requirement rests on the print rather than on memory.
 
 ---
 

@@ -1,0 +1,38 @@
+formalism = "logical"
+requirement = "eu_ai_act_art86_1_main_elements_of_the_decision"
+rationale = "These cases distinguish a decision carrying no explanation at all, an explanation whose measured deletion count is zero, and one whose count shows that an element the inference used is missing from it. The near-miss is the boundary count of zero: the clause asks for the main elements of the decision taken, so completeness is non-strict and a count of zero is compliance rather than a breach."
+
+[[case]]
+id = "no-explanation-trigger"
+kind = "satisfied"
+expected = "satisfied"
+description = "No explanation is recorded, so this implication makes no claim about the elements of the decision; whether one was owed is a fact about a request this property does not read."
+[case.signals]
+artifact_logs_deleted_reason_count = 3
+
+[[case]]
+id = "complete-main-elements"
+kind = "satisfied"
+expected = "satisfied"
+description = "An explanation is recorded and the measured deletion count is zero: every element the decision's own inference used is still in it."
+[case.signals]
+artifact_logs_reason_explanation = "The application was refused on the recorded debt-to-income ratio."
+artifact_logs_deleted_reason_count = 0
+
+[[case]]
+id = "omitted-main-element"
+kind = "violated"
+expected = "violated"
+description = "An explanation is recorded but one element the inference artefact shows the decision used is absent from it."
+[case.signals]
+artifact_logs_reason_explanation = "The application was refused on the recorded debt-to-income ratio."
+artifact_logs_deleted_reason_count = 1
+
+[[case]]
+id = "boundary-zero-near-miss"
+kind = "near-miss"
+expected = "satisfied"
+description = "The deletion count is exactly zero; treating the non-strict completeness boundary as a breach would accuse a deployer whose explanation states every element."
+[case.signals]
+artifact_logs_reason_explanation = "A complete explanation of the decision is recorded."
+artifact_logs_deleted_reason_count = 0

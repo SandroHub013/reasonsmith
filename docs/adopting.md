@@ -162,9 +162,9 @@ deployed decision procedure buys a proof about something else — and `real` is 
 solver and IEEE-754 to your system, which the engine states in its own summary.
 `symbolic_rules.py` is the worked case ([`three-systems.md`](three-systems.md), *Symbolic*).
 
-**An inference artefact.** Two duties are measured against the inference *behind* a decision rather
+**An inference artefact.** Three duties are measured against the inference *behind* a decision rather
 than against what was decided — reason adequacy, and whether the system's answer is the semantics it
-claims — and both need `artifact(decision)` returning an
+claims — and all three need `artifact(decision)` returning an
 [`InferenceArtifact`](../src/reasonsmith/artifacts/__init__.py). Their two signals are the only ones
 reasonsmith measures rather than reads from a record. Two families ship:
 [`GroundProgramArtifact`](../src/reasonsmith/artifacts/ground_program.py), whose reasons are

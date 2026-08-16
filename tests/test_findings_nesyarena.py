@@ -269,9 +269,9 @@ def _results_for(ids: set[str]) -> list:
 
 
 def test_headline_scale():
-    """'75 results — 5 systems × 15 requirements' is the product of the real battery."""
+    """'80 results — 5 systems × 16 requirements' is the product of the real battery."""
     document = _document()
-    assert len(REQS) == 15, f"the three packs now hold {len(REQS)} requirements, not 15"
+    assert len(REQS) == 16, f"the three packs now hold {len(REQS)} requirements, not 16"
     scale = f"{len(SYSTEMS)} systems × {len(REQS)} requirements"
     assert scale in document, (
         "docs/findings-nesyarena.md's headline scale is stale: the run is "
@@ -478,7 +478,7 @@ def test_finding_2_formalism_census():
     counts = Counter(req.formalism for req in REQS.values())
     assert dict(counts) == {
         "record": 7,
-        "logical": 3,
+        "logical": 4,
         "temporal": 4,
         "counterfactual": 1,
     }, (
@@ -661,14 +661,14 @@ def test_finding_3_consumer_credit_counterfactual():
 
 
 def test_finding_4_ai_act_not_applicable():
-    """Every AI Act requirement for every system is not applicable, 20 results in all."""
+    """Every AI Act requirement for every system is not applicable, 25 results in all."""
     prose = _prose()
     eu_results = _results_for(_eu_ids())
-    assert len(eu_results) == 20, (
-        f"the EU AI Act pack now produces {len(eu_results)} results, not 20"
+    assert len(eu_results) == 25, (
+        f"the EU AI Act pack now produces {len(eu_results)} results, not 25"
     )
     assert all(r.verdict is Verdict.NOT_APPLICABLE for r in eu_results)
-    assert f"{len(eu_results)} of the 65 results" in prose
+    assert f"{len(eu_results)} of the {len(RESULTS)} results" in prose
     assert "every AI Act requirement for every system — are `not_applicable`" in prose
 
 

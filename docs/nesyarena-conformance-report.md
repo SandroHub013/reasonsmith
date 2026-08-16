@@ -207,7 +207,7 @@ system: nesyarena:exact-wmc
 declared scope: undeclared
 declared domains: undeclared
 pack: eu_ai_act
-headline: 4 requirements · 4 binding: 4 not applicable
+headline: 5 requirements · 5 binding: 5 not applicable
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] eu_ai_act_art12_1_automatic_logging (EU AI Act (Regulation (EU) 2024/1689) Article 12(1)): not_applicable
@@ -224,6 +224,11 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
   [NOT APPLICABLE] eu_ai_act_art13_2_instructions_for_use (EU AI Act (Regulation (EU) 2024/1689) Article 13(2)): not_applicable
     requires: scope_statements_approximation_vs_guarantee, provenance_constraint_set
+    scope limit: high-risk
+    summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
+  [NOT APPLICABLE] eu_ai_act_art86_1_main_elements_of_the_decision (EU AI Act (Regulation (EU) 2024/1689) Article 86(1)): not_applicable
+    evidence basis: artifact — this duty is measured against the inference artefact behind a decision rather than against what the system decided. No trace holds that artefact and the enumeration is exact only on the one artefact it ran over, so the rungs above unattainable are recounted and probed, and neither observed nor proved is reachable however much the system exposes. Which of the two a verdict reaches is a fact about the artefact and not about the search: probed measures a reason set enumerated from a model encoding, recounted measures one the system recounted about its own inference.
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     scope limit: high-risk
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
 
@@ -320,7 +325,7 @@ system: nesyarena:add-mult(clamped)
 declared scope: undeclared
 declared domains: undeclared
 pack: eu_ai_act
-headline: 4 requirements · 4 binding: 4 not applicable
+headline: 5 requirements · 5 binding: 5 not applicable
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] eu_ai_act_art12_1_automatic_logging (EU AI Act (Regulation (EU) 2024/1689) Article 12(1)): not_applicable
@@ -337,6 +342,11 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
   [NOT APPLICABLE] eu_ai_act_art13_2_instructions_for_use (EU AI Act (Regulation (EU) 2024/1689) Article 13(2)): not_applicable
     requires: scope_statements_approximation_vs_guarantee, provenance_constraint_set
+    scope limit: high-risk
+    summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
+  [NOT APPLICABLE] eu_ai_act_art86_1_main_elements_of_the_decision (EU AI Act (Regulation (EU) 2024/1689) Article 86(1)): not_applicable
+    evidence basis: artifact — this duty is measured against the inference artefact behind a decision rather than against what the system decided. No trace holds that artefact and the enumeration is exact only on the one artefact it ran over, so the rungs above unattainable are recounted and probed, and neither observed nor proved is reachable however much the system exposes. Which of the two a verdict reaches is a fact about the artefact and not about the search: probed measures a reason set enumerated from a model encoding, recounted measures one the system recounted about its own inference.
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     scope limit: high-risk
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
 
@@ -432,7 +442,7 @@ system: nesyarena:top-1-proofs
 declared scope: undeclared
 declared domains: undeclared
 pack: eu_ai_act
-headline: 4 requirements · 4 binding: 4 not applicable
+headline: 5 requirements · 5 binding: 5 not applicable
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] eu_ai_act_art12_1_automatic_logging (EU AI Act (Regulation (EU) 2024/1689) Article 12(1)): not_applicable
@@ -449,6 +459,11 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
   [NOT APPLICABLE] eu_ai_act_art13_2_instructions_for_use (EU AI Act (Regulation (EU) 2024/1689) Article 13(2)): not_applicable
     requires: scope_statements_approximation_vs_guarantee, provenance_constraint_set
+    scope limit: high-risk
+    summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
+  [NOT APPLICABLE] eu_ai_act_art86_1_main_elements_of_the_decision (EU AI Act (Regulation (EU) 2024/1689) Article 86(1)): not_applicable
+    evidence basis: artifact — this duty is measured against the inference artefact behind a decision rather than against what the system decided. No trace holds that artefact and the enumeration is exact only on the one artefact it ran over, so the rungs above unattainable are recounted and probed, and neither observed nor proved is reachable however much the system exposes. Which of the two a verdict reaches is a fact about the artefact and not about the search: probed measures a reason set enumerated from a model encoding, recounted measures one the system recounted about its own inference.
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     scope limit: high-risk
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
 
@@ -544,7 +559,7 @@ system: nesyarena:top-3-proofs
 declared scope: undeclared
 declared domains: undeclared
 pack: eu_ai_act
-headline: 4 requirements · 4 binding: 4 not applicable
+headline: 5 requirements · 5 binding: 5 not applicable
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] eu_ai_act_art12_1_automatic_logging (EU AI Act (Regulation (EU) 2024/1689) Article 12(1)): not_applicable
@@ -561,6 +576,11 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
   [NOT APPLICABLE] eu_ai_act_art13_2_instructions_for_use (EU AI Act (Regulation (EU) 2024/1689) Article 13(2)): not_applicable
     requires: scope_statements_approximation_vs_guarantee, provenance_constraint_set
+    scope limit: high-risk
+    summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
+  [NOT APPLICABLE] eu_ai_act_art86_1_main_elements_of_the_decision (EU AI Act (Regulation (EU) 2024/1689) Article 86(1)): not_applicable
+    evidence basis: artifact — this duty is measured against the inference artefact behind a decision rather than against what the system decided. No trace holds that artefact and the enumeration is exact only on the one artefact it ran over, so the rungs above unattainable are recounted and probed, and neither observed nor proved is reachable however much the system exposes. Which of the two a verdict reaches is a fact about the artefact and not about the search: probed measures a reason set enumerated from a model encoding, recounted measures one the system recounted about its own inference.
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     scope limit: high-risk
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
 
@@ -656,7 +676,7 @@ system: nesyarena:min-max-prob
 declared scope: undeclared
 declared domains: undeclared
 pack: eu_ai_act
-headline: 4 requirements · 4 binding: 4 not applicable
+headline: 5 requirements · 5 binding: 5 not applicable
 
 REQUIREMENT FINDINGS:
   [NOT APPLICABLE] eu_ai_act_art12_1_automatic_logging (EU AI Act (Regulation (EU) 2024/1689) Article 12(1)): not_applicable
@@ -673,6 +693,11 @@ REQUIREMENT FINDINGS:
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
   [NOT APPLICABLE] eu_ai_act_art13_2_instructions_for_use (EU AI Act (Regulation (EU) 2024/1689) Article 13(2)): not_applicable
     requires: scope_statements_approximation_vs_guarantee, provenance_constraint_set
+    scope limit: high-risk
+    summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
+  [NOT APPLICABLE] eu_ai_act_art86_1_main_elements_of_the_decision (EU AI Act (Regulation (EU) 2024/1689) Article 86(1)): not_applicable
+    evidence basis: artifact — this duty is measured against the inference artefact behind a decision rather than against what the system decided. No trace holds that artefact and the enumeration is exact only on the one artefact it ran over, so the rungs above unattainable are recounted and probed, and neither observed nor proved is reachable however much the system exposes. Which of the two a verdict reaches is a fact about the artefact and not about the search: probed measures a reason set enumerated from a model encoding, recounted measures one the system recounted about its own inference.
+    requires: artifact_logs_reason_explanation, artifact_logs_deleted_reason_count
     scope limit: high-risk
     summary: Not applicable: requirement scope is 'high-risk', but system regulatory class is undeclared. reasonsmith never infers a system's regulatory class.
 

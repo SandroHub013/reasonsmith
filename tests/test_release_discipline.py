@@ -18,8 +18,8 @@ What this module is for:
     was current.
   - The counts the README and ROADMAP state for what this tree ships — the README's pack and
     engine counts, ROADMAP's "Current state, for scale" line, and the same claims where the
-    prose restates them spelled out ("Five packs", "Seven engines", "twenty-nine shipped
-    requirements", `docs/what-this-does-not-do.md`'s "Five packs ship, with 29 requirements
+    prose restates them spelled out ("Six packs", "Seven engines", "thirty-eight shipped
+    requirements", `docs/what-this-does-not-do.md`'s "Six packs ship, with 38 requirements
     between them") — are held to what the package actually ships. A count in prose rots
     silently: the README once claimed "four packs" and "four engines" while five and seven
     shipped, and ROADMAP's scale line went stale twice in one day before anyone noticed. The
@@ -177,7 +177,7 @@ _COUNTED_CLAIM = re.compile(
     re.IGNORECASE,
 )
 
-#: `docs/what-this-does-not-do.md`'s one inventory sentence — "Five packs ship, with 28
+#: `docs/what-this-does-not-do.md`'s one inventory sentence — "Six packs ship, with 38
 #: requirements between them" — which restates the shipped pack and requirement counts and would
 #: rot the same way the README's did. The document's other "N packs" mentions ("three packs")
 #: describe the nesyarena runs, which genuinely use three packs, so only this sentence is pinned.
@@ -188,11 +188,11 @@ _SHIPPED_INVENTORY = re.compile(
 )
 
 #: A shipped-set requirement total as `docs/refinement.md` writes it:
-#: "the 29 shipped requirements", "over all twenty-nine shipped requirements", and — in
-#: refinement.md, whose count prose counts the set as duties — "the twenty-nine shipped duties".
+#: "the 38 shipped requirements", "over all thirty-eight shipped requirements", and — in
+#: refinement.md, whose count prose counts the set as duties — "the thirty-eight shipped duties".
 #: The number is captured whatever it is and compared to the derived total, so a drift like the
 #: "twenty-eight shipped duties" both documents once wrote is caught as the sentence writes it.
-#: `\s+` spans a line wrap, because refinement.md breaks "29 shipped" from "requirements".
+#: `\s+` spans a line wrap, because refinement.md breaks "38 shipped" from "requirements".
 _SHIPPED_TOTAL = re.compile(
     rf"\b(?:all\s+)?(?P<number>{_CARDINAL_ALT}|\d+)\s+shipped\s+(?:requirements|duties)\b",
     re.IGNORECASE,
@@ -367,7 +367,7 @@ def test_builtin_engine_names_cover_every_shipped_engine_module():
 
 
 def test_readme_pack_count_matches_the_shipped_packs():
-    """README's pack counts — "Five packs ship", "all five packs", "one of the five shipped
+    """README's pack counts — "Six packs ship", "all six packs", "one of the six shipped
     packs" — are held to `spec.list_packs()`, the same list `validate-pack` reads. The number is
     matched as the sentence writes it, spelled out or in digits, so a drift like the "four packs"
     the README once claimed is caught either way."""
@@ -392,10 +392,10 @@ def test_readme_engine_count_matches_the_shipped_engines():
 
 
 def test_roadmap_scale_line_matches_the_shipped_tree():
-    """ROADMAP's "Current state, for scale" line — "5 packs, 28 requirements, 7 engines" — tells
+    """ROADMAP's "Current state, for scale" line — "6 packs, 38 requirements, 7 engines" — tells
     a reader what this project currently is, and it went stale twice in one day before anyone
     noticed. All three numbers are held to the shipped tree, spelled out or in digits as the line
-    writes them; the same claims where ROADMAP restates them ("Five packs now ship",
+    writes them; the same claims where ROADMAP restates them ("Six packs now ship",
     "twenty-eight shipped requirements") are guarded too."""
     offenders = _count_offenders(REPO_ROOT / "ROADMAP.md", _shipped_counts())
     assert not offenders, (
@@ -405,7 +405,7 @@ def test_roadmap_scale_line_matches_the_shipped_tree():
 
 
 def test_readme_shipped_requirement_count_matches_the_packs():
-    """README's one shipped-requirement claim — "twenty-nine shipped requirements" — is held to
+    """README's one shipped-requirement claim — "thirty-eight shipped requirements" — is held to
     the total across the packs. The rest of README's requirement counts ("5 requirements",
     "6 requirements") are per-run transcript numbers, not claims about the shipped tree, and are
     deliberately not pinned here."""
@@ -420,7 +420,7 @@ def test_readme_shipped_requirement_count_matches_the_packs():
 
 
 def test_what_this_does_not_do_inventory_matches_the_shipped_packs():
-    """`docs/what-this-does-not-do.md`'s inventory sentence — "Five packs ship, with 29
+    """`docs/what-this-does-not-do.md`'s inventory sentence — "Six packs ship, with 38
     requirements between them" — restates the same shipped counts as the README and ROADMAP and
     is held to the same derived numbers. The document's other "N packs" mentions ("three packs")
     describe the nesyarena runs, which genuinely use three packs, so only the inventory sentence
@@ -454,7 +454,7 @@ def test_what_this_does_not_do_inventory_matches_the_shipped_packs():
 
 def test_refinement_doc_shipped_totals_match_the_tree():
     """`docs/refinement.md` states the size of the shipped set in prose before and after its
-    census tables — "the 29 shipped requirements", "twenty-one of the twenty-nine shipped
+    census tables — "the 38 shipped requirements", "twenty-eight of the thirty-eight shipped
     duties", "used by eight" decision domains, "eight duties in all" — and those early
     sentences went stale when a duty landed while the tables were re-counted. The requirement
     total and the domain total are held to the packs at test time, and the phrase is matched as

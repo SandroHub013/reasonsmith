@@ -167,6 +167,7 @@ PROVISIONS = {
     "Article 55(1)(b)": ("ai_act", "055.001"),
     "Article 55(1)(c)": ("ai_act", "055.001"),
     "Article 55(1)(d)": ("ai_act", "055.001"),
+    "Article 86(1)": ("ai_act", "086.001"),
     "Article 22(1)": ("gdpr_consolidated", "art_22"),
     "Article 22(3)": ("gdpr_consolidated", "art_22"),
     "Recital 71": ("gdpr_original", "rct_71"),

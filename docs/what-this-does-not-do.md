@@ -52,13 +52,13 @@ credit** ([`docs/findings-nesyarena.md`](findings-nesyarena.md), finding 3;
 
 ## 2. Depth is uneven, and here is the shape of it
 
-Six packs ship, with 37 requirements between them. Counted by the fragment each property is
+Six packs ship, with 38 requirements between them. Counted by the fragment each property is
 written in:
 
 | formalism | requirements | what it asks |
 |---|---:|---|
 | `record` | 28 | a conjunction of `present(signal)` — the field is there |
-| `logical` | 4 | any other property of one decision record |
+| `logical` | 5 | any other property of one decision record |
 | `temporal` | 4 | a property over the trace |
 | `counterfactual` | 1 | invariance under one named protected variable |
 | `statistical` | 0 | a declared-sample selection-rate measurement with uncertainty |
@@ -74,7 +74,7 @@ document-production duties, for which presence is the correct refinement and no 
 exists to write. But the consequence is real and [`ROADMAP.md`](../ROADMAP.md) §4 states it in its
 own words: *"Breadth bought that way is real breadth and it is not depth."* A battery of engines
 that mostly agrees by construction differentiates few systems. The current inventory is six packs
-and 37 duties; the fragment table above is the source of truth for its family tallies.
+and 38 duties; the fragment table above is the source of truth for its family tallies.
 
 Presence is also not adequacy, at the level of the individual duty: a reason field that is filled
 in is not a reason that is sufficient. Where a clause supplies its own list of insufficient
@@ -105,9 +105,9 @@ So a report full of `proved` verdicts is not a better report than one full of `o
 It is a report about a system that exposed more, and the question of whether what it exposed is the
 system that runs in production is question 1 above.
 
-**And a basis is not a rung.** Two shipped duties are not about the system's executions at all —
-one is about a *pair* of them and one is about the inference artefact behind a decision — so
-neither can reach every rung whatever the system exposes. `relational` and `artifact` name what the
+**And a basis is not a rung.** Four shipped duties are not about the system's executions at all —
+one is about a *pair* of them and three are about the inference artefact behind a decision — so
+neither kind can reach every rung whatever the system exposes. `relational` and `artifact` name what the
 evidence is about; they do not sit above or below `observed`, they are not ordered against each
 other, and comparing two of them raises rather than answering
 ([`docs/theory/08-evidence.md`](theory/08-evidence.md) §8.2). A ceiling on one of those duties is a fact about the
