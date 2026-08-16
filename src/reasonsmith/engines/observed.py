@@ -75,6 +75,7 @@ import re
 import sys
 import types
 import typing
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 # antlr4-python3-runtime 4.7 (hard-pinned by rtamt) runs `from typing.io import TextIO`, and
@@ -89,6 +90,13 @@ if "typing.io" not in sys.modules and not hasattr(typing, "io"):
 
 import rtamt
 
+from reasonsmith.event_time import (
+    CALENDAR_POLICY,
+    TIMEZONE_POLICY,
+    EventTimeError,
+    measure_pair,
+    parse_duration,
+)
 from reasonsmith.report import RequirementResult, not_evaluated_for_unreachable_trigger
 from reasonsmith.rulelang import (
     BINARY_TEMPORAL_OPERATORS,
@@ -98,8 +106,11 @@ from reasonsmith.rulelang import (
     PRESENCE_CALL,
     UnsupportedConstructError,
     bare_boolean_names,
+    bounded_response_arguments,
+    bounded_response_calls,
     contains_literal,
     eval_temporal_trace,
+    has_bounded_response,
     has_temporal_operator,
     implication_antecedent,
     is_present,
@@ -112,6 +123,8 @@ from reasonsmith.rulelang import (
 )
 from reasonsmith.spec import Requirement
 from reasonsmith.sut import (
+    EVENT_DOMAIN,
+    EVENT_TIME,
     ORDINAL_DOMAIN,
     SystemUnderTest,
     TimeDomain,
@@ -335,12 +348,20 @@ def _refuse_shapes_the_monitor_misreads(node: ast.AST) -> None:
 
 
 def to_stl(spec: str) -> str:
-    """Return a requirement property in rtamt syntax, or refuse a shape rtamt reads differently.
+    """Return a requirement property in rtamt syntax, or refuse event-time metric semantics.
 
     The synthetic flags named in the returned text are populated by `ObservedEngine`; callers that
     only need the rendered formula can use this public view without depending on those mappings.
+    ``within_after`` is deliberately not rendered: its timestamps are read by the event-time
+    evaluator, never converted into an rtamt positional axis.
     """
-    _refuse_shapes_the_monitor_misreads(parse_property(spec))
+    parsed = parse_property(spec)
+    if has_bounded_response(parsed):
+        raise UnsupportedConstructError(
+            "within_after() requires the observed event-time metric evaluator and has no ordinal "
+            "rtamt rendering"
+        )
+    _refuse_shapes_the_monitor_misreads(parsed)
     return _render_stl(spec)[0]
 
 
@@ -415,8 +436,328 @@ def _magnitude_vars(spec: str) -> set[str]:
     return magnitude
 
 
+#: How an uncorrelated record names itself in a problem string or an event pair. The angle
+#: brackets are the reserved spelling: `_reserved_case_id` refuses an author-supplied `case_id`
+#: that takes it, so the reader-facing name is disjoint the way the correlation key already is.
+#: Without that, an unnamed record 0 and a `case_id` of `record-0` were two cases under one name,
+#: and the `case_id` a reader re-checks a witness by no longer said which case was measured.
+ANONYMOUS_CASE_LABEL = "<unnamed record {index}>"
+
+
+def case_label(key: tuple[str, object]) -> str:
+    """The reader-facing name of a correlation key, which is not the key itself."""
+    if key[0] == "case":
+        return str(key[1])
+    return ANONYMOUS_CASE_LABEL.format(index=key[1])
+
+
+def _reserved_case_id(case_id: str) -> bool:
+    """Whether an author-supplied id takes the spelling reserved for an uncorrelated record."""
+    return case_id.startswith("<unnamed record ") and case_id.endswith(">")
+
+
+def correlation_key(record: Mapping[str, Any], index: int) -> tuple[str, object]:
+    """The case a record belongs to, under the one rule this package correlates events by.
+
+    A record naming no case is its own case, in a keyspace disjoint from the author-supplied ids,
+    so two records are never merged on the strength of carrying the same event names. This is one
+    function rather than two because `witness._event_pair_check` must refuse exactly the pairs the
+    metric evaluator declines to measure; a second copy of the rule would let a plug-in be
+    confirmed on a pair the built-in engine reports not evaluated.
+
+    Raises `ValueError` naming why a `case_id` cannot be a case name.
+    """
+    raw_case = record.get("case_id")
+    if raw_case is None:
+        return ("record", index)
+    if not isinstance(raw_case, str) or not raw_case.strip():
+        raise ValueError(
+            f"record {index} has an empty or non-string case_id; event correlation is ambiguous"
+        )
+    case_id = raw_case.strip()
+    if _reserved_case_id(case_id):
+        raise ValueError(
+            f"record {index} has a case_id of {case_id!r}, the spelling reserved for a record "
+            "this engine correlates with nothing; a named case cannot take it"
+        )
+    return ("case", case_id)
+
+
+def case_occurrences(
+    records: Sequence[Mapping[str, Any]], key: tuple[str, object], event_name: str
+) -> list[int]:
+    """The records of one case that make `event_name` present, in trace order.
+
+    Exactly one is what the metric evaluator requires of an anchor and of an endpoint before it
+    measures anything: a duplicate occurrence is ambiguous even when its timestamps agree. This
+    sits beside `correlation_key` because `witness._event_pair_check` asks the same question of a
+    plug-in's pair, and the two halves of one rule kept apart is how a plug-in came to be
+    confirmed on a case the built-in engine reports not evaluated.
+
+    Raises `ValueError` naming why a `case_id` in the trace cannot be a case name.
+    """
+    return [
+        index
+        for index, record in enumerate(records)
+        if correlation_key(record, index) == key and is_present(record.get(event_name))
+    ]
+
+
+def _event_metric_result(
+    req: Requirement,
+    records: list[dict[str, Any]],
+    property_node: ast.AST,
+    time_domain: TimeDomain | None,
+) -> RequirementResult:
+    """Evaluate the one event-time metric operator without constructing an ordinal monitor.
+
+    Every refusal and every verdict this operator can produce leaves through here, so the metric
+    contract a reader meets in `details` is built once. A second copy beside the domain refusals
+    made what a reader was told depend on which branch answered.
+    """
+    clause = f"{req.source_document} {req.article_clause}"
+    call = next(iter(bounded_response_calls(property_node)), None)
+    if call is None:
+        raise ValueError("event metric evaluation requires a within_after() call")
+    anchor, endpoint, duration_text = bounded_response_arguments(call)
+    duration = parse_duration(duration_text)
+    common: dict[str, Any] = {
+        "time_domain_required": EVENT_TIME,
+        "timezone_policy": TIMEZONE_POLICY,
+        "calendar_policy": CALENDAR_POLICY,
+        "anchor_event": anchor,
+        "endpoint_event": endpoint,
+        "bound": duration.text,
+        "bound_kind": "calendar" if duration.is_calendar else "elapsed",
+        "records_observed": len(records),
+        "required_anchor_present": False,
+        "required_endpoint_present": False,
+        "all_required_anchors_present": False,
+    }
+
+    def inconclusive(reason: str, details: Mapping[str, Any] | None = None) -> RequirementResult:
+        payload = dict(common)
+        if details:
+            payload.update(details)
+        return RequirementResult(
+            requirement_id=req.id,
+            source_clause=clause,
+            verdict=Verdict.INCONCLUSIVE,
+            strength=None,
+            signals_required=tuple(req.requires),
+            evidence_summary=f"Not evaluated: {reason}",
+            details=payload,
+            binding=req.binding,
+            scope=req.scope,
+        )
+
+    # The clock this operator counts on is selected by its construct.  Asking for the ordinal
+    # domain explicitly is still a refusal: the metric bound must never be downgraded to record
+    # positions or to a latency field the system reports about itself.
+    required = EVENT_DOMAIN if time_domain is None else time_domain
+    if required.is_ordinal:
+        return inconclusive(
+            f"{req.spec!r} is an event-time bounded-response property, but it was asked for on "
+            "the ordinal record-index domain. The metric clock is explicit and is never replaced "
+            "by record positions.",
+            {"time_domain_requested": required.kind},
+        )
+    try:
+        stated = read_time_domain(records)
+    except (TypeError, ValueError) as exc:
+        return inconclusive(
+            f"{req.spec!r} requires a valid event-time clock, but the trace timestamp contract "
+            f"was refused: {exc}",
+            {"time_domain_stated_by_trace": EVENT_TIME, "timestamp_error": str(exc)},
+        )
+    if stated.is_ordinal:
+        return inconclusive(
+            f"{req.spec!r} requires the event-time metric clock, but this trace records no event "
+            "timestamps. No ordinal fallback is permitted.",
+            {"time_domain_stated_by_trace": stated.kind},
+        )
+    common["time_domain_stated_by_trace"] = EVENT_TIME
+
+    # A trace record is one case unless it explicitly names a case shared by several event
+    # records.  Records without an id are intentionally never merged, so they are keyed in a
+    # keyspace disjoint from the author-supplied ids: equal event names in two records are not
+    # evidence that they belong to one incident, and neither is a supplied id that happens to
+    # spell the name this function would have given an anonymous record.
+    #
+    # The instants are the ones `read_time_domain` already parsed off this same trace.  Parsing
+    # them a second time here would be a second contract that could drift from the one the caller
+    # refused a malformed trace against.
+    cases: dict[tuple[str, object], dict[str, list[tuple[int, Any, dict[str, Any]]]]] = {}
+    missing_event_timestamps: list[dict[str, Any]] = []
+    for index, record in enumerate(records):
+        try:
+            key = correlation_key(record, index)
+        except ValueError as exc:
+            return inconclusive(str(exc))
+        bucket = cases.setdefault(key, {"anchor": [], "endpoint": []})
+        stamps = stated.instants[index] if index < len(stated.instants) else None
+        if stamps is None:
+            unstamped = [name for name in (anchor, endpoint) if is_present(record.get(name))]
+            if unstamped:
+                missing_event_timestamps.append(
+                    {"record_index": index, "events": unstamped}
+                )
+            continue
+        for role, event_name in (("anchor", anchor), ("endpoint", endpoint)):
+            if not is_present(record.get(event_name)):
+                continue
+            instant = stamps.get(event_name)
+            if instant is None:
+                missing_event_timestamps.append(
+                    {"record_index": index, "events": [event_name]}
+                )
+            else:
+                bucket[role].append((index, instant, record))
+
+    common["required_anchor_present"] = any(bucket["anchor"] for bucket in cases.values())
+    common["required_endpoint_present"] = any(bucket["endpoint"] for bucket in cases.values())
+    common["all_required_anchors_present"] = not missing_event_timestamps and bool(
+        common["required_anchor_present"]
+    )
+    common["missing_event_timestamps"] = missing_event_timestamps
+
+    if missing_event_timestamps:
+        return inconclusive(
+            "a named event predicate was present without its timestamp; the pair cannot be checked",
+            {"missing_event_timestamps": missing_event_timestamps},
+        )
+
+    anchors = [item for bucket in cases.values() for item in bucket["anchor"]]
+    if not anchors:
+        # This is the same no-evidence rule as an implication whose trigger never fires.  It is
+        # deliberately not a satisfied vacuity, and the details retain the metric contract.
+        body: ast.AST = (
+            property_node.body if isinstance(property_node, ast.Expression) else property_node
+        )
+        if (
+            isinstance(body, ast.Call)
+            and isinstance(body.func, ast.Name)
+            and body.func.id == "always"
+            and body.args
+            and isinstance(body.args[0], ast.Call)
+            and isinstance(body.args[0].func, ast.Name)
+            and body.args[0].func.id in {"implies", "Implies"}
+        ):
+            return not_evaluated_for_unreachable_trigger(
+                req,
+                ast.unparse(body.args[0].args[0]),
+                f"the {len(records)} timestamped decision record(s)",
+                common,
+            )
+        return inconclusive(
+            f"no record made the anchor predicate present({anchor}) true; no deadline was triggered"
+        )
+
+    # Any endpoint that has no anchor in its own correlated case is an uncorrelated event, not a
+    # candidate pass.  A case with no endpoint is likewise incomplete.  Duplicate occurrences are
+    # ambiguous even when their timestamps happen to be equal.
+    pairs = []
+    problems: list[str] = []
+    for key, bucket in cases.items():
+        case_id = case_label(key)
+        case_anchors = bucket["anchor"]
+        case_endpoints = bucket["endpoint"]
+        if not case_anchors and case_endpoints:
+            problems.append(f"case {case_id!r} has an endpoint but no anchor")
+            continue
+        if not case_anchors:
+            continue
+        if len(case_anchors) != 1:
+            problems.append(
+                f"case {case_id!r} has {len(case_anchors)} anchor events; exactly one is required"
+            )
+            continue
+        if len(case_endpoints) != 1:
+            if not case_endpoints:
+                problems.append(f"case {case_id!r} has an anchor but no endpoint")
+            else:
+                problems.append(
+                    f"case {case_id!r} has {len(case_endpoints)} endpoint events; "
+                    "correlation is ambiguous"
+                )
+            continue
+        anchor_item = case_anchors[0]
+        endpoint_item = case_endpoints[0]
+        try:
+            pairs.append(
+                measure_pair(
+                    case_id,
+                    anchor_item[1],
+                    endpoint_item[1],
+                    duration,
+                    anchor_record_index=anchor_item[0],
+                    end_record_index=endpoint_item[0],
+                )
+            )
+        except EventTimeError as exc:
+            problems.append(f"case {case_id!r}: {exc}")
+
+    if problems or not pairs:
+        return inconclusive(
+            "event correlation was incomplete or out of order — " + "; ".join(problems),
+            {"correlation_problems": problems},
+        )
+
+    common["event_pairs"] = [pair.payload(duration) for pair in pairs]
+    violations = [pair for pair in pairs if not pair.within_bound]
+    if violations:
+        witness = violations[0].payload(duration)
+        indices = list(
+            dict.fromkeys(
+                (violations[0].anchor_record_index, violations[0].end_record_index)
+            )
+        )
+        offending = [records[index] for index in indices]
+        return RequirementResult(
+            requirement_id=req.id,
+            source_clause=clause,
+            verdict=Verdict.VIOLATED,
+            strength=Strength.OBSERVED,
+            signals_required=tuple(req.requires),
+            evidence_summary=(
+                f"Observed event-time violation: {anchor} to {endpoint} took "
+                f"{witness['delta_seconds']} seconds in case {witness['case_id']!r}, "
+                f"outside the inclusive {duration.text} bound."
+            ),
+            details={
+                **common,
+                "offending_trace_segment": offending,
+                "violation_step_indices": indices,
+                "violation_event_pair": witness,
+                "witness": {
+                    "kind": "event_pair",
+                    "provenance": "witness-checked",
+                    "checker": "reasonsmith.event_time.measure_pair",
+                    "payload": witness,
+                },
+            },
+            binding=req.binding,
+            scope=req.scope,
+        )
+
+    return RequirementResult(
+        requirement_id=req.id,
+        source_clause=clause,
+        verdict=Verdict.SATISFIED,
+        strength=Strength.OBSERVED,
+        signals_required=tuple(req.requires),
+        evidence_summary=(
+            f"Observed event-time bounded response for {len(pairs)} case(s): every "
+            f"{endpoint} followed {anchor} within the inclusive {duration.text} bound."
+        ),
+        details=common,
+        binding=req.binding,
+        scope=req.scope,
+    )
+
+
 class ObservedEngine:
-    """Temporal monitor engine powered by rtamt."""
+    """Observed temporal engine: rtamt for positions, direct arithmetic for event deadlines."""
 
     @staticmethod
     def evaluate(
@@ -427,19 +768,59 @@ class ObservedEngine:
     ) -> RequirementResult:
         clause = f"{req.source_document} {req.article_clause}"
 
+        # A bounded-response property selects the event clock by its construct.  Passing an
+        # ordinal domain explicitly is still a refusal: the operator must never be downgraded to
+        # record positions or to a latency field.
+        metric_node: ast.AST | None = None
+        try:
+            candidate = parse_property(req.spec)
+            if bounded_response_calls(candidate):
+                metric_node = candidate
+        except UnsupportedConstructError:
+            # The ordinary parser/refusal path below owns malformed non-metric properties.
+            pass
+        if metric_node is not None:
+            return _event_metric_result(req, records, metric_node, time_domain)
+
         # The domain the duty is to be counted on is a stated input, not a convention of this
-        # function. It defaults to `ORDINAL_DOMAIN` — the record index, which is what every
-        # shipped duty is asked for and what a caller passing nothing keeps getting — so a trace
-        # that gained event timestamps does not thereby lose a verdict it used to have.
+        # function. Positional duties default to `ORDINAL_DOMAIN` — the record index, which is
+        # what a caller passing nothing keeps getting — so a trace that gained event timestamps
+        # does not thereby lose a verdict it used to have.
         required = ORDINAL_DOMAIN if time_domain is None else time_domain
         if not required.is_ordinal:
-            stated = read_time_domain(records)
+            # The trace's own clock contract is read, never assumed. A trace that states event
+            # time badly is refused here for the same reason the metric path refuses it: an
+            # invalid instant is evidence this engine has no clock to count on, not an exception
+            # a caller meets as an aborted run.
+            try:
+                stated = read_time_domain(records)
+            except (TypeError, ValueError) as exc:
+                return RequirementResult(
+                    requirement_id=req.id,
+                    source_clause=clause,
+                    verdict=Verdict.INCONCLUSIVE,
+                    strength=None,
+                    signals_required=tuple(req.requires),
+                    evidence_summary=(
+                        f"Not evaluated: {req.spec!r} was asked for on the {required.kind!r} time "
+                        f"domain, and the trace timestamp contract was refused: {exc}"
+                    ),
+                    details={
+                        "time_domain_required": required.kind,
+                        "time_domain_stated_by_trace": EVENT_TIME,
+                        "records_observed": len(records),
+                        "timestamp_error": str(exc),
+                    },
+                    binding=req.binding,
+                    scope=req.scope,
+                )
             missing = (
                 "this trace records no event times at all, so there is no clock to count on"
                 if stated.is_ordinal
                 else (
-                    "this trace records event times, but the monitor's only time axis is the "
-                    "record index: no metric or interval semantics reads them yet"
+                    "this trace records event times, but this property carries no bounded-response "
+                    "operator to read them with, and the monitor's only time axis is the record "
+                    "index"
                 )
             )
             return RequirementResult(
@@ -539,8 +920,8 @@ class ObservedEngine:
         magnitude_vars.difference_update(presence_signals)
         magnitude_vars.difference_update(contains_signals)
 
-        # Build dataset for rtamt. The time axis comes from the stated domain and nowhere else,
-        # so a later metric semantics is a new `TimeDomain.kind` rather than an edit here.
+        # Build the positional dataset for rtamt. The event-time metric takes the separate branch
+        # above rather than turning these ordinal ticks into elapsed time.
         time_series: dict[str, list[float]] = {"time": required.ticks(len(records))}
         unmeasured: dict[str, int] = {}
         non_boolean_atoms: dict[str, int] = {}

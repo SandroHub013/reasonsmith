@@ -13,6 +13,7 @@ from reasonsmith.adapters.rules import RulesAdapter
 from reasonsmith.engines.observed import ObservedEngine
 from reasonsmith.report import RequirementResult
 from reasonsmith.spec import Requirement
+from reasonsmith.sut import BaseSUT
 from reasonsmith.verdict import EvidenceBasis, Strength, Verdict
 
 
@@ -761,3 +762,275 @@ def test_witness_direction_boundary_refuses_malformed_and_unreplayable_declarati
         pair_req, _counterfactual_sut(),
         [{"protected": 0, "junk": 1}, {"protected": 1, "junk": 1}],
     )[0] == "refuted"
+
+
+_EVENT_PAIR_SPEC = 'within_after(present(aware), present(report), "24h")'
+
+
+def _event_pair_req(spec: str = _EVENT_PAIR_SPEC):
+    return _req("temporal", spec)
+
+
+def _event_pair_records(
+    anchor="2026-01-01T00:00:00Z",
+    end="2026-01-02T00:00:01Z",
+    anchor_case="c1",
+    end_case="c1",
+):
+    return [
+        {"case_id": anchor_case, "aware": True, "__time_domain__": {"aware": anchor}},
+        {"case_id": end_case, "report": True, "__time_domain__": {"report": end}},
+    ]
+
+
+def _event_pair_payload(**overrides):
+    payload = {
+        "case_id": "c1",
+        "anchor_timestamp": "2026-01-01T00:00:00Z",
+        "end_timestamp": "2026-01-02T00:00:01Z",
+        "delta_seconds": 86401.0,
+        "bound": "24h",
+        "deadline_timestamp": "2026-01-02T00:00:00Z",
+        "within_bound": False,
+        "anchor_record_index": 0,
+        "end_record_index": 1,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_an_event_pair_witness_is_re_derived_from_the_duty_and_the_trace() -> None:
+    """The core re-measures the log's own instants against the deadline the duty states."""
+    result = _result(
+        details={
+            "witness": {
+                "kind": "event_pair",
+                "provenance": "trusted-ceiling",
+                "payload": _event_pair_payload(),
+            }
+        }
+    )
+    checked = witness.check_plugin_result(
+        _event_pair_req(), _NoReplay(), _event_pair_records(), result
+    )
+    assert checked.details["witness"]["provenance"] == "witness-checked"
+    assert checked.details["witness"]["checker"].endswith("_event_pair_check")
+
+
+def test_an_event_pair_witness_may_not_bring_its_own_deadline() -> None:
+    """The bound is the duty's. A plug-in that picks a shorter one manufactures the breach."""
+    records = _event_pair_records(end="2026-01-01T02:00:00Z")
+    status, reason = witness._event_pair_check(
+        _event_pair_req(),
+        records,
+        _event_pair_payload(
+            end_timestamp="2026-01-01T02:00:00Z",
+            bound="1h",
+            delta_seconds=7200.0,
+            deadline_timestamp="2026-01-01T01:00:00Z",
+        ),
+    )
+    assert status == "refuted"
+    assert "1h" in reason and "24h" in reason
+
+
+def test_an_event_pair_witness_may_not_run_a_deadline_across_two_cases() -> None:
+    """Correlation is the whole basis of the measurement, so the checker applies the engine's."""
+    status, reason = witness._event_pair_check(
+        _event_pair_req(),
+        _event_pair_records(anchor_case="A", end_case="B"),
+        _event_pair_payload(case_id="A"),
+    )
+    assert status == "refuted"
+    assert "'A'" in reason and "'B'" in reason
+
+
+def test_two_uncorrelated_records_are_no_pair_for_a_plugin_either() -> None:
+    """Records naming no case are their own cases, exactly as the metric evaluator keys them."""
+    unnamed = [
+        {"aware": True, "__time_domain__": {"aware": "2026-01-01T00:00:00Z"}},
+        {"report": True, "__time_domain__": {"report": "2026-01-02T00:00:01Z"}},
+    ]
+    assert witness._event_pair_check(
+        _event_pair_req(), unnamed, _event_pair_payload()
+    )[0] == "refuted"
+
+    one_record = [
+        {
+            "aware": True,
+            "report": True,
+            "__time_domain__": {
+                "aware": "2026-01-01T00:00:00Z",
+                "report": "2026-01-02T00:00:01Z",
+            },
+        }
+    ]
+    assert witness._event_pair_check(
+        _event_pair_req(),
+        one_record,
+        _event_pair_payload(
+            case_id="<unnamed record 0>", anchor_record_index=0, end_record_index=0
+        ),
+    )[0] == "confirmed"
+
+
+def test_an_event_pair_witness_may_not_rename_the_case_the_trace_states() -> None:
+    status, reason = witness._event_pair_check(
+        _event_pair_req(), _event_pair_records(), _event_pair_payload(case_id="somewhere-else")
+    )
+    assert status == "refuted" and "somewhere-else" in reason
+
+
+def test_an_event_pair_witness_may_not_cite_an_instant_the_log_does_not_record() -> None:
+    """A timestamp absent from the named record is a manufactured pair, not a witnessed one."""
+    unclocked = [{"case_id": "c1", "aware": True}, {"case_id": "c1", "report": True}]
+    assert witness._event_pair_check(
+        _event_pair_req(), unclocked, _event_pair_payload()
+    )[0] == "refuted"
+
+    disagreeing = _event_pair_records(end="2026-01-01T06:00:00Z")
+    status, reason = witness._event_pair_check(
+        _event_pair_req(), disagreeing, _event_pair_payload()
+    )
+    assert status == "refuted" and "2026-01-01T06:00:00Z" in reason
+
+
+def test_an_event_pair_witness_may_not_start_a_deadline_at_an_absent_anchor() -> None:
+    records = _event_pair_records()
+    del records[0]["aware"]
+    status, reason = witness._event_pair_check(
+        _event_pair_req(), records, _event_pair_payload()
+    )
+    assert status == "refuted" and "aware" in reason
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"delta_seconds": 999.0}, "refuted"),
+        ({"deadline_timestamp": "2026-03-01T00:00:00Z"}, "refuted"),
+        ({"end_record_index": 7}, "refuted"),
+        ({"anchor_timestamp": "2026-01-01"}, "uncheckable"),
+        ({"bound": "1y"}, "uncheckable"),
+        ({"anchor_record_index": "first"}, "uncheckable"),
+    ],
+)
+def test_an_event_pair_witness_the_core_disagrees_with_is_refuted(overrides, expected) -> None:
+    status, _reason = witness._event_pair_check(
+        _event_pair_req(), _event_pair_records(), _event_pair_payload(**overrides)
+    )
+    assert status == expected
+
+
+def test_an_event_pair_that_re_measures_inside_the_bound_witnesses_nothing() -> None:
+    records = _event_pair_records(end="2026-01-01T12:00:00Z")
+    status, reason = witness._event_pair_check(
+        _event_pair_req(),
+        records,
+        _event_pair_payload(
+            end_timestamp="2026-01-01T12:00:00Z",
+            delta_seconds=43200.0,
+            within_bound=True,
+        ),
+    )
+    assert status == "refuted" and "inside the 24h bound" in reason
+
+
+def test_an_event_pair_witness_without_a_bounded_response_duty_keeps_the_ceiling() -> None:
+    status, reason = witness._event_pair_check(
+        _req("temporal", "always(present(aware))"), _event_pair_records(), _event_pair_payload()
+    )
+    assert status == "uncheckable" and "bounded response" in reason
+
+
+def test_an_event_pair_witness_missing_its_fields_keeps_the_plugins_ceiling() -> None:
+    assert witness._event_pair_check(
+        _event_pair_req(), _event_pair_records(), ["not", "a", "mapping"]
+    )[0] == "uncheckable"
+    partial = _event_pair_payload()
+    del partial["bound"]
+    status, reason = witness._event_pair_check(
+        _event_pair_req(), _event_pair_records(), partial
+    )
+    assert status == "uncheckable" and "bound" in reason
+
+
+def _duplicate_anchor_records():
+    return [
+        {"case_id": "A", "aware": True, "__time_domain__": {"aware": "2026-01-01T00:00:00Z"}},
+        {"case_id": "A", "aware": True, "__time_domain__": {"aware": "2026-01-05T04:00:00Z"}},
+        {"case_id": "A", "report": True, "__time_domain__": {"report": "2026-01-03T00:00:00Z"}},
+    ]
+
+
+def test_a_plugin_may_not_choose_which_duplicate_occurrence_to_measure_from() -> None:
+    """A case with two anchors is ambiguous, and the checker refuses what the engine refuses."""
+    records = _duplicate_anchor_records()
+    engine = ObservedEngine.evaluate(
+        _req("temporal", _EVENT_PAIR_SPEC), BaseSUT({"aware", "report"}), records
+    )
+    assert engine.verdict is Verdict.INCONCLUSIVE
+
+    status, reason = witness._event_pair_check(
+        _event_pair_req(),
+        records,
+        _event_pair_payload(
+            case_id="A",
+            anchor_timestamp="2026-01-01T00:00:00Z",
+            end_timestamp="2026-01-03T00:00:00Z",
+            anchor_record_index=0,
+            end_record_index=2,
+            delta_seconds=172800.0,
+            deadline_timestamp="2026-01-02T00:00:00Z",
+        ),
+    )
+    assert status == "refuted"
+    assert "'aware'" in reason and "[0, 1]" in reason
+
+
+def test_a_duplicate_endpoint_is_refused_the_same_way() -> None:
+    records = [
+        {"case_id": "A", "aware": True, "__time_domain__": {"aware": "2026-01-01T00:00:00Z"}},
+        {"case_id": "A", "report": True, "__time_domain__": {"report": "2026-01-03T00:00:00Z"}},
+        {"case_id": "A", "report": True, "__time_domain__": {"report": "2026-01-04T00:00:00Z"}},
+    ]
+    status, reason = witness._event_pair_check(
+        _event_pair_req(),
+        records,
+        _event_pair_payload(
+            case_id="A",
+            anchor_timestamp="2026-01-01T00:00:00Z",
+            end_timestamp="2026-01-03T00:00:00Z",
+            anchor_record_index=0,
+            end_record_index=1,
+            delta_seconds=172800.0,
+            deadline_timestamp="2026-01-02T00:00:00Z",
+        ),
+    )
+    assert status == "refuted"
+    assert "'report'" in reason and "[1, 2]" in reason
+
+
+def test_a_plugin_result_on_an_ambiguous_case_keeps_only_its_own_ceiling() -> None:
+    """The end-to-end consequence: no `witness-checked` stamp on a pair the core declines."""
+    result = _result(
+        details={
+            "witness": {
+                "kind": "event_pair",
+                "provenance": "trusted-ceiling",
+                "payload": _event_pair_payload(
+                    case_id="A",
+                    anchor_timestamp="2026-01-01T00:00:00Z",
+                    end_timestamp="2026-01-03T00:00:00Z",
+                    anchor_record_index=0,
+                    end_record_index=2,
+                    delta_seconds=172800.0,
+                    deadline_timestamp="2026-01-02T00:00:00Z",
+                ),
+            }
+        }
+    )
+    checked = witness.check_plugin_result(
+        _event_pair_req(), _NoReplay(), _duplicate_anchor_records(), result
+    )
+    assert checked.details["witness"]["provenance"] != "witness-checked"

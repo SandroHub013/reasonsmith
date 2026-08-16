@@ -177,6 +177,28 @@ for every such pair $r,r'$ in traces of $T$. This is a 2-safety property. On an 
 $O(\sigma)$ the atom is $\uparrow$: a log supplies no certified pair differing only in $p$.
 The admissible values of $p$ come from declaration constraints, never from a trace.
 
+**Definition 3.9a (bounded response on the event clock).**
+`within_after(present(a), present(b), Δ)` is the partial, Boolean event-time property for a finite
+case trace. For each case with exactly one timestamped anchor event `a`, it requires exactly one
+timestamped endpoint event `b` in the same case and uses the closed deadline
+
+$$
+0 ≤ t_b - t_a ≤ Δ.
+$$
+
+Each event instant is carried in that record's `__time_domain__` mapping under the same name as its
+`present()` event predicate; both the predicate and its timestamp are required. Timestamps must be
+explicit-offset ISO-8601 values normalised to UTC; the operator never turns record positions or a
+logged latency into time. Records without `case_id` are independent cases, while records sharing a
+non-empty `case_id` may form one case. Missing, duplicate, malformed, out-of-order, or ambiguously
+correlated events make the formula undefined (reported not evaluated), and a trace with no anchor
+is not a vacuous pass. Hour/day bounds are elapsed durations; month bounds use calendar arithmetic
+with end-of-month clamping. The construct stands alone as the whole `spec`, or under the one
+accepted enclosing temporal shape
+`always(implies(present(a), within_after(present(a), ...)))`, whose trigger the loader refuses
+unless it is the same named anchor the metric measures; no other position is accepted.
+This is a behavioural observed capability, not a proof over a system's possible event times.
+
 **Remark 3.2 (where factoring fails).** The relational atom does not factor through individual
 traces, because its truth quantifies over pairs of executions and their agreement on all inputs
 except $p$. It cannot be composed with a conjunction, negation, or implication in this language.

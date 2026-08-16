@@ -47,13 +47,15 @@ string            = ? any Python string literal ? ;
 
 call              = record_atom | relational_atom | open_texture_atom
                   | temporal_call | connective_call | arithmetic_call ;
-record_atom       = "present" , "(" , name , ")"
+record_atom       = presence_atom
                   | "contains" , "(" , name , "," , string , ")" ;
+presence_atom     = "present" , "(" , name , ")" ;
 relational_atom   = "counterfactually_invariant" , "(" , name , "," , name , ")" ;
 open_texture_atom = "undetermined" , "(" , name , "," , string , "," , string , ")"
                   | "degree" , "(" , name , "," , string , ")" ;
 temporal_call     = unary_temporal , "(" , arrow_expr , ")"
-                  | binary_temporal , "(" , arrow_expr , "," , arrow_expr , ")" ;
+                  | binary_temporal , "(" , arrow_expr , "," , arrow_expr , ")"
+                  | "within_after" , "(" , presence_atom , "," , presence_atom , "," , string , ")" ;
 unary_temporal    = "always" | "eventually" | "once" | "historically"
                   | "next" | "prev" | "rise" | "fall" ;
 binary_temporal   = "until" | "since" ;
@@ -75,6 +77,9 @@ implication and equivalence calls. Numeric positions are operands of unary signs
 
 - the first argument of `present`, `contains`, `counterfactually_invariant`, `undetermined`, and
   `degree` is a signal name;
+- `within_after` has exactly two named `present()` event predicates and one fixed duration string;
+  it is supported alone or in `always(implies(present(anchor), within_after(...)))`, and reads the
+  event-time contract rather than ordinal positions;
 - a `contains` phrase is nonempty and ASCII;
 - `counterfactually_invariant` has two distinct names and is the whole `spec`;
 - `undetermined` and `degree` cannot occur together;
@@ -118,6 +123,11 @@ identifier is part of the language contract and is preserved verbatim.
 | `R-BARE-BOOLEAN-CONSTANT` | `True` or `False` standing as a Boolean atom |
 | `R-CONFLICTING-ROLES` | one signal in both the bare-Boolean and the measured-magnitude role |
 | `R-TEMPORAL-BOOLEAN-COMPARISON` | `== `/`!=` against a Boolean literal inside the temporal fragment |
+| `R-BOUNDED-RESPONSE-OPERAND` | `within_after()` given an anchor or endpoint that is not `present(name)` |
+| `R-BOUNDED-RESPONSE-SAME-EVENT` | `within_after()` given one event name as both anchor and endpoint |
+| `R-BOUNDED-RESPONSE-DURATION` | `within_after()` given a computed bound, or a string the duration grammar does not admit |
+| `R-BOUNDED-RESPONSE-COMPOSED` | `within_after()` in any position but the whole `spec` or the one enclosing shape, or more than one of them in a `spec` |
+| `R-BOUNDED-RESPONSE-TRIGGER` | the enclosing implication's trigger naming a signal other than the anchor `within_after()` measures |
 
 The seven fragments are decided by the shape of the formula, not by the word a pack author typed.
 

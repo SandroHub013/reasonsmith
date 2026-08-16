@@ -219,7 +219,7 @@ monthly evidence.
 ## A predicate the law states without a boundary — two ways to write it
 
 Most of what a shipped pack has left out is not a construct. It is a *predicate*: *meaningful*,
-*sufficiently detailed*, *adequate*, *appropriate*. Twenty-eight of the thirty-eight shipped
+*sufficiently detailed*, *adequate*, *appropriate*. Twenty-eight of the thirty-nine shipped
 requirements are presence checks and the fourth column of [`refinement.md`](refinement.md) says so
 row after row. There are two ways to write one, and they are the sixth and seventh fragments.
 
@@ -467,6 +467,23 @@ figure has to be repeated identically in every line of the log. The trace then c
 statistic three times, not three measurements, and the violated finding reads `failed at decision
 step(s) [0, 1, 2]` — three breaching decisions, when there was one number. The step indices in a
 parity finding count records, not findings, and they will overstate the breach every time.
+
+## Bounded-response event deadlines
+
+The property language has one metric temporal construct, `within_after(present(anchor),
+present(endpoint), "24h")`. It is intentionally narrow: the two named predicates must be
+timestamped independently under `sut.TIME_DOMAIN_KEY`, and records must carry a non-empty
+`case_id` when an incident spans records (a record with no id is one case by itself). The observed
+engine normalises explicit-offset ISO-8601 timestamps to UTC and checks the closed bound
+`0 <= t_end - t_start <= Δ`; it does not convert record positions or read a logged latency. Missing,
+duplicate, malformed, out-of-order, or ambiguously correlated events are **not evaluated**, never a
+pass. `h` and `d` are elapsed units; `mo` is calendar arithmetic with end-of-month clamping, not
+a 30-day approximation.
+
+The operator does not settle open-textured legal limbs such as “without undue delay”, “actively
+exploited”, “timely”, or “severe incident”. Keep those limbs visible in the rationale/refinement
+record or as separate `undetermined()` requirements; do not replace them with a number merely to
+make a deadline property parse. The CRA Article 14 pack is the worked example.
 
 ## Internal-policy sources: provenance, not legal authority
 

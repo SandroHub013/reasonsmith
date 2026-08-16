@@ -67,7 +67,9 @@ from reasonsmith.statistical import (
     STATISTICAL_MEASUREMENT_KEY as STATISTICAL_PAYLOAD_KEY,
 )
 from reasonsmith.sut import (
+    EVENT_TIME,
     ORDINAL_TIME,
+    TIME_DOMAIN_KEY,
     SystemUnderTest,
     _validate_capability_collection,
     read_time_domain,
@@ -183,6 +185,7 @@ WITNESS_KINDS = (
     "execution_pair",
     "position_certificate",
     "trace_prefix",
+    "event_pair",
 )
 WITNESS_PROVENANCES = ("witness-checked", "trusted-ceiling")
 
@@ -1285,9 +1288,10 @@ class ConformanceReport:
     is in `to_dict` because it qualifies every temporal verdict there. `"ordinal"` is a log that
     says nothing about time, which is every log until one carries `sut.TIME_DOMAIN_KEY`, and it is
     also what an unread trace reports — a run that needed no trace read no clock either. `"event"`
-    says the log records when things happened; it does not say a verdict was counted on those
-    timestamps, because none is: every duty is answered on the record index until a metric
-    semantics exists (`docs/semantics.md` §2).
+    says the log records when things happened, and it is the clock a bounded-response duty is
+    counted on (`rulelang.BOUNDED_RESPONSE_CALL`, `docs/theory/03-semantics.md` Definition 3.9a).
+    It does not say every verdict in the report was: a duty written without that operator is still
+    counted on the record index whatever clock the trace states.
     """
 
     pack_id: str
@@ -2378,12 +2382,22 @@ def check_conformance(
         )
         for req in pack.requirements
     ]
+    trace = resources.records_read()
+    try:
+        stated_time_domain = read_time_domain(trace).kind
+    except (TypeError, ValueError):
+        # A malformed event clock is an evidence refusal for the metric duty, not a reason to hide
+        # the rest of an otherwise useful report. Preserve the fact that the trace attempted to
+        # state event time without claiming that its instants were valid.
+        stated_time_domain = (
+            EVENT_TIME if any(TIME_DOMAIN_KEY in record for record in trace) else ORDINAL_TIME
+        )
     return ConformanceReport(
         pack_id=pack.id,
         system_name=system_name,
         system_scope=system_scope,
         system_domains=sys_domains,
         results=tuple(results),
-        time_domain=read_time_domain(resources.records_read()).kind,
-        decisions=decision_accounts(resources.records_read()),
+        time_domain=stated_time_domain,
+        decisions=decision_accounts(trace),
     )
