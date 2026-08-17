@@ -216,6 +216,37 @@ that `x` is present at every sampled position. If the policy means monthly, stat
 required `this formula proves X; it does not prove Y` note and do not call the repeated field
 monthly evidence.
 
+### The shapes the monitor reads, and what the verdict reads
+
+A temporal duty's verdict is the formula's value at the **first position** of the trace
+(`rulelang.eval_temporal_trace`). That rule decides what each operator means as the outermost
+shape of a spec:
+
+| Shape | Reading at the first position |
+|---|---|
+| `always(f)` | `f` holds at every position |
+| `eventually(f)` | `f` holds at some position |
+| `next(f)` | `f` holds at the second position |
+| `prev(f)` | vacuously true — the first position has no earlier one |
+| `once(f)` | `f` holds at the first position |
+| `historically(f)` | `f` holds at the first position |
+| `rise(f)` | `f` holds at the first position |
+| `fall(f)` | `f` does not hold at the first position |
+| `until(a, b)` | `b` holds at some position `j`, and `a` holds at every position before `j` |
+| `since(a, b)` | `b` holds at the first position |
+
+The past-looking and edge operators say little as the outermost shape, because the first position
+has no past: `once`, `historically` and `since` read the first record only, and `prev(f)` cannot
+be violated there at all. They earn their keep under an outer `always` — `always(once(f))` asks
+that `f` has held by every position of the trace. The golden fixtures in
+`tests/test_observed_temporal_fixtures.py` pin one satisfying and one violating trace per shape,
+the vacuity of `prev`, and the refusals below.
+
+Shapes the monitor refuses are reported *not evaluated*, never answered: the remainder operator
+`%`, a chained comparison `a < b < c`, and an equivalence `Iff(a, b)` — rtamt parses all three
+under a different semantics from the language's — and anything rtamt's grammar rejects outright,
+such as `!=`.
+
 ## A predicate the law states without a boundary — two ways to write it
 
 Most of what a shipped pack has left out is not a construct. It is a *predicate*: *meaningful*,
